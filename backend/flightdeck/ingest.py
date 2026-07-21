@@ -142,7 +142,7 @@ def _title_upsert(conn, obj: dict) -> None:
             "INSERT INTO session_meta (session_id, title, title_source) "
             "VALUES (?, ?, 'ai') ON CONFLICT(session_id) DO UPDATE SET "
             "title=excluded.title, title_source='ai' "
-            "WHERE session_meta.title_source IS NOT 'custom'",
+            "WHERE session_meta.title_source IS DISTINCT FROM 'custom'",
             (sid, title))
 
 

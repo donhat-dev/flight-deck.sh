@@ -27,7 +27,8 @@ dev:                        ## fast local dev: backend --reload + vite HMR (Ctrl
 	./demo.sh
 
 serve:                      ## prod-style single process: serve built dist, no reload
-	cd backend && PATH="$(NODE_BIN):$$PATH" $(RUN_ENV) ../.venv/bin/uvicorn flightdeck.server:app \
+	cd backend && set -a && [ -f ../.env ] && . ../.env; set +a; \
+	  PATH="$(NODE_BIN):$$PATH" $(RUN_ENV) ../.venv/bin/uvicorn flightdeck.server:app \
 	  --host 127.0.0.1 --port $(PORT)
 
 service:                    ## install the systemd --user unit (inert until `make enable`)

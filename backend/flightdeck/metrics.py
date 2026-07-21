@@ -123,7 +123,8 @@ def sessions(conn, limit: int = 100, offset: int = 0, since=None,
         s["cost"] += c or 0.0
     # project per session: fetch one representative cwd
     for row in conn.execute(
-            "SELECT session_id, project FROM messages GROUP BY session_id"):
+            "SELECT session_id, MAX(project) AS project FROM messages "
+            "GROUP BY session_id"):
         if row["session_id"] in agg:
             agg[row["session_id"]]["project"] = row["project"]
     # session title from the ai-title records captured during ingest
