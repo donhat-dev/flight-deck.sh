@@ -1,0 +1,613 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FlightDeck Spend — Re-layout</title>
+  <style>
+    :root {
+      --ground: #e8e3d8;
+      --raise: #f2eee5;
+      --raise-2: #ded8cb;
+      --shell: rgba(46, 44, 40, 0.035);
+      --hair: rgba(46, 44, 40, 0.14);
+      --hair-2: rgba(46, 44, 40, 0.075);
+      --ink: #2e2c28;
+      --dim: rgba(46, 44, 40, 0.66);
+      --faint: rgba(46, 44, 40, 0.44);
+      --coral: #d93a18;
+      --coral-deep: #b02c0c;
+      --coral-mark: #ff5133;
+      --coral-soft: rgba(217, 58, 24, 0.11);
+      --sky: #3e7cb1;
+      --sky-soft: rgba(62, 124, 177, 0.12);
+      --amber: #a56518;
+      --shadow-sm: 0 1px 2px rgba(60, 52, 40, 0.12);
+      --shadow: 0 9px 24px -15px rgba(60, 52, 40, 0.34);
+      --shadow-lg: 0 24px 58px -28px rgba(60, 52, 40, 0.34);
+      --core-hi: inset 0 1px 0 rgba(255, 255, 255, 0.52);
+      --r-shell: 26px;
+      --r-core: 20px;
+      --r-chip: 13px;
+      --ease: cubic-bezier(.32,.72,0,1);
+      color-scheme: light;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; min-height: 100%; }
+
+    body {
+      min-width: 1060px;
+      background:
+        radial-gradient(circle at 83% 8%, rgba(244, 186, 98, .085), transparent 27%),
+        radial-gradient(circle at 63% 96%, rgba(62, 124, 177, .065), transparent 31%),
+        radial-gradient(circle at 10% 15%, rgba(217, 58, 24, .04), transparent 25%),
+        var(--ground);
+      color: var(--ink);
+      font-family: Outfit, "Avenir Next", Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 13px;
+      letter-spacing: -.008em;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: .018;
+      mix-blend-mode: multiply;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.7'/%3E%3C/svg%3E");
+      z-index: 20;
+    }
+
+    button { font: inherit; }
+    .mono, .metric-value, .table, .eyebrow, .range, .tag, .tiny, .axis-label, .legend {
+      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 224px minmax(0, 1fr); }
+
+    .sidebar {
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      border-right: 1px solid var(--hair-2);
+      padding: 18px 14px 14px;
+      display: flex;
+      flex-direction: column;
+      background: rgba(232, 227, 216, .72);
+    }
+
+    .brand {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 8px;
+      font-size: 15px;
+      font-weight: 820;
+      letter-spacing: -.035em;
+    }
+
+    .roundel {
+      position: relative;
+      width: 21px;
+      height: 21px;
+      border: 1.5px solid var(--ink);
+      border-radius: 50%;
+      overflow: hidden;
+      background: linear-gradient(var(--sky) 0 47%, var(--raise) 47% 100%);
+    }
+
+    .roundel::after {
+      content: "";
+      position: absolute;
+      left: 2px; right: 2px; top: 9px;
+      height: 2px;
+      border-radius: 3px;
+      background: var(--coral);
+    }
+
+    .workspace {
+      margin: 8px 2px 16px;
+      height: 44px;
+      border: 1px solid var(--hair-2);
+      border-radius: 12px;
+      background: rgba(242, 238, 229, .54);
+      padding: 0 11px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--dim);
+      font-size: 11px;
+    }
+
+    .workspace strong { color: var(--ink); font-weight: 650; }
+
+    .nav-label {
+      padding: 0 11px;
+      margin: 1px 0 7px;
+      color: var(--faint);
+      font: 9px/1 "IBM Plex Mono", ui-monospace, monospace;
+      letter-spacing: .17em;
+      text-transform: uppercase;
+    }
+
+    nav { display: grid; gap: 3px; }
+
+    .nav-item {
+      border: 0;
+      background: transparent;
+      color: var(--dim);
+      width: 100%;
+      height: 44px;
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      align-items: center;
+      gap: 4px;
+      padding: 0 10px;
+      border-radius: 11px;
+      text-align: left;
+      cursor: pointer;
+      transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease);
+    }
+
+    .nav-item:hover { background: rgba(46, 44, 40, .045); color: var(--ink); }
+    .nav-item:active { transform: scale(.985); }
+    .nav-item.active { background: var(--coral-soft); color: var(--coral-deep); font-weight: 650; }
+    .nav-item.active .nav-icon { color: var(--coral); }
+    .nav-icon { width: 18px; text-align: center; color: var(--faint); font-size: 15px; }
+    .nav-count { font: 9px "IBM Plex Mono", ui-monospace, monospace; color: var(--faint); }
+
+    .side-spacer { flex: 1; }
+
+    .quota-card {
+      padding: 13px;
+      border: 1px solid var(--hair-2);
+      border-radius: 16px;
+      background: rgba(242, 238, 229, .48);
+      box-shadow: var(--core-hi);
+    }
+
+    .quota-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; }
+    .quota-head span:first-child { font: 9px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: .15em; text-transform: uppercase; color: var(--faint); }
+    .quota-row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 9px; }
+    .quota-row + .quota-row { margin-top: 11px; }
+    .mini-ring { width: 27px; height: 27px; transform: rotate(-90deg); }
+    .mini-ring circle { fill: none; stroke-width: 3; }
+    .mini-ring .track { stroke: var(--raise-2); }
+    .mini-ring .value { stroke: var(--coral-mark); stroke-linecap: round; }
+    .quota-name { font-size: 10px; color: var(--dim); }
+    .quota-reset { margin-top: 2px; font: 8px "IBM Plex Mono", ui-monospace, monospace; color: var(--faint); }
+    .quota-pct { font: 10px "IBM Plex Mono", ui-monospace, monospace; }
+    .status-row { display: flex; align-items: center; justify-content: space-between; padding: 13px 6px 0; color: var(--dim); font-size: 10px; }
+    .live { display: inline-flex; align-items: center; gap: 7px; }
+    .live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--coral); }
+
+    .main { min-width: 0; padding: 24px 38px 34px; }
+    .canvas { width: min(100%, 1440px); margin: 0 auto; }
+
+    .topbar {
+      min-height: 52px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 22px;
+      margin-bottom: 16px;
+    }
+
+    h1 { font-size: 19px; line-height: 1.1; letter-spacing: -.03em; margin: 0 0 5px; font-weight: 780; }
+    .subtitle { color: var(--dim); font-size: 11px; }
+    .subtitle .dot { padding: 0 7px; color: var(--faint); }
+
+    .controls { display: flex; align-items: center; gap: 8px; }
+    .control-shell { display: inline-flex; align-items: center; height: 50px; padding: 3px; gap: 2px; border: 1px solid var(--hair-2); border-radius: 14px; background: rgba(242, 238, 229, .55); }
+    .range, .icon-btn, .compare-btn {
+      border: 0;
+      background: transparent;
+      color: var(--dim);
+      cursor: pointer;
+      border-radius: 9px;
+      height: 44px;
+      padding: 0 10px;
+      font-size: 9px;
+      transition: background .18s var(--ease), color .18s var(--ease), transform .18s var(--ease);
+    }
+    .range:hover, .icon-btn:hover, .compare-btn:hover { color: var(--ink); background: rgba(46, 44, 40, .05); }
+    .range.active { color: #fff; background: var(--coral); }
+    .range:active, .icon-btn:active, .compare-btn:active { transform: scale(.97); }
+    .compare-btn { border: 1px solid var(--hair-2); height: 44px; background: rgba(242, 238, 229, .55); padding: 0 12px; }
+    .icon-btn { width: 44px; height: 44px; padding: 0; border: 1px solid var(--hair-2); background: rgba(242, 238, 229, .55); }
+    .day-btn { width: auto; padding: 0 11px; font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 9px; }
+
+    .shell {
+      padding: 5px;
+      border-radius: var(--r-shell);
+      border: 1px solid var(--hair-2);
+      background: var(--shell);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .core {
+      height: 100%;
+      border-radius: var(--r-core);
+      border: 1px solid var(--hair-2);
+      background: rgba(242, 238, 229, .88);
+      box-shadow: var(--core-hi), var(--shadow);
+      overflow: hidden;
+    }
+
+    .overview { margin-bottom: 16px; }
+    .overview .core { display: grid; grid-template-columns: 1.25fr 1fr .92fr; min-height: 186px; }
+
+    .overview-section { padding: 23px 25px 20px; position: relative; }
+    .overview-section + .overview-section { border-left: 1px solid var(--hair-2); }
+    .eyebrow { font-size: 9px; letter-spacing: .17em; line-height: 1.2; text-transform: uppercase; color: var(--faint); }
+    .eyebrow-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .info { width: 17px; height: 17px; border: 1px solid var(--hair); border-radius: 50%; display: grid; place-items: center; font: 9px Georgia, serif; color: var(--faint); }
+    .metric-value { margin-top: 11px; font-size: 33px; line-height: 1; letter-spacing: -.055em; }
+    .metric-value.coral { color: var(--coral-deep); }
+    .metric-caption { margin-top: 8px; color: var(--dim); font-size: 10px; line-height: 1.45; }
+
+    .value-footer { display: flex; align-items: end; justify-content: space-between; gap: 22px; margin-top: 19px; }
+    .micro-stat { min-width: 72px; }
+    .micro-label { color: var(--faint); font: 8px "IBM Plex Mono", ui-monospace, monospace; text-transform: uppercase; letter-spacing: .12em; }
+    .micro-value { margin-top: 4px; font: 12px "IBM Plex Mono", ui-monospace, monospace; }
+    .mini-bars { height: 29px; flex: 1; display: flex; align-items: end; gap: 3px; opacity: .82; }
+    .mini-bars i { flex: 1; min-width: 3px; border-radius: 2px 2px 0 0; background: var(--coral); }
+
+    .saving-list { margin-top: 16px; display: grid; gap: 15px; }
+    .saving-line { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: end; }
+    .saving-name { font-size: 11px; color: var(--dim); }
+    .saving-value { font: 19px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: -.04em; }
+    .saving-note { margin-top: 3px; color: var(--faint); font-size: 9px; }
+    .saving-rule { height: 1px; background: var(--hair-2); }
+
+    .efficiency-grid { margin-top: 16px; display: grid; grid-template-columns: 82px 1fr; gap: 17px; align-items: center; }
+    .gauge { width: 78px; height: 78px; position: relative; display: grid; place-items: center; }
+    .gauge svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+    .gauge circle { fill: none; stroke-width: 6; }
+    .gauge .track { stroke: var(--raise-2); }
+    .gauge .value { stroke: var(--coral); stroke-linecap: round; }
+    .gauge-number { font: 15px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: -.04em; }
+    .eff-list { display: grid; gap: 11px; }
+    .eff-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+    .eff-row span:first-child { color: var(--faint); font-size: 9px; }
+    .eff-row strong { font: 11px "IBM Plex Mono", ui-monospace, monospace; font-weight: 500; }
+
+    .layout-row { display: grid; grid-template-columns: minmax(0, 1.78fr) minmax(330px, .82fr); gap: 16px; margin-bottom: 16px; }
+    .panel-head { min-height: 51px; padding: 0 19px; border-bottom: 1px solid var(--hair-2); display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .panel-title { font-weight: 720; font-size: 12px; }
+    .panel-meta { color: var(--faint); font: 9px "IBM Plex Mono", ui-monospace, monospace; }
+    .legend { display: flex; align-items: center; gap: 13px; color: var(--faint); font-size: 8px; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { width: 9px; height: 3px; border-radius: 2px; background: var(--coral); }
+    .legend i.sky { background: var(--sky); }
+    .legend i.dash { height: 0; border-top: 1px dashed var(--amber); background: none; }
+
+    .trend-card .core { min-height: 325px; }
+    .chart-wrap { height: 268px; padding: 17px 17px 13px 14px; position: relative; }
+    .chart-grid { position: absolute; left: 52px; right: 18px; top: 20px; bottom: 35px; display: grid; grid-template-rows: repeat(4, 1fr); }
+    .chart-grid div { border-top: 1px solid var(--hair-2); }
+    .axis-y { position: absolute; left: 16px; top: 16px; bottom: 34px; width: 31px; display: flex; flex-direction: column; justify-content: space-between; align-items: flex-end; color: var(--faint); font: 8px "IBM Plex Mono", ui-monospace, monospace; }
+    .bars { position: absolute; left: 54px; right: 18px; top: 20px; bottom: 35px; display: flex; gap: clamp(4px, .55vw, 9px); align-items: end; }
+    .bar-group { flex: 1; height: 100%; position: relative; display: flex; align-items: end; justify-content: center; }
+    .bar { width: 74%; max-width: 28px; min-width: 9px; border-radius: 4px 4px 1px 1px; background: #ee8b77; transition: height .5s var(--ease), background .2s var(--ease), transform .2s var(--ease); cursor: pointer; }
+    .bar:hover { background: var(--coral); transform: translateY(-2px); }
+    .bar.current { background: var(--coral); }
+    .avg-line { position: absolute; left: 55px; right: 19px; top: 20px; bottom: 35px; pointer-events: none; }
+    .avg-line svg { width: 100%; height: 100%; overflow: visible; }
+    .budget-line { position: absolute; left: 53px; right: 18px; top: 83px; border-top: 1px dashed rgba(165, 101, 24, .7); }
+    .budget-label { position: absolute; right: 18px; top: 69px; padding: 2px 4px; background: var(--raise); color: var(--amber); font: 8px "IBM Plex Mono", ui-monospace, monospace; }
+    .axis-x { position: absolute; left: 53px; right: 18px; bottom: 12px; display: flex; justify-content: space-between; color: var(--faint); font: 8px "IBM Plex Mono", ui-monospace, monospace; }
+
+    .signals .core { min-height: 325px; }
+    .signal-list { padding: 5px 17px 14px; }
+    .signal {
+      padding: 14px 2px 13px;
+      display: grid;
+      grid-template-columns: 9px 1fr auto;
+      gap: 10px;
+      align-items: start;
+      border-bottom: 1px solid var(--hair-2);
+    }
+    .signal:last-child { border-bottom: 0; }
+    .signal-mark { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; background: var(--coral); }
+    .signal-mark.sky { background: var(--sky); }
+    .signal-mark.amber { background: var(--amber); }
+    .signal-title { font-size: 11px; font-weight: 670; }
+    .signal-copy { margin-top: 4px; color: var(--dim); font-size: 10px; line-height: 1.45; }
+    .signal-value { font: 11px "IBM Plex Mono", ui-monospace, monospace; }
+    .signal-foot { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+    .tag { display: inline-flex; align-items: center; gap: 5px; min-height: 22px; padding: 0 8px; border: 1px solid var(--hair-2); border-radius: 999px; color: var(--dim); background: rgba(46, 44, 40, .025); font-size: 8px; }
+
+    .models .core { min-height: 286px; }
+    .model-body { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(310px, .6fr); }
+    .model-table-wrap { border-right: 1px solid var(--hair-2); overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { height: 42px; color: var(--faint); font-size: 8px; font-weight: 500; text-align: right; border-bottom: 1px solid var(--hair-2); padding: 0 15px; }
+    th:first-child, td:first-child { text-align: left; padding-left: 19px; }
+    td { height: 39px; padding: 0 15px; text-align: right; border-bottom: 1px solid var(--hair-2); font-size: 10px; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: rgba(46, 44, 40, .026); }
+    .model-name { font-family: Outfit, "Avenir Next", system-ui, sans-serif; font-weight: 610; }
+    .cost { color: var(--coral-deep); }
+    .share-panel { padding: 20px; }
+    .share-total { margin-top: 10px; font: 24px "IBM Plex Mono", ui-monospace, monospace; letter-spacing: -.05em; }
+    .share-caption { margin-top: 5px; color: var(--dim); font-size: 9px; }
+    .stacked { height: 13px; display: flex; margin: 19px 0 15px; border-radius: 8px; overflow: hidden; background: var(--raise-2); }
+    .stacked i:nth-child(1) { width: 63.03%; background: var(--coral); }
+    .stacked i:nth-child(2) { width: 32.25%; background: #e98771; }
+    .stacked i:nth-child(3) { width: 3.99%; background: var(--sky); }
+    .stacked i:nth-child(4) { width: .69%; background: #7da7c8; }
+    .stacked i:nth-child(5) { width: .04%; background: var(--ink); }
+    .share-list { display: grid; gap: 9px; }
+    .share-row { display: grid; grid-template-columns: 8px 1fr auto; gap: 8px; align-items: center; color: var(--dim); font-size: 9px; }
+    .share-dot { width: 7px; height: 7px; border-radius: 2px; background: var(--coral); }
+    .share-row:nth-child(2) .share-dot { background: #e98771; }
+    .share-row:nth-child(3) .share-dot { background: var(--sky); }
+    .share-row strong { color: var(--ink); font: 9px "IBM Plex Mono", ui-monospace, monospace; font-weight: 500; }
+    .footnote { margin: 10px 3px 0; color: var(--faint); font-size: 8px; line-height: 1.5; }
+
+    button:focus-visible { outline: 2px solid var(--coral-deep); outline-offset: 2px; }
+
+    .night {
+      --ground: #090a0b;
+      --raise: #141516;
+      --raise-2: #242526;
+      --shell: rgba(255,255,255,.025);
+      --hair: rgba(244,243,239,.17);
+      --hair-2: rgba(244,243,239,.09);
+      --ink: #f4f3ef;
+      --dim: rgba(244,243,239,.68);
+      --faint: rgba(244,243,239,.43);
+      --coral-soft: rgba(217,58,24,.18);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,.4);
+      --shadow: 0 12px 28px -16px rgba(0,0,0,.76);
+      --shadow-lg: 0 24px 58px -25px rgba(0,0,0,.84);
+      --core-hi: inset 0 1px 0 rgba(255,255,255,.055);
+      color-scheme: dark;
+    }
+    body.night { background: radial-gradient(circle at 75% 0, rgba(62,124,177,.07), transparent 30%), var(--ground); }
+    .night .sidebar { background: rgba(9,10,11,.84); }
+    .night .core { background: rgba(20,21,22,.94); }
+    .night .range.active { color: #fff; }
+    .night .budget-label { background: var(--raise); }
+    .night .bar { background: #9e3e2d; }
+
+    @media (max-width: 1260px) {
+      .app { grid-template-columns: 196px minmax(0, 1fr); }
+      .main { padding-inline: 24px; }
+      .overview .core { grid-template-columns: 1.18fr 1fr .9fr; }
+      .overview-section { padding-inline: 19px; }
+      .layout-row { grid-template-columns: minmax(0, 1.55fr) minmax(310px, .8fr); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><span class="roundel" aria-hidden="true"></span><span>FlightDeck</span></div>
+      <div class="workspace"><span><strong>Local</strong> workspace</span><span class="mono">⌄</span></div>
+
+      <div class="nav-label">Observe</div>
+      <nav aria-label="Primary navigation">
+        <button class="nav-item active"><span class="nav-icon">›</span><span>Spend</span><span class="nav-count">01</span></button>
+        <button class="nav-item"><span class="nav-icon">≡</span><span>Logbook</span><span></span></button>
+        <button class="nav-item"><span class="nav-icon">⌁</span><span>Route Loom</span><span></span></button>
+        <button class="nav-item"><span class="nav-icon">#</span><span>Charts</span><span></span></button>
+        <button class="nav-item"><span class="nav-icon">⇄</span><span>Diff</span><span></span></button>
+      </nav>
+      <div class="nav-label" style="margin-top:17px">System</div>
+      <nav>
+        <button class="nav-item"><span class="nav-icon">⬡</span><span>Hub</span><span class="nav-count">6</span></button>
+      </nav>
+
+      <div class="side-spacer"></div>
+      <section class="quota-card" aria-label="Quota status">
+        <div class="quota-head"><span>Quota</span><span class="mono" style="font-size:10px;color:var(--faint)">↻</span></div>
+        <div class="quota-row">
+          <svg class="mini-ring" viewBox="0 0 36 36" aria-hidden="true"><circle class="track" cx="18" cy="18" r="14"/><circle class="value" cx="18" cy="18" r="14" stroke-dasharray="21 100" pathLength="100"/></svg>
+          <div><div class="quota-name">Session (5h)</div><div class="quota-reset">resets Mon 06:39 PM</div></div><div class="quota-pct">21%</div>
+        </div>
+        <div class="quota-row">
+          <svg class="mini-ring" viewBox="0 0 36 36" aria-hidden="true"><circle class="track" cx="18" cy="18" r="14"/><circle class="value" cx="18" cy="18" r="14" stroke-dasharray="45 100" pathLength="100"/></svg>
+          <div><div class="quota-name">Weekly</div><div class="quota-reset">resets Tue 09:59 AM</div></div><div class="quota-pct">45%</div>
+        </div>
+      </section>
+      <div class="status-row"><span class="live">live</span><span class="mono">v0.8.4</span></div>
+    </aside>
+
+    <main class="main">
+      <div class="canvas">
+        <header class="topbar">
+          <div>
+            <h1>Spend</h1>
+            <div class="subtitle"><span id="date-copy">Jun 22 – Jul 20, 2026</span><span class="dot">·</span>133 sessions<span class="dot">·</span>66.0K turns</div>
+          </div>
+          <div class="controls">
+            <div class="control-shell" aria-label="Date range">
+              <button class="range" data-range="Today">Today</button>
+              <button class="range" data-range="7 days">7 days</button>
+              <button class="range" data-range="30 days">30 days</button>
+              <button class="range active" data-range="All">All</button>
+            </div>
+            <button class="compare-btn">Compare: off</button>
+            <button class="icon-btn day-btn" id="theme-btn" title="Toggle theme">☼ Day</button>
+            <button class="icon-btn" title="Export">⇩</button>
+          </div>
+        </header>
+
+        <section class="shell overview" aria-label="Spend overview">
+          <div class="core">
+            <div class="overview-section">
+              <div class="eyebrow-row"><div class="eyebrow">API-equivalent value</div><div class="info" title="Comparable list-price value, not an invoice total">i</div></div>
+              <div class="metric-value coral">$23,761.74</div>
+              <div class="metric-caption">Comparable list-price value across all captured usage. This is not the amount charged.</div>
+              <div class="value-footer">
+                <div class="micro-stat"><div class="micro-label">Per session</div><div class="micro-value">$178.66</div></div>
+                <div class="micro-stat"><div class="micro-label">Per 1K turns</div><div class="micro-value">$360.03</div></div>
+                <div class="mini-bars" aria-hidden="true">
+                  <i style="height:13%"></i><i style="height:20%"></i><i style="height:18%"></i><i style="height:35%"></i><i style="height:42%"></i><i style="height:77%"></i><i style="height:53%"></i><i style="height:91%"></i><i style="height:66%"></i><i style="height:49%"></i><i style="height:24%"></i>
+                </div>
+              </div>
+            </div>
+
+            <div class="overview-section">
+              <div class="eyebrow-row"><div class="eyebrow">Avoided value</div><div class="info" title="Savings estimates use current API list prices">i</div></div>
+              <div class="saving-list">
+                <div class="saving-line">
+                  <div><div class="saving-name">Cache savings</div><div class="saving-note">cache read + write value</div></div>
+                  <div class="saving-value">$111,681.88</div>
+                </div>
+                <div class="saving-rule"></div>
+                <div class="saving-line">
+                  <div><div class="saving-name">Versus subscription</div><div class="saving-note">API equivalent minus flat plan</div></div>
+                  <div class="saving-value">$23,577.76</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="overview-section">
+              <div class="eyebrow-row"><div class="eyebrow">Efficiency</div><div class="info" title="Input-token cache performance">i</div></div>
+              <div class="efficiency-grid">
+                <div class="gauge">
+                  <svg viewBox="0 0 90 90" aria-hidden="true"><circle class="track" cx="45" cy="45" r="36"/><circle class="value" cx="45" cy="45" r="36" pathLength="100" stroke-dasharray="96.7 100"/></svg>
+                  <div class="gauge-number">96.7%</div>
+                </div>
+                <div class="eff-list">
+                  <div class="eff-row"><span>Cache hit</span><strong>96.7%</strong></div>
+                  <div class="eff-row"><span>Avg context / turn</span><strong>339.2K</strong></div>
+                  <div class="eff-row"><span>Uncached input</span><strong>14.2M</strong></div>
+                  <div class="eff-row"><span>Output tokens</span><strong>113.3M</strong></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="layout-row">
+          <section class="shell trend-card">
+            <div class="core">
+              <div class="panel-head">
+                <div><div class="panel-title">Cost trend</div><div class="panel-meta" style="margin-top:4px">daily API-equivalent value</div></div>
+                <div class="legend"><span><i></i>daily</span><span><i class="sky"></i>7-day avg</span><span><i class="dash"></i>reference</span></div>
+              </div>
+              <div class="chart-wrap">
+                <div class="chart-grid"><div></div><div></div><div></div><div></div></div>
+                <div class="axis-y"><span>$2.4K</span><span>$1.8K</span><span>$1.2K</span><span>$600</span><span>$0</span></div>
+                <div class="budget-line"></div><div class="budget-label">reference $1.7K</div>
+                <div class="bars" aria-label="Daily cost bars">
+                  <div class="bar-group"><div class="bar" style="height:4%" title="Jun 22 · $96"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:8%" title="Jun 24 · $192"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:15%" title="Jun 26 · $360"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:10%" title="Jun 28 · $240"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:15%" title="Jun 30 · $360"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:18%" title="Jul 02 · $432"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:27%" title="Jul 04 · $648"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:66%" title="Jul 06 · $1,584"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:41%" title="Jul 07 · $984"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:57%" title="Jul 08 · $1,368"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:39%" title="Jul 09 · $936"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:45%" title="Jul 10 · $1,080"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:39%" title="Jul 11 · $936"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:76%" title="Jul 12 · $1,824"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:90%" title="Jul 13 · $2,160"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:61%" title="Jul 14 · $1,464"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:80%" title="Jul 15 · $1,920"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:58%" title="Jul 16 · $1,392"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:54%" title="Jul 17 · $1,296"></div></div>
+                  <div class="bar-group"><div class="bar" style="height:18%" title="Jul 18 · $432"></div></div>
+                  <div class="bar-group"><div class="bar current" style="height:17%" title="Jul 20 · $408"></div></div>
+                </div>
+                <div class="avg-line" aria-hidden="true">
+                  <svg viewBox="0 0 1000 200" preserveAspectRatio="none"><polyline points="0,188 50,184 100,177 150,172 200,164 250,148 300,131 350,118 400,113 450,108 500,103 550,97 600,89 650,70 700,53 750,48 800,45 850,49 900,60 950,76 1000,91" fill="none" stroke="var(--sky)" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>
+                </div>
+                <div class="axis-x"><span>Jun 22</span><span>Jun 29</span><span>Jul 06</span><span>Jul 13</span><span>Jul 20</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="shell signals">
+            <div class="core">
+              <div class="panel-head"><div><div class="panel-title">Operational signals</div><div class="panel-meta" style="margin-top:4px">ranked by potential impact</div></div><span class="tag">24H</span></div>
+              <div class="signal-list">
+                <div class="signal"><span class="signal-mark amber"></span><div><div class="signal-title">Long-context exposure</div><div class="signal-copy">87% of sessions exceed 150K context. Review retention before reducing it.</div></div><div class="signal-value">87%</div></div>
+                <div class="signal"><span class="signal-mark"></span><div><div class="signal-title">Subagent-heavy sessions</div><div class="signal-copy">All recent sessions spawned subagents. Inspect fan-out on high-cost runs.</div></div><div class="signal-value">100%</div></div>
+                <div class="signal"><span class="signal-mark sky"></span><div><div class="signal-title">Cache performance</div><div class="signal-copy">Cache hit remains strong. Uncached input is only 14.2M tokens.</div></div><div class="signal-value">96.7%</div></div>
+                <div class="signal-foot"><span class="tag">using-git-worktrees 18%</span><span class="tag">chrome-devtools 12%</span><span class="tag">loop 2%</span></div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <section class="shell models">
+          <div class="core">
+            <div class="panel-head"><div><div class="panel-title">Model breakdown</div><div class="panel-meta" style="margin-top:4px">cost attribution and token flow</div></div><div class="panel-meta">5 models · sorted by cost ↓</div></div>
+            <div class="model-body">
+              <div class="model-table-wrap">
+                <table class="table">
+                  <thead><tr><th>Model</th><th>Input raw</th><th>Input uncached</th><th>Output</th><th>Cache read</th><th>Cost</th></tr></thead>
+                  <tbody>
+                    <tr><td class="model-name">Opus 4.8</td><td>16.09B</td><td>11.2M</td><td>84.6M</td><td>15.57B</td><td class="cost">$14,980.33</td></tr>
+                    <tr><td class="model-name">Fable 5</td><td>4.16B</td><td>1.6M</td><td>19.1M</td><td>4.02B</td><td class="cost">$7,664.06</td></tr>
+                    <tr><td class="model-name">Sonnet 5</td><td>1.82B</td><td>1.3M</td><td>6.9M</td><td>1.77B</td><td class="cost">$948.25</td></tr>
+                    <tr><td class="model-name">Sonnet 4.6</td><td>253.8M</td><td>9.0K</td><td>2.5M</td><td>243.3M</td><td class="cost">$163.90</td></tr>
+                    <tr><td class="model-name">Haiku 4.5</td><td>55.5M</td><td>88.4K</td><td>269.8K</td><td>50.7M</td><td class="cost">$12.54</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <aside class="share-panel">
+                <div class="eyebrow">Cost concentration</div>
+                <div class="share-total">95.3%</div>
+                <div class="share-caption">of API-equivalent value comes from the top two models</div>
+                <div class="stacked" aria-label="Cost share"><i></i><i></i><i></i><i></i><i></i></div>
+                <div class="share-list">
+                  <div class="share-row"><span class="share-dot"></span><span>Opus 4.8</span><strong>63.0%</strong></div>
+                  <div class="share-row"><span class="share-dot"></span><span>Fable 5</span><strong>32.3%</strong></div>
+                  <div class="share-row"><span class="share-dot"></span><span>Other models</span><strong>4.7%</strong></div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </section>
+        <div class="footnote">API-equivalent values use list pricing for comparability. Cache read and write multipliers follow each model's applicable rate. Figures shown here are observational estimates, not billing records.</div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const ranges = document.querySelectorAll('.range');
+    const dateCopy = document.getElementById('date-copy');
+    const dates = { 'Today': 'Jul 20, 2026', '7 days': 'Jul 14 – Jul 20, 2026', '30 days': 'Jun 21 – Jul 20, 2026', 'All': 'Jun 22 – Jul 20, 2026' };
+    ranges.forEach(button => button.addEventListener('click', () => {
+      ranges.forEach(item => item.classList.remove('active'));
+      button.classList.add('active');
+      dateCopy.textContent = dates[button.dataset.range];
+    }));
+
+    const compare = document.querySelector('.compare-btn');
+    compare.addEventListener('click', () => {
+      compare.dataset.on = compare.dataset.on === 'true' ? 'false' : 'true';
+      compare.textContent = compare.dataset.on === 'true' ? 'Compare: previous' : 'Compare: off';
+    });
+
+    const themeButton = document.getElementById('theme-btn');
+    themeButton.addEventListener('click', () => {
+      document.body.classList.toggle('night');
+      themeButton.textContent = document.body.classList.contains('night') ? '◐ Night' : '☼ Day';
+    });
+
+    document.querySelectorAll('.nav-item').forEach(item => item.addEventListener('click', () => {
+      document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+      item.classList.add('active');
+    }));
+  </script>
+</body>
+</html>

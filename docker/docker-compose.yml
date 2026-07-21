@@ -1,0 +1,143 @@
+# Retired container mode. Kept valid/coherent; host mode (Makefile/demo.sh) is
+# the supported path. This compose file lives in docker/, so the build context
+# is the repo root (..) and bind-mount source paths are docker/-relative.
+services:
+  token-audit:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: token-audit
+    container_name: token-audit
+    ports:
+      - "8010:8010"
+    # Integration Hub HTTP/XML-RPC nodes reach local services via host-published
+    # ports at host.docker.internal (presets use it). Pin the mapping so it
+    # resolves regardless of the host's docker default.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Comms "Local processes" panel: token-audit runs in its own PID namespace,
+    # so it cannot see the MCP server processes Claude Code spawns on the host.
+    # Uncomment to share the host PID namespace (read-only in our code — we only
+    # read /proc, never signal), then `docker compose up -d --force-recreate`.
+    # Security note: this exposes ALL host processes to the container; leave it
+    # off unless you want the process monitor. (On the host via demo.sh the
+    # panel works without this.)
+    # pid: host
+    environment:
+      TOKEN_AUDIT_CONFIG: /app/backend/config.toml
+      # container-local paths (override config.toml, which has host paths)
+      TOKEN_AUDIT_PROJECTS_DIR: /data/claude/projects
+      TOKEN_AUDIT_DB_PATH: /app/data/audit.db
+      TOKEN_AUDIT_SUBSCRIPTION_USD: "200"
+      # ccusage reads <CLAUDE_CONFIG_DIR>/projects/**; point it at the mount
+      CLAUDE_CONFIG_DIR: /data/claude
+      # Pulse board: the Claude Code background-agent store (~/.claude/jobs),
+      # mounted read-only below. Each <short-id>/state.json + timeline.jsonl is
+      # read directly (no CLI/daemon needed) to project sessions onto the lanes.
+      TOKEN_AUDIT_JOBS_DIR: /data/claude/jobs
+      # supervisor roster (~/.claude/daemon/roster.json) for liveness: a session
+      # gone from the roster while its state is non-terminal = crashed = stale.
+      TOKEN_AUDIT_DAEMON_DIR: /data/claude/daemon
+      TOKEN_AUDIT_CCUSAGE_CMD: ccusage
+      # let the bundled claude CLI authenticate with the host's OAuth login
+      TOKEN_AUDIT_CLAUDE_BIN: claude
+      # in-container `claude -p /usage` poll: primary quota source (RW output).
+      # 0 disables; falls back to the host-written files below when poll fails.
+      # 600s (10 min): the /usage quota fetch is rate-limited server-side -
+      # polling ~1/min trips it and the % windows silently drop out. Keep it slow.
+      TOKEN_AUDIT_POLL_INTERVAL: "600"
+      TOKEN_AUDIT_LOCAL_REPORT_FILE: /app/data/usage-report.json
+      # official quota captured on the host (statusLine hook + host-cron poll) -> fallback
+      TOKEN_AUDIT_QUOTA_FILE: /data/quota/usage-quota.json
+      TOKEN_AUDIT_REPORT_FILE: /data/quota/usage-report.json
+      # NAKIVO module dependency graph (produced by ../../nakivo-graph/ingest.py)
+      TOKEN_AUDIT_GRAPH_FILE: /data/nakivo-graph.json
+      # workspace root for the Diff tool's repo discovery (matches the mount below)
+      FLIGHTDECK_WORKSPACE: /workspace
+      # Integration Hub: saved flows live here (JSON files, git-tracked, no secrets)
+      TOKEN_AUDIT_FLOWS_DIR: /app/backend/flows
+      # Systems views (Comms/Manuals/Hangar) — container paths of the mounts below
+      TOKEN_AUDIT_CLAUDE_JSON: /data/claude/.claude.json
+      TOKEN_AUDIT_SKILLS_DIR: /data/claude/skills
+      TOKEN_AUDIT_PLUGINS_DIR: /data/claude/plugins
+      TOKEN_AUDIT_DOCKER_SOCK: /var/run/docker.sock
+    volumes:
+      # live source mount so uvicorn --reload picks up backend edits
+      - ../backend/flightdeck:/app/backend/flightdeck
+      # test suite, read-only: not COPYed by the Dockerfile, so `docker compose
+      # run --rm token-audit pytest ...` needs this to find tests/ at all.
+      - ../backend/tests:/app/backend/tests:ro
+      # Integration Hub saved flows (read-WRITE: the API saves flow JSON here)
+      - ../backend/flows:/app/backend/flows
+      # host-built SPA (npm --prefix frontend run build) served as the static
+      # frontend; overrides the dist baked into the image so UI changes ship
+      # with a `docker compose up -d` recreate, no image rebuild needed.
+      - ../frontend/dist:/app/frontend/dist:ro
+      # Claude Code logs, read-only (Linux bind mounts pass inotify -> watcher works)
+      # mounted under .../claude/projects so ccusage's CLAUDE_CONFIG_DIR resolves
+      - ${HOME}/.claude/projects:/data/claude/projects:ro
+      # background-agent state store for the Pulse board (read-only)
+      - ${HOME}/.claude/jobs:/data/claude/jobs:ro
+      # supervisor roster for Pulse liveness (read-only)
+      - ${HOME}/.claude/daemon:/data/claude/daemon:ro
+      # scratchpad screenshots (chrome-devtools take_screenshot outputs) so the
+      # transcript viewer's /api/screenshot can preview them; read-only, same
+      # absolute path inside the container so saved filePaths resolve as-is.
+      # DISABLED: /tmp is not a Docker Desktop shared path by default. To enable
+      # in-container screenshot preview, add /tmp/claude-1000 under Docker
+      # Desktop -> Settings -> Resources -> File Sharing, then uncomment. (Host
+      # mode via ./demo.sh reads it directly, no sharing needed.)
+      - /tmp/claude-1000:/tmp/claude-1000:ro
+      # OAuth credentials (read-only) so the in-container claude CLI can poll /usage.
+      # Sits inside CLAUDE_CONFIG_DIR (/data/claude); host refreshes are reflected here.
+      - ${HOME}/.claude/.credentials.json:/data/claude/.credentials.json:ro
+      # statusLine-written quota file (dir mount so atomic-rewrites are visible)
+      - ${HOME}/.claude/token-audit:/data/quota:ro
+      # NAKIVO dependency graph JSON (re-run ../../nakivo-graph/ingest.py to refresh)
+      - ../../nakivo-graph/nakivo-graph.json:/data/nakivo-graph.json:ro
+      # the whole workspace (all sibling repos), read-only, for the Diff tool.
+      # git must be in the image (see Dockerfile) -> needs `docker compose build`.
+      # diff/log/compare work read-only here; fetch/pull are host-only ops.
+      - ../..:/workspace:ro
+      # Comms: global MCP registry. FILE bind-mount — Claude Code rewrites this
+      # file atomically (rename = new inode), so the container's view goes STALE
+      # after the host file is rewritten. Same rule as odoo.conf: refresh with
+      # `docker compose up -d --force-recreate`. Acceptable: the mcpServers list
+      # changes rarely; the API also reports the file's mtime so staleness shows.
+      - ${HOME}/.claude.json:/data/claude/.claude.json:ro
+      # Manuals: personal skills (dir mounts survive atomic rewrites) + the
+      # plugins cache. Many entries in skills/ are RELATIVE symlinks into
+      # ~/.agents — mounting ~/.agents at /data/.agents keeps `../../.agents/...`
+      # resolvable from /data/claude/skills inside the container.
+      - ${HOME}/.claude/skills:/data/claude/skills:ro
+      - ${HOME}/.claude/plugins:/data/claude/plugins:ro
+      - ${HOME}/.agents:/data/.agents:ro
+      # Hangar: Docker Engine API, READ-ONLY board (list/inspect only; the API
+      # exposes no mutating endpoint in v1).
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # persist the SQLite ledger across restarts
+      - token-audit-db:/app/data
+    command: >
+      uvicorn flightdeck.server:app
+      --host 0.0.0.0 --port 8010
+      --reload --reload-dir /app/backend/flightdeck
+      --timeout-graceful-shutdown 2
+    restart: unless-stopped
+
+  # Reverse proxy for the clean URL http://flightdeck.localhost (no :8010).
+  # *.localhost auto-resolves to 127.0.0.1 in browsers, so no host DNS/mDNS
+  # entry is needed - same-machine access only. Shares the project network so
+  # it reaches the app as http://token-audit:8010.
+  nginx:
+    image: nginx:alpine
+    container_name: flightdeck-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/flightdeck.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - token-audit
+    restart: unless-stopped
+
+volumes:
+  token-audit-db:

@@ -1,0 +1,4407 @@
+<!doctype html>
+<html lang="en" data-theme="day">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#f8fcff">
+  <meta name="description" content="CloudDeck interactive spatial workspace prototype.">
+  <title>CloudDeck - Interactive Prototype</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="icon" href="data:,">
+  <script>
+    (function () {
+      document.documentElement.classList.add("js");
+      try {
+        var savedTheme = localStorage.getItem("clouddeck-theme");
+        if (["day", "afternoon", "evening"].indexOf(savedTheme) > -1) {
+          document.documentElement.dataset.theme = savedTheme;
+        }
+      } catch (error) {
+        document.documentElement.dataset.theme = "day";
+      }
+    }());
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cloud: #f8fcff;
+      --white: #ffffff;
+      --ice: #e8f5ff;
+      --mist: #cfeaff;
+      --sky: #73c9ff;
+      --blue: #1f80e0;
+      --blue-deep: #0e5db7;
+      --blue-hover: #084f9c;
+      --blue-soft: rgba(31, 128, 224, .14);
+      --ink: #123052;
+      --ink-soft: #3c5b7d;
+      --muted: #647f9d;
+      --faint: #8299b1;
+      --line: rgba(38, 101, 166, .16);
+      --line-strong: rgba(38, 101, 166, .28);
+      --surface-border: rgba(255, 255, 255, .88);
+      --surface-alpha: rgba(255, 255, 255, .72);
+      --surface-soft: rgba(232, 245, 255, .82);
+      --surface-strong: rgba(255, 255, 255, .94);
+      --nav-bg: rgba(248, 252, 255, .82);
+      --workspace-bg: rgba(248, 252, 255, .86);
+      --ambient-a: rgba(115, 201, 255, .38);
+      --ambient-b: rgba(207, 234, 255, .72);
+      --ambient-c: rgba(255, 255, 255, .96);
+      --warm-glow: rgba(255, 207, 145, 0);
+      --glow: rgba(55, 174, 255, .32);
+      --glow-strong: rgba(31, 128, 224, .5);
+      --shadow-color: rgba(76, 135, 190, .2);
+      --shadow-deep: rgba(45, 105, 166, .18);
+      --shadow-highlight: rgba(255, 255, 255, .95);
+      --cloud-core: rgba(255, 255, 255, .96);
+      --cloud-mid: rgba(207, 234, 255, .74);
+      --cloud-edge: rgba(115, 201, 255, .28);
+      --cloud-fade: rgba(248, 252, 255, 0);
+      --canvas-line: rgba(31, 128, 224, .28);
+      --canvas-line-soft: rgba(38, 101, 166, .14);
+      --canvas-grid: rgba(38, 101, 166, .08);
+      --canvas-surface: rgba(248, 252, 255, .84);
+      --canvas-surface-strong: rgba(255, 255, 255, .96);
+      --canvas-node: rgba(207, 234, 255, .92);
+      --canvas-highlight: rgba(255, 255, 255, .96);
+      --blue-rgb: 31, 128, 224;
+      --sky-rgb: 115, 201, 255;
+      --mist-rgb: 207, 234, 255;
+      --cloud-rgb: 248, 252, 255;
+      --highlight-rgb: 255, 255, 255;
+      --raised:
+        -14px -14px 32px var(--shadow-highlight),
+        14px 16px 34px var(--shadow-deep),
+        0 0 38px rgba(55, 174, 255, .08),
+        inset 0 1px 0 var(--shadow-highlight);
+      --raised-small:
+        -6px -6px 16px var(--shadow-highlight),
+        7px 8px 18px var(--shadow-deep),
+        0 0 24px rgba(55, 174, 255, .08),
+        inset 0 1px 0 var(--shadow-highlight);
+      --inset:
+        inset 4px 5px 12px var(--shadow-deep),
+        inset -5px -5px 12px var(--shadow-highlight);
+      --radius: 24px;
+      --radius-control: 14px;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --display: "Space Grotesk", "Avenir Next", "Segoe UI", Arial, sans-serif;
+      --editorial: "Playfair Display", Georgia, serif;
+    }
+
+    html[data-theme="afternoon"] {
+      color-scheme: light;
+      --cloud: #fff8ef;
+      --white: #fffdf9;
+      --ice: #edf6ff;
+      --mist: #dceeff;
+      --sky: #8bcaff;
+      --blue: #277dcc;
+      --blue-deep: #145fae;
+      --blue-hover: #0e4e91;
+      --blue-soft: rgba(39, 125, 204, .14);
+      --ink: #203a55;
+      --ink-soft: #4d6780;
+      --muted: #6f8296;
+      --faint: #91a0ae;
+      --line: rgba(70, 111, 151, .17);
+      --line-strong: rgba(70, 111, 151, .29);
+      --surface-border: rgba(255, 253, 249, .9);
+      --surface-alpha: rgba(255, 253, 249, .74);
+      --surface-soft: rgba(237, 246, 255, .84);
+      --surface-strong: rgba(255, 253, 249, .95);
+      --nav-bg: rgba(255, 249, 241, .84);
+      --workspace-bg: rgba(255, 251, 246, .88);
+      --ambient-a: rgba(255, 185, 109, .34);
+      --ambient-b: rgba(216, 234, 255, .66);
+      --ambient-c: rgba(255, 253, 249, .96);
+      --warm-glow: rgba(255, 185, 109, .42);
+      --glow: rgba(70, 166, 238, .3);
+      --glow-strong: rgba(39, 125, 204, .48);
+      --shadow-color: rgba(111, 137, 162, .2);
+      --shadow-deep: rgba(106, 135, 163, .18);
+      --shadow-highlight: rgba(255, 255, 255, .96);
+      --cloud-core: rgba(255, 253, 247, .97);
+      --cloud-mid: rgba(255, 220, 174, .66);
+      --cloud-edge: rgba(139, 202, 255, .3);
+      --cloud-fade: rgba(255, 248, 239, 0);
+      --canvas-line: rgba(39, 125, 204, .29);
+      --canvas-line-soft: rgba(70, 111, 151, .15);
+      --canvas-grid: rgba(70, 111, 151, .08);
+      --canvas-surface: rgba(255, 251, 246, .86);
+      --canvas-surface-strong: rgba(255, 253, 249, .97);
+      --canvas-node: rgba(220, 238, 255, .94);
+      --canvas-highlight: rgba(255, 253, 249, .97);
+      --blue-rgb: 39, 125, 204;
+      --sky-rgb: 139, 202, 255;
+      --mist-rgb: 220, 238, 255;
+      --cloud-rgb: 255, 248, 239;
+      --highlight-rgb: 255, 253, 249;
+    }
+
+    html[data-theme="evening"] {
+      color-scheme: dark;
+      --cloud: #071528;
+      --white: #edf7ff;
+      --ice: #102a46;
+      --mist: #163958;
+      --sky: #5eb8ff;
+      --blue: #69c5ff;
+      --blue-deep: #2385dc;
+      --blue-hover: #3a9ced;
+      --blue-soft: rgba(105, 197, 255, .16);
+      --ink: #edf7ff;
+      --ink-soft: #c2d9ee;
+      --muted: #9ab4cf;
+      --faint: #6f8eac;
+      --line: rgba(124, 181, 228, .17);
+      --line-strong: rgba(124, 181, 228, .3);
+      --surface-border: rgba(118, 183, 235, .18);
+      --surface-alpha: rgba(11, 30, 53, .78);
+      --surface-soft: rgba(16, 42, 70, .84);
+      --surface-strong: rgba(13, 35, 60, .95);
+      --nav-bg: rgba(7, 21, 40, .86);
+      --workspace-bg: rgba(8, 25, 45, .91);
+      --ambient-a: rgba(35, 133, 220, .28);
+      --ambient-b: rgba(22, 57, 88, .7);
+      --ambient-c: rgba(15, 51, 82, .78);
+      --warm-glow: rgba(255, 185, 109, 0);
+      --glow: rgba(73, 177, 255, .28);
+      --glow-strong: rgba(105, 197, 255, .54);
+      --shadow-color: rgba(0, 7, 18, .56);
+      --shadow-deep: rgba(0, 7, 18, .48);
+      --shadow-highlight: rgba(111, 187, 255, .13);
+      --cloud-core: rgba(108, 178, 233, .5);
+      --cloud-mid: rgba(36, 91, 139, .62);
+      --cloud-edge: rgba(40, 133, 219, .34);
+      --cloud-fade: rgba(7, 21, 40, 0);
+      --canvas-line: rgba(105, 197, 255, .38);
+      --canvas-line-soft: rgba(124, 181, 228, .18);
+      --canvas-grid: rgba(124, 181, 228, .09);
+      --canvas-surface: rgba(11, 30, 53, .88);
+      --canvas-surface-strong: rgba(14, 38, 64, .97);
+      --canvas-node: rgba(28, 70, 108, .96);
+      --canvas-highlight: rgba(182, 224, 255, .94);
+      --blue-rgb: 105, 197, 255;
+      --sky-rgb: 94, 184, 255;
+      --mist-rgb: 49, 103, 148;
+      --cloud-rgb: 7, 21, 40;
+      --highlight-rgb: 182, 224, 255;
+      --raised:
+        -10px -10px 28px rgba(43, 104, 153, .09),
+        14px 18px 38px rgba(0, 7, 18, .52),
+        0 0 34px rgba(73, 177, 255, .08),
+        inset 0 1px 0 rgba(111, 187, 255, .14);
+      --raised-small:
+        -5px -5px 15px rgba(43, 104, 153, .08),
+        7px 9px 20px rgba(0, 7, 18, .48),
+        0 0 24px rgba(73, 177, 255, .08),
+        inset 0 1px 0 rgba(111, 187, 255, .13);
+      --inset:
+        inset 5px 6px 14px rgba(0, 7, 18, .48),
+        inset -4px -4px 12px rgba(68, 139, 193, .08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 82% 7%, var(--ambient-a), transparent 31rem),
+        radial-gradient(circle at 9% 36%, var(--ambient-b), transparent 38rem),
+        radial-gradient(circle at 54% 4%, var(--warm-glow), transparent 28rem),
+        var(--cloud);
+      color: var(--ink);
+      font-family: var(--display);
+      font-size: 16px;
+      line-height: 1.5;
+      transition: background-color .55s ease, color .45s ease;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: 50;
+      pointer-events: none;
+      content: "";
+      opacity: .18;
+      background-image:
+        radial-gradient(circle at 20% 30%, var(--canvas-grid) 0 .6px, transparent .7px),
+        radial-gradient(circle at 70% 60%, var(--canvas-highlight) 0 .6px, transparent .7px);
+      background-size: 9px 9px, 13px 13px;
+      mix-blend-mode: multiply;
+    }
+
+    html[data-theme="evening"] body::before {
+      opacity: .12;
+      mix-blend-mode: screen;
+    }
+
+    main,
+    .footer {
+      position: relative;
+      z-index: 1;
+    }
+
+    .cloud-illustration {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .cloud-bank {
+      position: absolute;
+      width: 72%;
+      height: 31%;
+      font-size: clamp(8px, 1vw, 15px);
+      opacity: .82;
+      background:
+        radial-gradient(ellipse at 11% 70%, var(--cloud-core) 0 12%, transparent 13%),
+        radial-gradient(ellipse at 28% 54%, var(--cloud-core) 0 21%, transparent 22%),
+        radial-gradient(ellipse at 48% 67%, var(--cloud-mid) 0 25%, transparent 26%),
+        radial-gradient(ellipse at 68% 52%, var(--cloud-core) 0 19%, transparent 20%),
+        radial-gradient(ellipse at 84% 71%, var(--cloud-mid) 0 18%, transparent 19%),
+        radial-gradient(ellipse at 50% 86%, var(--cloud-edge) 0 42%, transparent 43%);
+      filter: blur(4px) drop-shadow(0 28px 54px var(--shadow-color));
+      will-change: transform;
+    }
+
+    .cloud-bank::before,
+    .cloud-bank::after {
+      position: absolute;
+      content: "";
+    }
+
+    .cloud-bank::before {
+      bottom: 20%;
+      left: 5%;
+      width: 7em;
+      height: 5em;
+      border-radius: 50%;
+      background: var(--cloud-core);
+      box-shadow:
+        5em .6em 0 1.2em var(--cloud-core),
+        10.5em -1.4em 0 2em var(--cloud-mid),
+        16.5em .2em 0 2.8em var(--cloud-core),
+        23em -1em 0 2.2em var(--cloud-mid),
+        29em .8em 0 1.8em var(--cloud-core);
+    }
+
+    .cloud-bank::after {
+      right: 4%;
+      bottom: 5%;
+      left: 3%;
+      height: 38%;
+      border-radius: 50%;
+      background: linear-gradient(180deg, var(--cloud-core), var(--cloud-mid) 58%, transparent);
+      filter: blur(6px);
+      opacity: .84;
+    }
+
+    .cloud-bank-a {
+      right: -13%;
+      bottom: 2%;
+      transform: rotate(-5deg) scale(1.15);
+      animation: cloud-drift-a 18s ease-in-out infinite alternate;
+    }
+
+    .cloud-bank-b {
+      top: 8%;
+      left: 0;
+      width: 52%;
+      height: 24%;
+      opacity: .48;
+      transform: rotate(4deg) scale(.9);
+      animation: cloud-drift-b 23s ease-in-out infinite alternate;
+    }
+
+    .cloud-bank-c {
+      right: 7%;
+      bottom: 25%;
+      width: 42%;
+      height: 19%;
+      opacity: .3;
+      filter: blur(13px) drop-shadow(0 22px 48px var(--glow));
+      animation: cloud-drift-c 27s ease-in-out infinite alternate;
+    }
+
+    @keyframes cloud-drift-a {
+      from { transform: translate3d(-1.5%, 2%, 0) rotate(-5deg) scale(1.15); }
+      to { transform: translate3d(4%, -3%, 0) rotate(-2deg) scale(1.19); }
+    }
+
+    @keyframes cloud-drift-b {
+      from { transform: translate3d(-3%, -1%, 0) rotate(4deg) scale(.9); }
+      to { transform: translate3d(4%, 3%, 0) rotate(1deg) scale(.96); }
+    }
+
+    @keyframes cloud-drift-c {
+      from { transform: translate3d(2%, 2%, 0) scale(.92); }
+      to { transform: translate3d(-6%, -5%, 0) scale(1.04); }
+    }
+
+    ::selection {
+      background: var(--blue);
+      color: var(--white);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button,
+    select {
+      color: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    button:active,
+    .button:active {
+      transform: translateY(1px) scale(.985);
+    }
+
+    :focus-visible {
+      outline: 3px solid var(--glow-strong);
+      outline-offset: 3px;
+    }
+
+    canvas {
+      display: block;
+      max-width: 100%;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      transform: translateY(-160%);
+      border-radius: 10px;
+      padding: 10px 14px;
+      background: var(--ink);
+      color: var(--white);
+      font-weight: 700;
+    }
+
+    .skip-link:focus {
+      transform: none;
+    }
+
+    .shell {
+      width: min(1440px, calc(100% - 64px));
+      margin-inline: auto;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      height: 72px;
+      border-bottom: 1px solid var(--line);
+      background: var(--nav-bg);
+      backdrop-filter: blur(22px) saturate(145%);
+      -webkit-backdrop-filter: blur(22px) saturate(145%);
+      transition: background-color .45s ease, border-color .45s ease;
+    }
+
+    .nav-inner {
+      display: flex;
+      height: 100%;
+      align-items: center;
+      gap: 32px;
+    }
+
+    .brand {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 11px;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -.035em;
+    }
+
+    .brand-mark {
+      position: relative;
+      display: inline-block;
+      width: 30px;
+      height: 30px;
+      transform: rotate(30deg);
+    }
+
+    .brand-mark::before,
+    .brand-mark::after,
+    .brand-mark i {
+      position: absolute;
+      left: 5px;
+      width: 18px;
+      height: 11px;
+      border: 2px solid var(--blue);
+      border-radius: 3px;
+      content: "";
+      transform: skewX(-30deg);
+    }
+
+    .brand-mark::before {
+      top: 1px;
+      background: var(--blue);
+    }
+
+    .brand-mark i {
+      top: 8px;
+      background: var(--sky);
+      opacity: .56;
+    }
+
+    .brand-mark::after {
+      top: 15px;
+      background: var(--ice);
+      opacity: .8;
+    }
+
+    .nav-links {
+      display: flex;
+      margin-left: 0;
+      align-items: center;
+      gap: 28px;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .nav-links a {
+      transition: color .25s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--ink);
+    }
+
+    .theme-switch {
+      display: flex;
+      margin-left: auto;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--line);
+      border-radius: 15px;
+      padding: 4px;
+      background: var(--surface-alpha);
+      box-shadow: var(--inset);
+    }
+
+    .theme-option {
+      display: inline-flex;
+      min-width: 88px;
+      height: 34px;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      border: 1px solid transparent;
+      border-radius: 11px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+      transition:
+        background-color .3s var(--ease),
+        border-color .3s ease,
+        box-shadow .3s var(--ease),
+        color .3s ease,
+        transform .2s var(--ease);
+    }
+
+    .theme-option:hover {
+      color: var(--ink);
+    }
+
+    .theme-option[aria-pressed="true"] {
+      border-color: var(--line-strong);
+      background: var(--surface-strong);
+      box-shadow: var(--raised-small), 0 0 22px var(--glow);
+      color: var(--blue-deep);
+    }
+
+    .theme-swatch {
+      width: 10px;
+      height: 10px;
+      flex: 0 0 auto;
+      border: 1px solid var(--surface-border);
+      border-radius: 50%;
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    [data-theme-option="day"] .theme-swatch {
+      background: #73c9ff;
+    }
+
+    [data-theme-option="afternoon"] .theme-swatch {
+      background: #ffb96d;
+    }
+
+    [data-theme-option="evening"] .theme-swatch {
+      background: #163958;
+    }
+
+    .button {
+      display: inline-flex;
+      min-height: 48px;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      border: 0;
+      border-radius: 999px;
+      padding: 0 22px;
+      font-weight: 650;
+      white-space: nowrap;
+      transition:
+        transform .25s var(--ease),
+        box-shadow .25s var(--ease),
+        background .25s ease;
+    }
+
+    .button-primary {
+      background: var(--blue-deep);
+      box-shadow:
+        0 12px 30px var(--shadow-deep),
+        0 0 28px var(--glow),
+        inset 0 1px 0 rgba(255, 255, 255, .23);
+      color: var(--white);
+    }
+
+    .button-primary:hover {
+      background: var(--blue-hover);
+      box-shadow:
+        0 15px 34px var(--shadow-deep),
+        0 0 38px var(--glow-strong),
+        inset 0 1px 0 rgba(255, 255, 255, .23);
+      transform: translateY(-2px);
+    }
+
+    .button-secondary {
+      border: 1px solid var(--line-strong);
+      background: var(--surface-alpha);
+      color: var(--blue-deep);
+    }
+
+    .button-secondary:hover {
+      background: var(--surface-strong);
+      box-shadow: 0 0 26px var(--glow);
+      transform: translateY(-2px);
+    }
+
+    .button-small {
+      min-height: 42px;
+      padding-inline: 18px;
+      font-size: 13px;
+    }
+
+    .hero {
+      display: grid;
+      min-height: calc(100dvh - 72px);
+      grid-template-columns: minmax(0, .86fr) minmax(520px, 1.14fr);
+      align-items: center;
+      gap: 28px;
+      padding-block: 48px;
+    }
+
+    .hero-copy {
+      position: relative;
+      z-index: 2;
+      padding-left: clamp(0px, 2vw, 32px);
+    }
+
+    .editorial-note {
+      margin: 0 0 24px;
+      color: var(--blue-deep);
+      font-family: var(--editorial);
+      font-size: clamp(18px, 1.6vw, 24px);
+      font-style: italic;
+      line-height: 1.2;
+    }
+
+    .hero h1 {
+      max-width: 8.6ch;
+      margin: 0;
+      font-size: clamp(58px, 6.3vw, 96px);
+      font-weight: 600;
+      letter-spacing: -.068em;
+      line-height: .94;
+    }
+
+    .hero-sub {
+      max-width: 28ch;
+      margin: 28px 0 0;
+      color: var(--ink-soft);
+      font-size: clamp(17px, 1.35vw, 21px);
+      line-height: 1.55;
+    }
+
+    .hero-actions {
+      display: flex;
+      margin-top: 34px;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .hero-visual {
+      position: relative;
+      min-height: min(680px, calc(100dvh - 130px));
+      overflow: hidden;
+      border-radius: var(--radius);
+      isolation: isolate;
+    }
+
+    .hero-visual::before {
+      position: absolute;
+      inset: 8% -10% 2% 0;
+      z-index: -1;
+      border-radius: 48%;
+      background:
+        radial-gradient(circle at 48% 48%, var(--ambient-a), transparent 43%),
+        radial-gradient(circle at 38% 45%, var(--ambient-c), transparent 57%),
+        radial-gradient(circle at 56% 16%, var(--warm-glow), transparent 36%);
+      filter: blur(20px);
+      content: "";
+    }
+
+    .hero-visual::after {
+      position: absolute;
+      inset: 13% 12% 18% 17%;
+      z-index: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle, var(--glow), transparent 66%);
+      filter: blur(34px);
+      content: "";
+      opacity: .64;
+      pointer-events: none;
+    }
+
+    #heroField {
+      position: relative;
+      z-index: 2;
+      width: 100%;
+      height: 100%;
+      min-height: inherit;
+    }
+
+    .hero-caption {
+      position: absolute;
+      right: 24px;
+      bottom: 22px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      z-index: 3;
+      border: 1px solid var(--surface-border);
+      border-radius: 999px;
+      padding: 9px 13px;
+      background: var(--surface-alpha);
+      box-shadow: var(--raised-small);
+      color: var(--muted);
+      font-size: 12px;
+      backdrop-filter: blur(14px);
+    }
+
+    .hero-caption i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 4px var(--blue-soft), 0 0 15px var(--glow-strong);
+    }
+
+    .principle {
+      padding-block: 138px 92px;
+    }
+
+    .principle-copy {
+      max-width: 890px;
+      margin-inline: auto;
+      text-align: center;
+    }
+
+    .principle h2,
+    .workspace-intro h2,
+    .morph-copy h2,
+    .focus-intro h2 {
+      margin: 0;
+      font-size: clamp(42px, 5.2vw, 76px);
+      font-weight: 600;
+      letter-spacing: -.06em;
+      line-height: .98;
+    }
+
+    .principle p {
+      max-width: 40ch;
+      margin: 26px auto 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .workspace-section {
+      padding-block: 92px 150px;
+    }
+
+    .workspace-intro {
+      max-width: 720px;
+      margin-bottom: 48px;
+    }
+
+    .workspace-intro p,
+    .morph-copy > p,
+    .focus-intro p {
+      max-width: 44ch;
+      margin: 22px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.65;
+    }
+
+    .workspace {
+      position: relative;
+      min-height: 780px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 46% 42%, var(--ambient-a), transparent 30rem),
+        radial-gradient(circle at 80% 8%, var(--warm-glow), transparent 23rem),
+        var(--workspace-bg);
+      box-shadow:
+        0 42px 90px var(--shadow-deep),
+        0 0 56px rgba(55, 174, 255, .08),
+        inset 0 1px 0 var(--shadow-highlight);
+      transition: background-color .5s ease, border-color .45s ease, box-shadow .45s ease;
+    }
+
+    .workspace-bar {
+      position: relative;
+      z-index: 8;
+      display: flex;
+      height: 66px;
+      align-items: center;
+      gap: 22px;
+      border-bottom: 1px solid var(--line);
+      padding: 0 20px;
+      background: var(--surface-strong);
+    }
+
+    .workspace-title {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .workspace-title .brand-mark {
+      width: 24px;
+      height: 24px;
+      transform: rotate(30deg) scale(.76);
+      transform-origin: left center;
+    }
+
+    .workspace-meta {
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .preview-control {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .preview-control label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .preview-control select {
+      height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 30px 0 10px;
+      background: var(--surface-alpha);
+      color: var(--ink);
+      font-size: 12px;
+    }
+
+    .workspace-main {
+      position: absolute;
+      inset: 66px 0 0;
+    }
+
+    .mode-dock {
+      position: absolute;
+      top: 50%;
+      left: 22px;
+      z-index: 9;
+      display: grid;
+      width: 90px;
+      transform: translateY(-50%);
+      gap: 8px;
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 10px;
+      background: var(--surface-soft);
+      box-shadow: var(--raised);
+    }
+
+    .mode-button {
+      min-height: 62px;
+      border: 1px solid transparent;
+      border-radius: var(--radius-control);
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      transition:
+        background .3s var(--ease),
+        color .3s ease,
+        box-shadow .3s var(--ease),
+        transform .2s var(--ease);
+    }
+
+    .mode-button:hover {
+      color: var(--ink);
+    }
+
+    .mode-button[aria-pressed="true"] {
+      border-color: var(--line-strong);
+      background: var(--surface-alpha);
+      box-shadow: var(--inset), 0 0 22px var(--glow);
+      color: var(--blue-deep);
+    }
+
+    .canvas-wrap {
+      position: absolute;
+      inset: 0 292px 0 0;
+    }
+
+    #workspaceCanvas {
+      width: 100%;
+      height: 100%;
+      touch-action: manipulation;
+    }
+
+    .canvas-copy {
+      position: absolute;
+      top: 24px;
+      left: 136px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .canvas-copy h3 {
+      margin: 0;
+      font-size: clamp(24px, 2.3vw, 34px);
+      font-weight: 600;
+      letter-spacing: -.045em;
+    }
+
+    .canvas-copy p {
+      max-width: 36ch;
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .canvas-controls {
+      position: absolute;
+      bottom: 22px;
+      left: 50%;
+      z-index: 8;
+      display: flex;
+      transform: translateX(-50%);
+      gap: 5px;
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      padding: 7px;
+      background: var(--surface-soft);
+      box-shadow: var(--raised-small);
+    }
+
+    .canvas-controls button {
+      min-width: 38px;
+      height: 36px;
+      border: 0;
+      border-radius: 10px;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
+    .canvas-controls button:hover {
+      background: var(--surface-alpha);
+      color: var(--blue-deep);
+    }
+
+    .inspector {
+      position: absolute;
+      top: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 9;
+      display: flex;
+      width: 274px;
+      flex-direction: column;
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      background: var(--surface-strong);
+      box-shadow: var(--raised);
+    }
+
+    .inspector-head {
+      padding: 24px 22px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .inspector-kicker {
+      margin: 0 0 8px;
+      color: var(--blue-deep);
+      font-family: var(--editorial);
+      font-size: 15px;
+      font-style: italic;
+    }
+
+    .inspector h3 {
+      margin: 0;
+      font-size: 22px;
+      letter-spacing: -.04em;
+      line-height: 1.15;
+    }
+
+    .inspector-type {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .inspector-body {
+      display: grid;
+      gap: 0;
+      padding-inline: 22px;
+    }
+
+    .inspector-row {
+      padding-block: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .inspector-row:last-child {
+      border-bottom: 0;
+    }
+
+    .inspector-row span {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 650;
+    }
+
+    .inspector-row b {
+      display: block;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .inspector-row p {
+      margin: 4px 0 0;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .inspector-action {
+      margin: auto 18px 18px;
+      width: calc(100% - 36px);
+    }
+
+    .state-overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      z-index: 12;
+      width: min(360px, calc(100% - 48px));
+      transform: translate(-50%, -50%);
+      border: 1px solid var(--surface-border);
+      border-radius: 20px;
+      padding: 28px;
+      background: var(--surface-strong);
+      box-shadow: var(--raised);
+      text-align: center;
+    }
+
+    .state-overlay[hidden] {
+      display: none;
+    }
+
+    .state-orbit {
+      position: relative;
+      width: 62px;
+      height: 62px;
+      margin: 0 auto 18px;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+    }
+
+    .state-orbit::before {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 18px;
+      height: 18px;
+      transform: translate(-50%, -50%) rotate(45deg);
+      border-radius: 5px;
+      background: var(--blue);
+      content: "";
+    }
+
+    .state-orbit::after {
+      position: absolute;
+      top: -4px;
+      left: 25px;
+      width: 10px;
+      height: 10px;
+      border: 3px solid var(--cloud);
+      border-radius: 50%;
+      background: var(--blue);
+      content: "";
+    }
+
+    .state-overlay h3 {
+      margin: 0;
+      font-size: 23px;
+      letter-spacing: -.04em;
+    }
+
+    .state-overlay p {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .state-overlay .button {
+      margin-top: 20px;
+    }
+
+    .morph-section {
+      padding-block: 145px;
+      overflow: hidden;
+    }
+
+    .morph-layout {
+      display: grid;
+      grid-template-columns: minmax(290px, .66fr) minmax(620px, 1.34fr);
+      align-items: center;
+      gap: 54px;
+    }
+
+    .morph-copy h2 {
+      max-width: 8ch;
+    }
+
+    .morph-stage {
+      position: relative;
+      min-height: 610px;
+      border-radius: var(--radius);
+      background:
+        radial-gradient(circle at 18% 68%, var(--ambient-a), transparent 16rem),
+        radial-gradient(circle at 58% 42%, var(--ambient-b), transparent 24rem),
+        radial-gradient(circle at 78% 18%, var(--warm-glow), transparent 19rem);
+    }
+
+    #morphCanvas {
+      width: 100%;
+      height: 540px;
+    }
+
+    .morph-quote {
+      position: absolute;
+      top: 22px;
+      right: 6%;
+      margin: 0;
+      color: var(--blue-deep);
+      font-family: var(--editorial);
+      font-size: clamp(22px, 2.2vw, 34px);
+      font-style: italic;
+      line-height: 1.2;
+    }
+
+    .morph-controls {
+      position: absolute;
+      right: 5%;
+      bottom: 20px;
+      left: 5%;
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .morph-tabs {
+      display: flex;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 6px;
+      background: var(--surface-soft);
+      box-shadow: var(--inset);
+    }
+
+    .morph-tab {
+      min-width: 72px;
+      height: 38px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .morph-tab[aria-pressed="true"] {
+      background: var(--surface-strong);
+      box-shadow: var(--raised-small), 0 0 20px var(--glow);
+      color: var(--blue-deep);
+    }
+
+    .range-wrap {
+      display: grid;
+      gap: 7px;
+    }
+
+    .range-wrap label {
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .range-wrap input {
+      width: 100%;
+      accent-color: var(--blue);
+    }
+
+    .focus-section {
+      padding-block: 100px 150px;
+    }
+
+    .focus-intro {
+      max-width: 760px;
+      margin-bottom: 52px;
+    }
+
+    .focus-grid {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      grid-template-rows: 270px 210px 190px;
+      gap: 12px;
+    }
+
+    .focus-cell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-alpha);
+      box-shadow:
+        0 18px 44px var(--shadow-deep),
+        inset 0 1px 0 var(--shadow-highlight);
+      transition: background-color .45s ease, border-color .45s ease, box-shadow .45s ease;
+    }
+
+    .focus-main {
+      grid-column: span 5;
+      grid-row: span 2;
+      background:
+        radial-gradient(circle at 50% 39%, var(--ambient-a), transparent 15rem),
+        var(--surface-alpha);
+    }
+
+    .focus-workflow {
+      grid-column: span 3;
+      grid-row: span 2;
+      padding: 25px;
+    }
+
+    .focus-context {
+      grid-column: span 4;
+      padding: 25px;
+      background:
+        radial-gradient(circle at 27% 50%, var(--ambient-a), transparent 13rem),
+        var(--surface-soft);
+    }
+
+    .focus-files {
+      grid-column: span 4;
+      padding: 25px;
+    }
+
+    .focus-activity {
+      grid-column: span 5;
+      padding: 25px;
+    }
+
+    .focus-action {
+      display: grid;
+      grid-column: span 7;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 24px;
+      padding: 34px 38px;
+      background:
+        radial-gradient(circle at 78% 50%, var(--ambient-a), transparent 17rem),
+        radial-gradient(circle at 92% 15%, var(--warm-glow), transparent 13rem),
+        var(--ice);
+    }
+
+    .cell-title {
+      display: flex;
+      margin: 0 0 18px;
+      align-items: center;
+      gap: 9px;
+      font-size: 15px;
+      font-weight: 650;
+      letter-spacing: -.02em;
+    }
+
+    .cell-title i {
+      width: 11px;
+      height: 11px;
+      border-radius: 4px;
+      background: var(--blue);
+      transform: rotate(45deg);
+    }
+
+    #focusCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .focus-main-copy {
+      position: absolute;
+      right: 24px;
+      bottom: 22px;
+      left: 24px;
+      text-align: center;
+    }
+
+    .focus-main-copy h3 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: -.045em;
+    }
+
+    .focus-main-copy p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .workflow-list {
+      position: relative;
+      display: grid;
+      height: calc(100% - 40px);
+      align-content: space-between;
+      padding-left: 27px;
+    }
+
+    .workflow-list::before {
+      position: absolute;
+      top: 8px;
+      bottom: 10px;
+      left: 9px;
+      width: 1px;
+      background: var(--line-strong);
+      content: "";
+    }
+
+    .workflow-item {
+      position: relative;
+    }
+
+    .workflow-item::before {
+      position: absolute;
+      top: 4px;
+      left: -24px;
+      width: 10px;
+      height: 10px;
+      border: 3px solid var(--white);
+      border-radius: 50%;
+      background: var(--mist);
+      box-shadow: 0 0 0 1px var(--line-strong);
+      content: "";
+    }
+
+    .workflow-item.active::before {
+      background: var(--blue);
+    }
+
+    .workflow-item b {
+      display: block;
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    .workflow-item span {
+      display: block;
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.4;
+    }
+
+    .context-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.1fr;
+      align-items: center;
+      gap: 22px;
+    }
+
+    .context-stack {
+      position: relative;
+      height: 150px;
+    }
+
+    .context-layer {
+      position: absolute;
+      right: 0;
+      left: 0;
+      height: 56px;
+      transform: perspective(260px) rotateX(58deg);
+      border: 1px solid var(--surface-border);
+      border-radius: 16px;
+      background: var(--surface-alpha);
+      box-shadow: 0 14px 25px var(--shadow-deep);
+    }
+
+    .context-layer:nth-child(1) { top: 8px; }
+    .context-layer:nth-child(2) { top: 36px; }
+    .context-layer:nth-child(3) { top: 64px; }
+    .context-layer:nth-child(4) { top: 92px; }
+
+    .context-layer:first-child::after {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 24px;
+      height: 24px;
+      transform: translate(-50%, -50%) rotate(45deg);
+      border-radius: 7px;
+      background: var(--blue);
+      box-shadow: 0 10px 22px var(--glow-strong);
+      content: "";
+    }
+
+    .context-copy {
+      display: grid;
+      gap: 13px;
+    }
+
+    .context-copy div {
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .context-copy div:last-child {
+      border-bottom: 0;
+    }
+
+    .context-copy b {
+      display: block;
+      font-size: 12px;
+    }
+
+    .context-copy span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .file-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .file-row {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: center;
+      gap: 11px;
+      padding: 7px 0;
+    }
+
+    .file-icon {
+      display: grid;
+      width: 36px;
+      height: 36px;
+      place-items: center;
+      border-radius: 11px;
+      background: var(--ice);
+      box-shadow: var(--inset);
+      color: var(--blue-deep);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .file-row b {
+      display: block;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .file-row span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .file-row em {
+      color: var(--faint);
+      font-size: 18px;
+      font-style: normal;
+    }
+
+    .activity-list {
+      position: relative;
+      display: grid;
+      gap: 14px;
+      padding-left: 25px;
+    }
+
+    .activity-list::before {
+      position: absolute;
+      top: 7px;
+      bottom: 8px;
+      left: 6px;
+      width: 1px;
+      background: var(--line-strong);
+      content: "";
+    }
+
+    .activity-item {
+      position: relative;
+    }
+
+    .activity-item::before {
+      position: absolute;
+      top: 5px;
+      left: -23px;
+      width: 8px;
+      height: 8px;
+      border: 2px solid var(--white);
+      border-radius: 50%;
+      background: var(--mist);
+      box-shadow: 0 0 0 1px var(--line-strong);
+      content: "";
+    }
+
+    .activity-item:first-child::before {
+      background: var(--blue);
+    }
+
+    .activity-item b {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .activity-item span {
+      color: var(--muted);
+      font-size: 10px;
+    }
+
+    .focus-action h3 {
+      margin: 0;
+      font-size: 28px;
+      letter-spacing: -.045em;
+    }
+
+    .focus-action p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .action-arrow {
+      display: grid;
+      width: 72px;
+      height: 72px;
+      place-items: center;
+      border: 0;
+      border-radius: 20px;
+      background: var(--blue-deep);
+      box-shadow:
+        0 16px 30px var(--shadow-deep),
+        0 0 30px var(--glow),
+        inset 0 1px 0 rgba(255, 255, 255, .22);
+      color: var(--white);
+      font-size: 30px;
+    }
+
+    .closing-line {
+      max-width: 18ch;
+      margin: 80px 0 0;
+      font-family: var(--editorial);
+      font-size: clamp(42px, 5.2vw, 76px);
+      font-style: italic;
+      line-height: 1.08;
+      letter-spacing: -.035em;
+    }
+
+    .footer {
+      border-top: 1px solid var(--line);
+      padding-block: 30px;
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer .brand {
+      color: var(--ink);
+      font-size: 15px;
+    }
+
+    /* Pulse Board V0: a real interactive product surface, backed by local mock state. */
+    .pulse-section {
+      padding-block: 72px 120px;
+    }
+
+    .pulse-heading {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: end;
+      gap: 28px;
+      margin-bottom: 30px;
+    }
+
+    .pulse-heading h2 {
+      max-width: 13ch;
+      margin: 0;
+      font-size: clamp(42px, 5vw, 66px);
+      letter-spacing: -.06em;
+      line-height: .98;
+    }
+
+    .pulse-heading p {
+      max-width: 45ch;
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .pulse-live {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 13px;
+      border: 1px solid var(--surface-border);
+      border-radius: 999px;
+      background: var(--surface-alpha);
+      box-shadow: var(--raised-small);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .pulse-live i {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #39a970;
+      box-shadow: 0 0 0 4px rgba(57, 169, 112, .13);
+    }
+
+    .pulse-app {
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      background: var(--workspace-bg);
+      box-shadow: var(--raised);
+      backdrop-filter: blur(20px) saturate(1.08);
+      -webkit-backdrop-filter: blur(20px) saturate(1.08);
+    }
+
+    .pulse-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 74px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface-alpha);
+    }
+
+    .pulse-filters,
+    .pulse-actions {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
+
+    .pulse-filter,
+    .pulse-search,
+    .pulse-event {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: var(--surface-strong);
+      color: var(--ink);
+      font: inherit;
+      font-size: 12px;
+      outline: none;
+    }
+
+    .pulse-filter {
+      padding: 0 32px 0 12px;
+    }
+
+    .pulse-search {
+      width: min(24vw, 230px);
+      padding: 0 12px;
+    }
+
+    .pulse-search::placeholder {
+      color: var(--faint);
+    }
+
+    .pulse-filter:focus-visible,
+    .pulse-search:focus-visible,
+    .pulse-event:focus-visible,
+    .pulse-card:focus-visible,
+    .pulse-close:focus-visible,
+    .pulse-check:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px var(--blue-soft);
+    }
+
+    .pulse-event {
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    .pulse-board-wrap {
+      overflow-x: auto;
+      padding: 18px;
+      scrollbar-color: var(--line-strong) transparent;
+    }
+
+    .pulse-board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(250px, 1fr));
+      gap: 14px;
+      min-width: 1120px;
+      align-items: start;
+    }
+
+    .pulse-lane {
+      min-height: 480px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(var(--cloud-rgb), .45);
+    }
+
+    .pulse-lane[data-lane="needs-me"] {
+      border-color: rgba(219, 113, 65, .28);
+      background: linear-gradient(155deg, rgba(255, 206, 169, .2), rgba(var(--cloud-rgb), .28) 42%);
+    }
+
+    .pulse-lane[data-lane="review"] {
+      border-color: rgba(101, 126, 200, .23);
+      background: linear-gradient(155deg, rgba(183, 198, 255, .2), rgba(var(--cloud-rgb), .28) 42%);
+    }
+
+    .pulse-lane[data-lane="parked"] {
+      background: rgba(var(--mist-rgb), .14);
+    }
+
+    .pulse-lane-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 4px 3px 12px;
+    }
+
+    .pulse-lane-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0;
+      font-size: 13px;
+      letter-spacing: -.02em;
+    }
+
+    .pulse-lane-title i {
+      display: block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--blue);
+    }
+
+    .pulse-lane[data-lane="needs-me"] .pulse-lane-title i { background: #d96a38; }
+    .pulse-lane[data-lane="review"] .pulse-lane-title i { background: #667cc6; }
+    .pulse-lane[data-lane="parked"] .pulse-lane-title i { background: var(--faint); }
+
+    .pulse-count {
+      min-width: 24px;
+      padding: 3px 7px;
+      border-radius: 999px;
+      background: var(--surface-strong);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+    }
+
+    .pulse-cards {
+      display: grid;
+      gap: 10px;
+    }
+
+    .pulse-card {
+      position: relative;
+      width: 100%;
+      padding: 16px;
+      border: 1px solid var(--surface-border);
+      border-radius: 15px;
+      background: var(--surface-strong);
+      box-shadow: 0 9px 22px rgba(76, 135, 190, .11), inset 0 1px 0 var(--shadow-highlight);
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+      transition: transform .24s var(--ease), border-color .24s ease, box-shadow .24s ease;
+    }
+
+    .pulse-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(var(--blue-rgb), .36);
+      box-shadow: 0 16px 28px rgba(76, 135, 190, .17), 0 0 20px rgba(var(--blue-rgb), .08), inset 0 1px 0 var(--shadow-highlight);
+    }
+
+    .pulse-card:active {
+      transform: translateY(-1px) scale(.99);
+    }
+
+    .pulse-card[data-attention="true"]::after {
+      position: absolute;
+      top: 13px;
+      right: 13px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #d96a38;
+      box-shadow: 0 0 0 4px rgba(217, 106, 56, .11);
+      content: "";
+    }
+
+    .pulse-card-project,
+    .pulse-card-meta,
+    .pulse-card-child {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .pulse-card-project {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+
+    .pulse-card h4 {
+      margin: 0;
+      color: var(--ink);
+      font-size: 15px;
+      letter-spacing: -.03em;
+      line-height: 1.2;
+    }
+
+    .pulse-card p {
+      min-height: 35px;
+      margin: 8px 0 13px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .pulse-card-bottom {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 9px;
+    }
+
+    .pulse-card-child {
+      max-width: 18ch;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pulse-state {
+      padding: 4px 7px;
+      border-radius: 999px;
+      background: var(--blue-soft);
+      color: var(--blue-deep);
+      font-size: 10px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .pulse-state.needs-me { background: rgba(217, 106, 56, .12); color: #ad4c25; }
+    .pulse-state.review { background: rgba(102, 124, 198, .12); color: #4f63ac; }
+    .pulse-state.parked { background: rgba(var(--mist-rgb), .55); color: var(--ink-soft); }
+
+    .pulse-finished {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      padding: 13px 18px 16px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .pulse-finished button {
+      border: 0;
+      background: transparent;
+      color: var(--blue-deep);
+      cursor: pointer;
+      font: inherit;
+      font-weight: 700;
+    }
+
+    .pulse-finished-list {
+      display: none;
+      gap: 8px;
+      padding: 0 18px 18px;
+    }
+
+    .pulse-finished-list.is-open {
+      display: grid;
+    }
+
+    .pulse-finished-item {
+      padding: 12px 14px;
+      border-radius: 12px;
+      background: rgba(var(--mist-rgb), .2);
+      color: var(--ink-soft);
+      font-size: 12px;
+    }
+
+    .pulse-empty {
+      padding: 22px 8px;
+      color: var(--faint);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    .pulse-drawer-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      background: rgba(11, 36, 62, .24);
+      backdrop-filter: blur(7px);
+      -webkit-backdrop-filter: blur(7px);
+    }
+
+    .pulse-drawer {
+      position: fixed;
+      top: 18px;
+      right: 18px;
+      bottom: 18px;
+      z-index: 21;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      width: min(460px, calc(100% - 36px));
+      overflow: hidden;
+      border: 1px solid var(--surface-border);
+      border-radius: var(--radius);
+      background: var(--workspace-bg);
+      box-shadow: -18px 22px 60px var(--shadow-deep), inset 0 1px 0 var(--shadow-highlight);
+      backdrop-filter: blur(24px) saturate(1.1);
+      -webkit-backdrop-filter: blur(24px) saturate(1.1);
+    }
+
+    .pulse-drawer-head,
+    .pulse-drawer-foot {
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .pulse-drawer-foot {
+      border-top: 1px solid var(--line);
+      border-bottom: 0;
+    }
+
+    .pulse-drawer-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .pulse-drawer-head h3 {
+      max-width: 17ch;
+      margin: 6px 0 0;
+      font-size: 24px;
+      letter-spacing: -.045em;
+      line-height: 1.05;
+    }
+
+    .pulse-drawer-head p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .pulse-close {
+      display: grid;
+      width: 34px;
+      height: 34px;
+      flex: 0 0 auto;
+      place-items: center;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      background: var(--surface-strong);
+      color: var(--ink-soft);
+      cursor: pointer;
+      font-size: 19px;
+    }
+
+    .pulse-drawer-body {
+      overflow-y: auto;
+      padding: 20px;
+    }
+
+    .pulse-outcome {
+      margin: 0;
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .pulse-drawer-section {
+      margin-top: 28px;
+    }
+
+    .pulse-drawer-section h4 {
+      margin: 0 0 11px;
+      color: var(--ink);
+      font-size: 12px;
+    }
+
+    .pulse-checklist {
+      display: grid;
+      gap: 8px;
+    }
+
+    .pulse-check {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 44px;
+      padding: 0 11px;
+      border: 1px solid var(--line);
+      border-radius: 11px;
+      background: var(--surface-strong);
+      color: var(--ink-soft);
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .pulse-check input {
+      width: 15px;
+      height: 15px;
+      accent-color: var(--blue);
+    }
+
+    .pulse-timeline {
+      display: grid;
+      gap: 0;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .pulse-timeline li {
+      position: relative;
+      padding: 0 0 15px 21px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .pulse-timeline li::before {
+      position: absolute;
+      top: 4px;
+      left: 0;
+      width: 8px;
+      height: 8px;
+      border: 2px solid var(--surface-strong);
+      border-radius: 50%;
+      background: var(--blue);
+      box-shadow: 0 0 0 1px var(--line-strong);
+      content: "";
+    }
+
+    .pulse-timeline time {
+      display: block;
+      margin-bottom: 2px;
+      color: var(--faint);
+      font-size: 10px;
+    }
+
+    .pulse-drawer-foot .button {
+      width: 100%;
+    }
+
+    .pulse-toast {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      z-index: 25;
+      padding: 12px 16px;
+      border: 1px solid var(--surface-border);
+      border-radius: 13px;
+      background: var(--surface-strong);
+      box-shadow: var(--raised-small);
+      color: var(--ink);
+      font-size: 12px;
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform .3s var(--ease), opacity .3s ease;
+    }
+
+    .pulse-toast.is-visible {
+      transform: none;
+      opacity: 1;
+    }
+
+    .reveal {
+      opacity: 1;
+      transform: none;
+    }
+
+    .js .reveal {
+      opacity: 0;
+      transform: translateY(28px);
+      transition:
+        opacity .8s var(--ease),
+        transform .8s var(--ease);
+    }
+
+    .js .reveal.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+
+    @media (max-width: 1180px) {
+      .nav-inner {
+        gap: 18px;
+      }
+
+      .theme-option {
+        min-width: 74px;
+      }
+
+      .hero {
+        grid-template-columns: minmax(0, .85fr) minmax(460px, 1.15fr);
+        padding-block: 32px;
+      }
+
+      .hero-visual {
+        min-height: min(600px, calc(100dvh - 120px));
+      }
+
+      .workspace {
+        min-height: 720px;
+      }
+
+      .canvas-wrap {
+        right: 270px;
+      }
+
+      .inspector {
+        width: 252px;
+      }
+
+      .morph-layout {
+        grid-template-columns: .72fr 1.28fr;
+        gap: 24px;
+      }
+
+      .focus-grid {
+        grid-template-rows: 250px 210px 190px;
+      }
+    }
+
+    @media (max-width: 960px) {
+      .pulse-heading {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .pulse-heading h2 {
+        max-width: 16ch;
+      }
+
+      .pulse-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .pulse-filters,
+      .pulse-actions {
+        justify-content: space-between;
+      }
+
+      .pulse-search {
+        width: 100%;
+      }
+
+      .shell {
+        width: min(100% - 36px, 760px);
+      }
+
+      .nav-links a:not(.button) {
+        display: none;
+      }
+
+      .theme-option {
+        min-width: 42px;
+      }
+
+      .theme-label {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+
+      .hero {
+        min-height: auto;
+        grid-template-columns: 1fr;
+        padding-block: 72px 40px;
+      }
+
+      .hero-copy {
+        padding-left: 0;
+      }
+
+      .hero h1 {
+        max-width: 9ch;
+        font-size: clamp(58px, 12vw, 86px);
+      }
+
+      .hero-visual {
+        min-height: 560px;
+      }
+
+      .principle {
+        padding-block: 110px 60px;
+      }
+
+      .workspace-section {
+        padding-block: 70px 110px;
+      }
+
+      .workspace {
+        min-height: 900px;
+      }
+
+      .workspace-main {
+        top: 66px;
+      }
+
+      .canvas-wrap {
+        inset: 0 0 286px 0;
+      }
+
+      .inspector {
+        top: auto;
+        right: 18px;
+        bottom: 18px;
+        left: 18px;
+        width: auto;
+        height: 250px;
+        display: grid;
+        grid-template-columns: 1fr 1.4fr auto;
+        align-items: stretch;
+      }
+
+      .inspector-head {
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
+      }
+
+      .inspector-body {
+        grid-template-columns: repeat(2, 1fr);
+      }
+
+      .inspector-row {
+        padding: 17px;
+        border-right: 1px solid var(--line);
+        border-bottom: 0;
+      }
+
+      .inspector-action {
+        align-self: center;
+        margin: 18px;
+        width: auto;
+      }
+
+      .mode-dock {
+        top: auto;
+        bottom: 308px;
+        left: 50%;
+        width: auto;
+        transform: translateX(-50%);
+        grid-template-columns: repeat(4, 74px);
+      }
+
+      .mode-button {
+        min-height: 48px;
+      }
+
+      .canvas-copy {
+        left: 24px;
+      }
+
+      .morph-layout {
+        grid-template-columns: 1fr;
+      }
+
+      .morph-copy h2 {
+        max-width: 11ch;
+      }
+
+      .focus-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: auto;
+      }
+
+      .focus-main,
+      .focus-workflow,
+      .focus-context,
+      .focus-files,
+      .focus-activity,
+      .focus-action {
+        grid-column: auto;
+        grid-row: auto;
+        min-height: 280px;
+      }
+
+      .focus-main {
+        min-height: 480px;
+      }
+
+      .focus-action {
+        min-height: 180px;
+      }
+    }
+
+    @media (max-width: 680px) {
+      .pulse-section {
+        padding-block: 44px 82px;
+      }
+
+      .pulse-heading {
+        gap: 16px;
+        margin-bottom: 22px;
+      }
+
+      .pulse-heading h2 {
+        font-size: clamp(40px, 13vw, 56px);
+      }
+
+      .pulse-live {
+        justify-self: start;
+      }
+
+      .pulse-app,
+      .pulse-drawer {
+        border-radius: 18px;
+      }
+
+      .pulse-toolbar,
+      .pulse-board-wrap {
+        padding: 12px;
+      }
+
+      .pulse-filters {
+        display: grid;
+        grid-template-columns: 1fr;
+      }
+
+      .pulse-filter,
+      .pulse-search,
+      .pulse-event {
+        width: 100%;
+      }
+
+      .pulse-actions {
+        display: grid;
+      }
+
+      .pulse-board-wrap {
+        overflow: visible;
+      }
+
+      .pulse-board {
+        min-width: 0;
+        grid-template-columns: 1fr;
+      }
+
+      .pulse-lane {
+        min-height: 0;
+      }
+
+      .pulse-drawer {
+        top: 10px;
+        right: 10px;
+        bottom: 10px;
+        width: calc(100% - 20px);
+      }
+
+      .pulse-drawer-head,
+      .pulse-drawer-body,
+      .pulse-drawer-foot {
+        padding: 16px;
+      }
+
+      .shell {
+        width: min(100% - 28px, 520px);
+      }
+
+      .nav {
+        height: 64px;
+      }
+
+      .nav-inner {
+        gap: 12px;
+      }
+
+      .nav-links {
+        display: none;
+      }
+
+      .theme-switch {
+        margin-left: auto;
+        padding: 3px;
+      }
+
+      .theme-option {
+        min-width: 32px;
+        height: 32px;
+        padding: 0;
+      }
+
+      .brand {
+        font-size: 16px;
+      }
+
+      .hero {
+        min-height: calc(100dvh - 64px);
+        padding-top: 54px;
+      }
+
+      .hero h1 {
+        font-size: clamp(52px, 17vw, 72px);
+      }
+
+      .hero-sub {
+        margin-top: 22px;
+        font-size: 17px;
+      }
+
+      .hero-actions {
+        margin-top: 28px;
+      }
+
+      .hero-actions .button {
+        width: 100%;
+      }
+
+      .hero-visual {
+        min-height: 430px;
+      }
+
+      .cloud-bank-a {
+        right: -25%;
+        width: 100%;
+      }
+
+      .cloud-bank-b {
+        width: 70%;
+      }
+
+      .principle,
+      .morph-section {
+        padding-block: 92px;
+      }
+
+      .principle h2,
+      .workspace-intro h2,
+      .morph-copy h2,
+      .focus-intro h2 {
+        font-size: clamp(40px, 13vw, 58px);
+      }
+
+      .workspace-section {
+        padding-block: 48px 92px;
+      }
+
+      .workspace {
+        min-height: 980px;
+        border-radius: 18px;
+      }
+
+      .workspace-bar {
+        height: 104px;
+        flex-wrap: wrap;
+        align-content: center;
+        gap: 4px 12px;
+      }
+
+      .workspace-meta {
+        display: none;
+      }
+
+      .preview-control {
+        width: 100%;
+      }
+
+      .preview-control select {
+        flex: 1;
+      }
+
+      .workspace-main {
+        top: 104px;
+      }
+
+      .canvas-wrap {
+        inset: 0 0 372px;
+      }
+
+      .canvas-copy {
+        top: 16px;
+        left: 16px;
+      }
+
+      .canvas-copy h3 {
+        font-size: 24px;
+      }
+
+      .canvas-copy p {
+        max-width: 28ch;
+      }
+
+      .mode-dock {
+        right: 12px;
+        bottom: 390px;
+        left: 12px;
+        grid-template-columns: repeat(4, 1fr);
+        transform: none;
+      }
+
+      .mode-button {
+        padding: 0;
+      }
+
+      .canvas-controls {
+        bottom: 458px;
+      }
+
+      .inspector {
+        height: 350px;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto 1fr auto;
+      }
+
+      .inspector-head {
+        padding: 18px;
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .inspector h3 {
+        font-size: 19px;
+      }
+
+      .inspector-kicker,
+      .inspector-type {
+        display: none;
+      }
+
+      .inspector-body {
+        grid-template-columns: 1fr 1fr;
+        padding: 0 12px;
+      }
+
+      .inspector-row {
+        padding: 12px 8px;
+        border-right: 0;
+      }
+
+      .inspector-row p {
+        display: none;
+      }
+
+      .inspector-action {
+        min-height: 42px;
+        margin: 10px 14px 14px;
+      }
+
+      .morph-stage {
+        min-height: 520px;
+      }
+
+      #morphCanvas {
+        height: 410px;
+      }
+
+      .morph-quote {
+        top: 10px;
+        right: 4%;
+        font-size: 20px;
+      }
+
+      .morph-controls {
+        right: 0;
+        bottom: 4px;
+        left: 0;
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .morph-tabs {
+        justify-content: center;
+      }
+
+      .focus-section {
+        padding-block: 72px 100px;
+      }
+
+      .focus-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .focus-main,
+      .focus-workflow,
+      .focus-context,
+      .focus-files,
+      .focus-activity,
+      .focus-action {
+        min-height: 280px;
+      }
+
+      .focus-main {
+        min-height: 440px;
+      }
+
+      .focus-workflow {
+        min-height: 440px;
+      }
+
+      .focus-action {
+        min-height: 190px;
+        padding: 28px;
+      }
+
+      .closing-line {
+        margin-top: 64px;
+        font-size: clamp(42px, 13vw, 60px);
+      }
+
+      .footer-inner {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html {
+        scroll-behavior: auto;
+      }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        scroll-behavior: auto !important;
+        transition-duration: .01ms !important;
+      }
+
+      .js .reveal {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .nav,
+      .theme-switch,
+      .workspace-bar,
+      .mode-dock,
+      .canvas-controls,
+      .inspector,
+      .state-overlay,
+      .hero-caption {
+        background: var(--cloud);
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to prototype</a>
+
+  <nav class="nav" aria-label="CloudDeck navigation">
+    <div class="shell nav-inner">
+      <a class="brand" href="#top" aria-label="CloudDeck home">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span>CloudDeck</span>
+      </a>
+      <div class="theme-switch" role="group" aria-label="Color atmosphere">
+        <button class="theme-option" type="button" data-theme-option="day" aria-pressed="true">
+          <span class="theme-swatch" aria-hidden="true"></span><span class="theme-label">Day</span>
+        </button>
+        <button class="theme-option" type="button" data-theme-option="afternoon" aria-pressed="false">
+          <span class="theme-swatch" aria-hidden="true"></span><span class="theme-label">Afternoon</span>
+        </button>
+        <button class="theme-option" type="button" data-theme-option="evening" aria-pressed="false">
+          <span class="theme-swatch" aria-hidden="true"></span><span class="theme-label">Evening</span>
+        </button>
+      </div>
+      <div class="nav-links">
+        <a href="#workspace">Workspace</a>
+        <a href="#pulse">Pulse</a>
+        <a href="#principle">Principle</a>
+        <a href="#focus">Focus</a>
+        <a class="button button-primary button-small" href="#workspace">Enter workspace <span aria-hidden="true">→</span></a>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <header class="shell hero" id="top">
+      <div class="hero-copy reveal">
+        <p class="editorial-note">The object stays the same.</p>
+        <h1>Work takes shape.</h1>
+        <p class="hero-sub">A spatial workspace for workflows, agents, context and decisions.</p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#workspace">Enter workspace <span aria-hidden="true">→</span></a>
+          <a class="button button-secondary" href="#principle">See the idea</a>
+        </div>
+      </div>
+      <div class="hero-visual reveal">
+        <div class="cloud-illustration" aria-hidden="true">
+          <span class="cloud-bank cloud-bank-a"></span>
+          <span class="cloud-bank cloud-bank-b"></span>
+          <span class="cloud-bank cloud-bank-c"></span>
+        </div>
+        <canvas id="heroField" role="img" aria-label="A cloud-like field of connected work objects condensing around one selected object"></canvas>
+        <div class="hero-caption"><i aria-hidden="true"></i><span>Illustrative shared state</span></div>
+      </div>
+    </header>
+
+    <section class="principle" id="principle">
+      <div class="shell principle-copy reveal">
+        <h2>One state. Many forms.</h2>
+        <p>Move from overview to action without losing identity, context or relationships.</p>
+      </div>
+    </section>
+
+    <section class="workspace-section" id="workspace">
+      <div class="shell">
+        <div class="workspace-intro reveal">
+          <h2>Change the view, not the work.</h2>
+          <p>Switch between spatial field, workflow graph, board and history. Select any object to keep it in focus across every mode.</p>
+        </div>
+
+        <div class="workspace reveal" aria-label="Interactive CloudDeck product prototype">
+          <div class="workspace-bar">
+            <div class="workspace-title">
+              <span class="brand-mark" aria-hidden="true"><i></i></span>
+              <span>CloudDeck</span>
+            </div>
+            <span class="workspace-meta">Atlas redesign / illustrative data</span>
+            <div class="preview-control">
+              <label for="previewState">Preview state</label>
+              <select id="previewState">
+                <option value="live">Live</option>
+                <option value="loading">Loading</option>
+                <option value="empty">Empty</option>
+                <option value="error">Link lost</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="workspace-main">
+            <div class="mode-dock" aria-label="Workspace view">
+              <button class="mode-button" type="button" data-mode="field" aria-pressed="true">Field</button>
+              <button class="mode-button" type="button" data-mode="flow" aria-pressed="false">Flow</button>
+              <button class="mode-button" type="button" data-mode="board" aria-pressed="false">Board</button>
+              <button class="mode-button" type="button" data-mode="time" aria-pressed="false">Time</button>
+            </div>
+
+            <div class="canvas-wrap">
+              <div class="canvas-copy" aria-live="polite">
+                <h3 id="modeTitle">Field view</h3>
+                <p id="modeCopy">See proximity, shared context and active relationships.</p>
+              </div>
+              <canvas id="workspaceCanvas" role="img" aria-label="Interactive work objects shown in Field view"></canvas>
+              <div class="canvas-controls" aria-label="Canvas scale">
+                <button type="button" data-zoom="out" aria-label="Zoom out">−</button>
+                <button type="button" data-zoom="fit">Fit</button>
+                <button type="button" data-zoom="in" aria-label="Zoom in">+</button>
+              </div>
+            </div>
+
+            <aside class="inspector" aria-label="Selected work object" aria-live="polite">
+              <div class="inspector-head">
+                <p class="inspector-kicker">Selected object</p>
+                <h3 id="inspectorTitle">Build interaction model</h3>
+                <p class="inspector-type" id="inspectorType">Work state / active</p>
+              </div>
+              <div class="inspector-body">
+                <div class="inspector-row">
+                  <span>Connections</span>
+                  <b id="inspectorConnections">3 related objects</b>
+                  <p id="inspectorRelation">Upstream and downstream work stays visible.</p>
+                </div>
+                <div class="inspector-row">
+                  <span>Context</span>
+                  <b id="inspectorContext">Shared context</b>
+                  <p id="inspectorContextCopy">Visible to design, prototype and review work.</p>
+                </div>
+              </div>
+              <button class="button button-primary inspector-action" id="openFlow" type="button">Open in Flow <span aria-hidden="true">→</span></button>
+            </aside>
+
+            <div class="state-overlay" id="stateOverlay" hidden>
+              <div class="state-orbit" aria-hidden="true"></div>
+              <h3 id="stateTitle">Preparing shared state</h3>
+              <p id="stateCopy">Keeping the final geometry in place while objects arrive.</p>
+              <button class="button button-primary button-small" id="stateAction" type="button">Return live</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pulse-section" id="pulse" aria-labelledby="pulseTitle">
+      <div class="shell">
+        <div class="pulse-heading reveal">
+          <div>
+            <h2 id="pulseTitle">Keep the next human move in view.</h2>
+            <p>Pulse is a local mock of the agent companion. Sessions update the board, while people answer only when context needs them.</p>
+          </div>
+          <span class="pulse-live"><i aria-hidden="true"></i>Mock session stream</span>
+        </div>
+
+        <div class="pulse-app reveal" aria-label="CloudDeck Pulse Board prototype">
+          <div class="pulse-toolbar">
+            <div class="pulse-filters">
+              <select class="pulse-filter" id="pulseProject" aria-label="Filter sessions by project">
+                <option value="all">All projects</option>
+                <option value="clouddeck">CloudDeck</option>
+                <option value="nakivo">Nakivo</option>
+                <option value="personal">Personal</option>
+              </select>
+              <input class="pulse-search" id="pulseSearch" type="search" placeholder="Filter sessions" aria-label="Filter sessions by name">
+            </div>
+            <div class="pulse-actions">
+              <button class="button button-secondary button-small" id="pulseEvent" type="button">Play mock event</button>
+            </div>
+          </div>
+
+          <div class="pulse-board-wrap">
+            <div class="pulse-board" id="pulseBoard" aria-live="polite"></div>
+          </div>
+
+          <div class="pulse-finished">
+            <span id="pulseFinishedSummary">No completed sessions yet.</span>
+            <button id="pulseFinishedToggle" type="button" aria-expanded="false">Show finished</button>
+          </div>
+          <div class="pulse-finished-list" id="pulseFinishedList"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="morph-section" aria-labelledby="morphTitle">
+      <div class="shell morph-layout">
+        <div class="morph-copy reveal">
+          <h2 id="morphTitle">Follow one object.</h2>
+          <p>Drag the shape range. The same work object moves from spatial signal to workflow node to actionable card.</p>
+        </div>
+        <div class="morph-stage reveal">
+          <p class="morph-quote">Identity survives every view.</p>
+          <canvas id="morphCanvas" role="img" aria-label="A single work object transforming between Field, Flow and Board"></canvas>
+          <div class="morph-controls">
+            <div class="morph-tabs" aria-label="Set object form">
+              <button class="morph-tab" type="button" data-shape="0" aria-pressed="true">Field</button>
+              <button class="morph-tab" type="button" data-shape="50" aria-pressed="false">Flow</button>
+              <button class="morph-tab" type="button" data-shape="100" aria-pressed="false">Board</button>
+            </div>
+            <div class="range-wrap">
+              <label for="shapeRange">Shape range</label>
+              <input id="shapeRange" type="range" min="0" max="100" value="0">
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="focus-section" id="focus">
+      <div class="shell">
+        <div class="focus-intro reveal">
+          <h2>Focus without leaving the surface.</h2>
+          <p>Selection changes information depth. Context, workflow, files and activity assemble around the same object.</p>
+        </div>
+
+        <div class="focus-grid reveal">
+          <article class="focus-cell focus-main">
+            <canvas id="focusCanvas" role="img" aria-label="Build interaction model connected to six related work objects"></canvas>
+            <div class="focus-main-copy">
+              <h3>Build interaction model</h3>
+              <p>Selected work state</p>
+            </div>
+          </article>
+
+          <article class="focus-cell focus-workflow">
+            <h3 class="cell-title"><i aria-hidden="true"></i>Workflow</h3>
+            <div class="workflow-list">
+              <div class="workflow-item active"><b>Define interactions</b><span>Map core states and behavior.</span></div>
+              <div class="workflow-item"><b>Model transitions</b><span>Connect state, view and intent.</span></div>
+              <div class="workflow-item"><b>Validate</b><span>Test with realistic workflows.</span></div>
+              <div class="workflow-item"><b>Handoff</b><span>Share the accepted model.</span></div>
+            </div>
+          </article>
+
+          <article class="focus-cell focus-context">
+            <h3 class="cell-title"><i aria-hidden="true"></i>Shared context</h3>
+            <div class="context-layout">
+              <div class="context-stack" aria-hidden="true">
+                <div class="context-layer"></div>
+                <div class="context-layer"></div>
+                <div class="context-layer"></div>
+                <div class="context-layer"></div>
+              </div>
+              <div class="context-copy">
+                <div><b>People</b><span>Design and engineering</span></div>
+                <div><b>Systems</b><span>Product and UI model</span></div>
+                <div><b>References</b><span>Docs and decisions</span></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="focus-cell focus-files">
+            <h3 class="cell-title"><i aria-hidden="true"></i>Files</h3>
+            <div class="file-list">
+              <div class="file-row"><div class="file-icon">UI</div><div><b>Interaction model</b><span>Updated today</span></div><em>›</em></div>
+              <div class="file-row"><div class="file-icon">MD</div><div><b>Behavior spec</b><span>Reviewed yesterday</span></div><em>›</em></div>
+              <div class="file-row"><div class="file-icon">JS</div><div><b>Prototype</b><span>Ready for review</span></div><em>›</em></div>
+            </div>
+          </article>
+
+          <article class="focus-cell focus-activity">
+            <h3 class="cell-title"><i aria-hidden="true"></i>Activity</h3>
+            <div class="activity-list">
+              <div class="activity-item"><b>Interaction model updated</b><span>Current session</span></div>
+              <div class="activity-item"><b>Behavior spec reviewed</b><span>Previous session</span></div>
+              <div class="activity-item"><b>Prototype connected</b><span>Earlier</span></div>
+            </div>
+          </article>
+
+          <article class="focus-cell focus-action">
+            <div>
+              <h3>Open in Flow</h3>
+              <p>Pick up the same object with its relationships intact.</p>
+            </div>
+            <button class="action-arrow" id="focusFlow" type="button" aria-label="Open Flow view">→</button>
+          </article>
+        </div>
+
+        <p class="closing-line reveal">One surface for work in motion.</p>
+      </div>
+    </section>
+  </main>
+
+  <div class="pulse-drawer-backdrop" id="pulseDrawerBackdrop" hidden></div>
+  <aside class="pulse-drawer" id="pulseDrawer" aria-labelledby="pulseDrawerTitle" aria-modal="true" role="dialog" hidden></aside>
+  <div class="pulse-toast" id="pulseToast" aria-live="polite" role="status"></div>
+
+  <footer class="footer">
+    <div class="shell footer-inner">
+      <a class="brand" href="#top">
+        <span class="brand-mark" aria-hidden="true"><i></i></span>
+        <span>CloudDeck</span>
+      </a>
+      <span>Interactive concept prototype / illustrative data</span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var rootStyle;
+      var colors = {};
+
+      function refreshColors() {
+        rootStyle = getComputedStyle(document.documentElement);
+        colors = {
+          cloud: rootStyle.getPropertyValue("--cloud").trim(),
+          white: rootStyle.getPropertyValue("--white").trim(),
+          ice: rootStyle.getPropertyValue("--ice").trim(),
+          mist: rootStyle.getPropertyValue("--mist").trim(),
+          sky: rootStyle.getPropertyValue("--sky").trim(),
+          blue: rootStyle.getPropertyValue("--blue").trim(),
+          blueDeep: rootStyle.getPropertyValue("--blue-deep").trim(),
+          ink: rootStyle.getPropertyValue("--ink").trim(),
+          inkSoft: rootStyle.getPropertyValue("--ink-soft").trim(),
+          muted: rootStyle.getPropertyValue("--muted").trim(),
+          cloudCore: rootStyle.getPropertyValue("--cloud-core").trim(),
+          cloudMid: rootStyle.getPropertyValue("--cloud-mid").trim(),
+          cloudEdge: rootStyle.getPropertyValue("--cloud-edge").trim(),
+          cloudFade: rootStyle.getPropertyValue("--cloud-fade").trim(),
+          canvasLine: rootStyle.getPropertyValue("--canvas-line").trim(),
+          canvasLineSoft: rootStyle.getPropertyValue("--canvas-line-soft").trim(),
+          canvasGrid: rootStyle.getPropertyValue("--canvas-grid").trim(),
+          canvasSurface: rootStyle.getPropertyValue("--canvas-surface").trim(),
+          canvasSurfaceStrong: rootStyle.getPropertyValue("--canvas-surface-strong").trim(),
+          canvasNode: rootStyle.getPropertyValue("--canvas-node").trim(),
+          canvasHighlight: rootStyle.getPropertyValue("--canvas-highlight").trim(),
+          blueRgb: rootStyle.getPropertyValue("--blue-rgb").trim(),
+          skyRgb: rootStyle.getPropertyValue("--sky-rgb").trim(),
+          mistRgb: rootStyle.getPropertyValue("--mist-rgb").trim(),
+          cloudRgb: rootStyle.getPropertyValue("--cloud-rgb").trim(),
+          highlightRgb: rootStyle.getPropertyValue("--highlight-rgb").trim(),
+          shadow: rootStyle.getPropertyValue("--shadow-color").trim(),
+          glow: rootStyle.getPropertyValue("--glow").trim(),
+          glowStrong: rootStyle.getPropertyValue("--glow-strong").trim()
+        };
+      }
+
+      function rgba(rgb, alpha) {
+        return "rgba(" + rgb + "," + alpha + ")";
+      }
+
+      function setupTheme() {
+        var options = Array.prototype.slice.call(document.querySelectorAll("[data-theme-option]"));
+        var themeColor = document.querySelector('meta[name="theme-color"]');
+        var colorScheme = document.querySelector('meta[name="color-scheme"]');
+        var themes = {
+          day: { color: "#f8fcff", scheme: "light" },
+          afternoon: { color: "#fff8ef", scheme: "light" },
+          evening: { color: "#071528", scheme: "dark" }
+        };
+
+        function applyTheme(theme, persist, notify) {
+          var next = themes[theme] ? theme : "day";
+          document.documentElement.dataset.theme = next;
+          options.forEach(function (option) {
+            option.setAttribute("aria-pressed", option.dataset.themeOption === next ? "true" : "false");
+          });
+          themeColor.setAttribute("content", themes[next].color);
+          colorScheme.setAttribute("content", themes[next].scheme);
+          if (persist) {
+            try { localStorage.setItem("clouddeck-theme", next); } catch (error) { /* preference is optional */ }
+          }
+          refreshColors();
+          if (notify) {
+            window.dispatchEvent(new CustomEvent("clouddeck:theme", { detail: { theme: next } }));
+          }
+        }
+
+        options.forEach(function (option) {
+          option.addEventListener("click", function () {
+            applyTheme(option.dataset.themeOption, true, true);
+          });
+        });
+        applyTheme(document.documentElement.dataset.theme, false, false);
+      }
+
+      refreshColors();
+      setupTheme();
+
+      function clamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+      }
+
+      function lerp(a, b, amount) {
+        return a + (b - a) * amount;
+      }
+
+      function easeInOut(value) {
+        return value < .5
+          ? 4 * value * value * value
+          : 1 - Math.pow(-2 * value + 2, 3) / 2;
+      }
+
+      function roundedRect(ctx, x, y, width, height, radius) {
+        var r = Math.min(radius, width / 2, height / 2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+      }
+
+      function drawOrb(ctx, x, y, radius, alpha) {
+        ctx.save();
+        ctx.globalAlpha = alpha == null ? 1 : alpha;
+        var glow = ctx.createRadialGradient(x - radius * .28, y - radius * .36, radius * .08, x, y, radius * 1.45);
+        glow.addColorStop(0, rgba(colors.highlightRgb, .96));
+        glow.addColorStop(.22, rgba(colors.skyRgb, .58));
+        glow.addColorStop(.62, rgba(colors.blueRgb, .24));
+        glow.addColorStop(1, rgba(colors.blueRgb, 0));
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(x, y, radius * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+
+        var points = [];
+        var count = 10;
+        for (var i = 0; i < count; i += 1) {
+          var angle = -Math.PI / 2 + i * Math.PI * 2 / count;
+          var wobble = i % 2 ? .88 : 1;
+          points.push([x + Math.cos(angle) * radius * wobble, y + Math.sin(angle) * radius * wobble]);
+        }
+
+        var center = [x + radius * .08, y - radius * .05];
+        var fills = [colors.sky, colors.canvasHighlight, colors.blue, colors.blueDeep, colors.ice];
+        for (var j = 0; j < points.length; j += 1) {
+          var next = points[(j + 1) % points.length];
+          ctx.beginPath();
+          ctx.moveTo(center[0], center[1]);
+          ctx.lineTo(points[j][0], points[j][1]);
+          ctx.lineTo(next[0], next[1]);
+          ctx.closePath();
+          ctx.fillStyle = fills[j % fills.length];
+          ctx.fill();
+          ctx.strokeStyle = rgba(colors.highlightRgb, .46);
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        ctx.beginPath();
+        ctx.moveTo(points[8][0], points[8][1]);
+        ctx.lineTo(center[0], center[1]);
+        ctx.lineTo(points[1][0], points[1][1]);
+        ctx.strokeStyle = rgba(colors.highlightRgb, .62);
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      function fitCanvas(canvas, ctx) {
+        var rect = canvas.getBoundingClientRect();
+        var ratio = Math.min(window.devicePixelRatio || 1, 2);
+        var width = Math.max(1, Math.round(rect.width * ratio));
+        var height = Math.max(1, Math.round(rect.height * ratio));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        return { width: rect.width, height: rect.height, ratio: ratio };
+      }
+
+      function observeCanvas(canvas, onVisible) {
+        var visible = true;
+        var observer = new IntersectionObserver(function (entries) {
+          visible = entries[0].isIntersecting;
+          onVisible(visible);
+        }, { rootMargin: "160px" });
+        observer.observe(canvas);
+        return function () {
+          observer.disconnect();
+          return visible;
+        };
+      }
+
+      function createHeroField() {
+        var canvas = document.getElementById("heroField");
+        var ctx = canvas.getContext("2d");
+        var size = { width: 1, height: 1 };
+        var active = true;
+        var frame = 0;
+        var pointer = { x: 0, y: 0 };
+        var nodes = [
+          { x: .18, y: .41, r: 9, depth: .5 },
+          { x: .27, y: .64, r: 14, depth: .8 },
+          { x: .34, y: .26, r: 18, depth: 1 },
+          { x: .43, y: .51, r: 11, depth: .65 },
+          { x: .51, y: .37, r: 34, depth: 1.4, selected: true },
+          { x: .61, y: .19, r: 13, depth: .75 },
+          { x: .66, y: .66, r: 17, depth: .8 },
+          { x: .76, y: .43, r: 20, depth: 1 },
+          { x: .84, y: .24, r: 9, depth: .5 },
+          { x: .88, y: .69, r: 15, depth: .7 }
+        ];
+        var links = [[0,2],[0,1],[1,4],[2,4],[3,4],[4,5],[4,6],[4,7],[5,8],[7,8],[6,9],[7,9]];
+
+        function resize() {
+          size = fitCanvas(canvas, ctx);
+          draw(performance.now());
+        }
+
+        function nodePoint(node, time) {
+          var drift = reducedMotion ? 0 : Math.sin(time * .0005 + node.x * 9) * 5 * node.depth;
+          return {
+            x: node.x * size.width + pointer.x * node.depth * 8,
+            y: node.y * size.height + drift + pointer.y * node.depth * 6
+          };
+        }
+
+        function drawCloudBank(time) {
+          var drift = reducedMotion ? 0 : Math.sin(time * .00024) * 5;
+          var banks = [
+            [.29,.84,.12], [.4,.77,.15], [.52,.84,.18],
+            [.65,.76,.16], [.78,.83,.19], [.91,.75,.14]
+          ];
+
+          ctx.save();
+          drawCloudSilhouette(size.width * .18, size.height * .58 + drift, size.width * .77, size.height * .31, .58);
+          drawCloudSilhouette(size.width * .55, size.height * .13 - drift * .4, size.width * .42, size.height * .18, .22);
+          var base = ctx.createRadialGradient(size.width * .64, size.height * .84, 0, size.width * .64, size.height * .84, size.width * .48);
+          base.addColorStop(0, colors.cloudMid);
+          base.addColorStop(.58, colors.cloudEdge);
+          base.addColorStop(1, colors.cloudFade);
+          ctx.fillStyle = base;
+          ctx.beginPath();
+          ctx.ellipse(size.width * .64, size.height * .86 + drift, size.width * .47, size.height * .13, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.shadowColor = colors.shadow;
+          ctx.shadowBlur = 24;
+          banks.forEach(function (puff, index) {
+            var x = size.width * puffyX(puff[0], index, time);
+            var y = size.height * puff[1] + drift * (index % 2 ? .8 : 1.15);
+            var radius = size.width * puff[2];
+            var gradient = ctx.createRadialGradient(x - radius * .22, y - radius * .26, radius * .05, x, y, radius);
+            gradient.addColorStop(0, colors.cloudCore);
+            gradient.addColorStop(.45, index % 2 ? colors.cloudCore : colors.cloudMid);
+            gradient.addColorStop(.78, colors.cloudMid);
+            gradient.addColorStop(1, colors.cloudFade);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius, radius * .58, 0, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.restore();
+        }
+
+        function drawCloudSilhouette(x, y, width, height, alpha) {
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          ctx.beginPath();
+          ctx.moveTo(x + width * .04, y + height * .72);
+          ctx.bezierCurveTo(x, y + height * .64, x + width * .05, y + height * .48, x + width * .17, y + height * .5);
+          ctx.bezierCurveTo(x + width * .18, y + height * .32, x + width * .31, y + height * .25, x + width * .41, y + height * .36);
+          ctx.bezierCurveTo(x + width * .45, y + height * .07, x + width * .69, y + height * .03, x + width * .75, y + height * .36);
+          ctx.bezierCurveTo(x + width * .87, y + height * .26, x + width * .97, y + height * .43, x + width * .94, y + height * .62);
+          ctx.bezierCurveTo(x + width, y + height * .72, x + width * .91, y + height * .9, x + width * .78, y + height * .86);
+          ctx.lineTo(x + width * .18, y + height * .86);
+          ctx.bezierCurveTo(x + width * .08, y + height * .88, x + width * .01, y + height * .81, x + width * .04, y + height * .72);
+          ctx.closePath();
+          var fill = ctx.createLinearGradient(x, y, x, y + height);
+          fill.addColorStop(0, colors.cloudCore);
+          fill.addColorStop(.64, colors.cloudMid);
+          fill.addColorStop(1, colors.cloudEdge);
+          ctx.fillStyle = fill;
+          ctx.shadowColor = colors.shadow;
+          ctx.shadowBlur = 28;
+          ctx.shadowOffsetY = 14;
+          ctx.fill();
+          ctx.shadowColor = "transparent";
+          ctx.strokeStyle = colors.cloudEdge;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function puffyX(x, index, time) {
+          if (reducedMotion) return x;
+          return x + Math.sin(time * .00017 + index * .8) * .006;
+        }
+
+        function draw(time) {
+          ctx.clearRect(0, 0, size.width, size.height);
+          drawCloudBank(time);
+
+          var cloudSpots = [
+            [.35,.44,.28,.18], [.52,.39,.31,.22], [.67,.47,.3,.19],
+            [.46,.61,.31,.18], [.72,.64,.24,.16], [.78,.31,.2,.15]
+          ];
+          cloudSpots.forEach(function (spot, index) {
+            var x = spot[0] * size.width;
+            var y = spot[1] * size.height;
+            var radius = spot[2] * size.width;
+            var gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+            gradient.addColorStop(0, index % 2 ? rgba(colors.mistRgb, .26) : rgba(colors.skyRgb, .16));
+            gradient.addColorStop(.46, rgba(colors.skyRgb, .12));
+            gradient.addColorStop(1, colors.cloudFade);
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.ellipse(x, y, radius, spot[3] * size.height, 0, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          links.forEach(function (link, index) {
+            var a = nodePoint(nodes[link[0]], time);
+            var b = nodePoint(nodes[link[1]], time);
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            var bend = (index % 2 ? 1 : -1) * 22;
+            ctx.bezierCurveTo(
+              lerp(a.x, b.x, .42), a.y + bend,
+              lerp(a.x, b.x, .62), b.y - bend,
+              b.x, b.y
+            );
+            ctx.strokeStyle = colors.canvasLine;
+            ctx.lineWidth = 1.2;
+            ctx.shadowColor = colors.glow;
+            ctx.shadowBlur = index % 3 === 0 ? 8 : 0;
+            ctx.stroke();
+            ctx.shadowColor = "transparent";
+          });
+
+          nodes.forEach(function (node, index) {
+            var point = nodePoint(node, time);
+            if (node.selected) {
+              drawOrb(ctx, point.x, point.y, node.r + (reducedMotion ? 0 : Math.sin(time * .002) * 1.5));
+              return;
+            }
+            var gradient = ctx.createRadialGradient(
+              point.x - node.r * .35,
+              point.y - node.r * .4,
+              1,
+              point.x,
+              point.y,
+              node.r
+            );
+            gradient.addColorStop(0, colors.canvasHighlight);
+            gradient.addColorStop(.66, index % 3 ? colors.canvasNode : rgba(colors.skyRgb, .78));
+            gradient.addColorStop(1, rgba(colors.blueRgb, .34));
+            ctx.fillStyle = gradient;
+            ctx.shadowColor = colors.shadow;
+            ctx.shadowBlur = 18;
+            ctx.shadowOffsetY = 7;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, node.r, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = rgba(colors.highlightRgb, .86);
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+          });
+
+          if (!reducedMotion && active) {
+            frame = requestAnimationFrame(draw);
+          } else {
+            frame = 0;
+          }
+        }
+
+        canvas.addEventListener("pointermove", function (event) {
+          var rect = canvas.getBoundingClientRect();
+          pointer.x = clamp((event.clientX - rect.left) / rect.width - .5, -.5, .5);
+          pointer.y = clamp((event.clientY - rect.top) / rect.height - .5, -.5, .5);
+        });
+        canvas.addEventListener("pointerleave", function () {
+          pointer.x = 0;
+          pointer.y = 0;
+        });
+
+        window.addEventListener("clouddeck:theme", function () {
+          draw(performance.now());
+        });
+
+        new ResizeObserver(resize).observe(canvas);
+        observeCanvas(canvas, function (visible) {
+          active = visible;
+          if (visible && !frame) frame = requestAnimationFrame(draw);
+          if (!visible && frame) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+          }
+        });
+        resize();
+        if (!reducedMotion) frame = requestAnimationFrame(draw);
+      }
+
+      function createWorkspace() {
+        var canvas = document.getElementById("workspaceCanvas");
+        var ctx = canvas.getContext("2d");
+        var size = { width: 1, height: 1 };
+        var mode = "field";
+        var active = true;
+        var frame = 0;
+        var zoom = 1;
+        var transitionStart = performance.now();
+        var transitionDuration = reducedMotion ? 1 : 840;
+        var modeButtons = Array.prototype.slice.call(document.querySelectorAll("[data-mode]"));
+        var modeTitle = document.getElementById("modeTitle");
+        var modeCopy = document.getElementById("modeCopy");
+        var previewState = document.getElementById("previewState");
+        var stateOverlay = document.getElementById("stateOverlay");
+        var stateTitle = document.getElementById("stateTitle");
+        var stateCopy = document.getElementById("stateCopy");
+        var stateAction = document.getElementById("stateAction");
+        var selectedId = "interaction";
+        var hitAreas = [];
+
+        var nodes = [
+          { id: "research", title: "User research", kind: "signal", state: "ready", context: "Research context", relation: "Findings shape design and interaction work." },
+          { id: "system", title: "Design system", kind: "cube", state: "active", context: "UI system", relation: "Tokens and components remain linked." },
+          { id: "atlas", title: "Atlas redesign", kind: "orb", state: "active", context: "Shared context", relation: "The primary project surface connects every view." },
+          { id: "prototype", title: "Prototype", kind: "cube", state: "active", context: "Runtime context", relation: "Interaction behavior is tested in a working surface." },
+          { id: "interaction", title: "Build interaction model", kind: "orb", state: "active", context: "Shared context", relation: "Upstream and downstream work stays visible." },
+          { id: "docs", title: "Docs and specs", kind: "signal", state: "ready", context: "Reference context", relation: "Accepted behavior becomes durable reference." },
+          { id: "qa", title: "QA plan", kind: "signal", state: "queued", context: "Validation context", relation: "Test cases inherit the same work identity." },
+          { id: "handoff", title: "Developer handoff", kind: "cube", state: "queued", context: "Delivery context", relation: "Implementation receives decisions and evidence." }
+        ];
+
+        var links = [
+          ["research", "atlas"], ["system", "atlas"], ["atlas", "interaction"],
+          ["prototype", "interaction"], ["interaction", "docs"], ["interaction", "qa"],
+          ["interaction", "handoff"], ["atlas", "handoff"]
+        ];
+
+        var layouts = {
+          field: {
+            research: [.18,.32], system: [.18,.69], atlas: [.46,.39], prototype: [.39,.73],
+            interaction: [.61,.57], docs: [.66,.82], qa: [.78,.72], handoff: [.82,.35]
+          },
+          flow: {
+            research: [.2,.29], system: [.2,.66], atlas: [.42,.46], prototype: [.42,.73],
+            interaction: [.62,.47], docs: [.82,.26], qa: [.82,.5], handoff: [.82,.73]
+          },
+          board: {
+            research: [.19,.33], system: [.19,.61], atlas: [.49,.31], prototype: [.49,.61],
+            interaction: [.49,.79], docs: [.79,.31], qa: [.79,.57], handoff: [.79,.79]
+          },
+          time: {
+            research: [.12,.55], system: [.24,.39], atlas: [.38,.55], prototype: [.52,.7],
+            interaction: [.65,.46], docs: [.77,.63], qa: [.87,.38], handoff: [.93,.61]
+          }
+        };
+
+        var modeMeta = {
+          field: ["Field view", "See proximity, shared context and active relationships."],
+          flow: ["Flow view", "Read dependency, branch and handoff in one direction."],
+          board: ["Board view", "Move work between intent, active work and accepted output."],
+          time: ["Time view", "Follow the same object through decisions and state changes."]
+        };
+
+        nodes.forEach(function (node) {
+          var start = layouts.field[node.id];
+          node.x = start[0];
+          node.y = start[1];
+          node.fromX = node.x;
+          node.fromY = node.y;
+          node.toX = node.x;
+          node.toY = node.y;
+        });
+
+        function resize() {
+          size = fitCanvas(canvas, ctx);
+          draw(performance.now());
+        }
+
+        function setMode(nextMode) {
+          if (!layouts[nextMode]) return;
+          mode = nextMode;
+          transitionStart = performance.now();
+          nodes.forEach(function (node) {
+            node.fromX = node.x;
+            node.fromY = node.y;
+            node.toX = layouts[mode][node.id][0];
+            node.toY = layouts[mode][node.id][1];
+          });
+          modeButtons.forEach(function (button) {
+            button.setAttribute("aria-pressed", button.dataset.mode === mode ? "true" : "false");
+          });
+          modeTitle.textContent = modeMeta[mode][0];
+          modeCopy.textContent = modeMeta[mode][1];
+          canvas.setAttribute("aria-label", "Interactive work objects shown in " + modeMeta[mode][0]);
+          if (!frame && active) frame = requestAnimationFrame(draw);
+        }
+
+        function updateTransition(time) {
+          var raw = clamp((time - transitionStart) / transitionDuration, 0, 1);
+          var amount = easeInOut(raw);
+          nodes.forEach(function (node) {
+            node.x = lerp(node.fromX, node.toX, amount);
+            node.y = lerp(node.fromY, node.toY, amount);
+          });
+          return raw < 1;
+        }
+
+        function canvasPoint(node) {
+          var centerX = size.width * .52;
+          var centerY = size.height * .52;
+          var rawX = node.x * size.width;
+          var rawY = node.y * size.height;
+          return {
+            x: centerX + (rawX - centerX) * zoom,
+            y: centerY + (rawY - centerY) * zoom
+          };
+        }
+
+        function drawBackground() {
+          if (mode === "field") {
+            var spots = [[.42,.48,.28,.24],[.62,.52,.31,.25],[.72,.36,.22,.2],[.38,.7,.2,.16]];
+            spots.forEach(function (spot, index) {
+              var x = spot[0] * size.width;
+              var y = spot[1] * size.height;
+              var radius = spot[2] * size.width;
+              var gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+              gradient.addColorStop(0, index % 2 ? colors.cloudEdge : colors.cloudMid);
+              gradient.addColorStop(1, colors.cloudFade);
+              ctx.fillStyle = gradient;
+              ctx.beginPath();
+              ctx.ellipse(x, y, radius, spot[3] * size.height, 0, 0, Math.PI * 2);
+              ctx.fill();
+            });
+          }
+
+          if (mode === "flow") {
+            ctx.strokeStyle = colors.canvasGrid;
+            ctx.lineWidth = 1;
+            [.29,.48,.67].forEach(function (line) {
+              ctx.beginPath();
+              ctx.moveTo(size.width * .09, size.height * line);
+              ctx.lineTo(size.width * .93, size.height * line);
+              ctx.stroke();
+            });
+          }
+
+          if (mode === "board") {
+            var labels = ["Intent", "In motion", "Accepted"];
+            var xs = [.08,.38,.68];
+            ctx.font = "600 12px " + rootStyle.getPropertyValue("--display");
+            labels.forEach(function (label, index) {
+              var x = size.width * xs[index];
+              var width = size.width * .24;
+              roundedRect(ctx, x, size.height * .17, width, size.height * .72, 18);
+              ctx.fillStyle = index === 1 ? rgba(colors.mistRgb, .38) : rgba(colors.highlightRgb, .18);
+              ctx.fill();
+              ctx.strokeStyle = colors.canvasLineSoft;
+              ctx.stroke();
+              ctx.fillStyle = colors.muted;
+              ctx.fillText(label, x + 16, size.height * .205);
+            });
+          }
+
+          if (mode === "time") {
+            var startX = size.width * .1;
+            var endX = size.width * .94;
+            var y = size.height * .56;
+            ctx.beginPath();
+            ctx.moveTo(startX, y);
+            ctx.bezierCurveTo(size.width * .35, y - 24, size.width * .62, y + 18, endX, y);
+            ctx.strokeStyle = colors.canvasLine;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.font = "500 11px " + rootStyle.getPropertyValue("--display");
+            ctx.fillStyle = colors.muted;
+            [["Discover",.12],["Shape",.38],["Build",.66],["Review",.88]].forEach(function (item) {
+              ctx.fillText(item[0], size.width * item[1], size.height * .84);
+            });
+          }
+        }
+
+        function drawLinks() {
+          if (mode === "board") return;
+          links.forEach(function (link) {
+            var a = canvasPoint(nodes.find(function (node) { return node.id === link[0]; }));
+            var b = canvasPoint(nodes.find(function (node) { return node.id === link[1]; }));
+            ctx.beginPath();
+            ctx.moveTo(a.x, a.y);
+            if (mode === "flow") {
+              ctx.bezierCurveTo(lerp(a.x,b.x,.46), a.y, lerp(a.x,b.x,.54), b.y, b.x, b.y);
+            } else if (mode === "time") {
+              ctx.lineTo(b.x, b.y);
+            } else {
+              var bend = (a.y < b.y ? -1 : 1) * 20;
+              ctx.bezierCurveTo(lerp(a.x,b.x,.4), a.y + bend, lerp(a.x,b.x,.6), b.y - bend, b.x, b.y);
+            }
+            ctx.strokeStyle = link.indexOf(selectedId) > -1 ? rgba(colors.blueRgb, .5) : colors.canvasLine;
+            ctx.lineWidth = link.indexOf(selectedId) > -1 ? 1.8 : 1.1;
+            ctx.shadowColor = link.indexOf(selectedId) > -1 ? colors.glowStrong : "transparent";
+            ctx.shadowBlur = link.indexOf(selectedId) > -1 ? 8 : 0;
+            ctx.stroke();
+            ctx.shadowColor = "transparent";
+          });
+        }
+
+        function drawFieldNode(node, point, selected, time) {
+          var radius = selected ? 34 : node.kind === "cube" ? 21 : 16;
+          if (selected) {
+            drawOrb(ctx, point.x, point.y, radius + (reducedMotion ? 0 : Math.sin(time * .003) * 1.3));
+          } else if (node.kind === "cube") {
+            ctx.save();
+            ctx.translate(point.x, point.y);
+            ctx.rotate(Math.PI / 4);
+            roundedRect(ctx, -radius * .65, -radius * .65, radius * 1.3, radius * 1.3, 6);
+            var gradient = ctx.createLinearGradient(-radius, -radius, radius, radius);
+            gradient.addColorStop(0, colors.canvasHighlight);
+            gradient.addColorStop(1, rgba(colors.skyRgb, .66));
+            ctx.fillStyle = gradient;
+            ctx.shadowColor = colors.shadow;
+            ctx.shadowBlur = 14;
+            ctx.shadowOffsetY = 8;
+            ctx.fill();
+            ctx.restore();
+          } else {
+            var sphere = ctx.createRadialGradient(point.x - 7, point.y - 8, 1, point.x, point.y, radius);
+            sphere.addColorStop(0, colors.canvasHighlight);
+            sphere.addColorStop(.72, colors.canvasNode);
+            sphere.addColorStop(1, rgba(colors.blueRgb, .3));
+            ctx.fillStyle = sphere;
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          ctx.font = (selected ? "600 13px " : "500 11px ") + rootStyle.getPropertyValue("--display");
+          var textWidth = ctx.measureText(node.title).width;
+          var labelWidth = textWidth + 20;
+          roundedRect(ctx, point.x - labelWidth / 2, point.y + radius + 11, labelWidth, selected ? 31 : 27, 9);
+          ctx.fillStyle = selected ? colors.canvasSurfaceStrong : colors.canvasSurface;
+          ctx.fill();
+          ctx.strokeStyle = selected ? rgba(colors.blueRgb, .62) : colors.canvasLineSoft;
+          ctx.stroke();
+          ctx.fillStyle = selected ? colors.ink : colors.inkSoft;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText(node.title, point.x, point.y + radius + (selected ? 26.5 : 24.5));
+        }
+
+        function drawCardNode(node, point, selected, compact) {
+          var width = compact ? 130 : selected ? 176 : 154;
+          var height = compact ? 48 : 64;
+          var x = point.x - width / 2;
+          var y = point.y - height / 2;
+          roundedRect(ctx, x, y, width, height, 13);
+          ctx.fillStyle = selected ? colors.canvasSurfaceStrong : colors.canvasSurface;
+          ctx.shadowColor = selected ? colors.glow : colors.shadow;
+          ctx.shadowBlur = selected ? 18 : 11;
+          ctx.shadowOffsetY = selected ? 9 : 5;
+          ctx.fill();
+          ctx.shadowColor = "transparent";
+          ctx.strokeStyle = selected ? rgba(colors.blueRgb, .68) : colors.canvasLineSoft;
+          ctx.lineWidth = selected ? 1.6 : 1;
+          ctx.stroke();
+          ctx.textAlign = "left";
+          ctx.textBaseline = "middle";
+          ctx.fillStyle = colors.ink;
+          ctx.font = (selected ? "600 12px " : "500 11px ") + rootStyle.getPropertyValue("--display");
+          var limit = selected && !compact ? 24 : 19;
+          var title = node.title.length > limit ? node.title.slice(0, limit - 1) + "…" : node.title;
+          ctx.fillText(title, x + 14, y + (compact ? 20 : 24));
+          ctx.fillStyle = colors.muted;
+          ctx.font = "500 9px " + rootStyle.getPropertyValue("--display");
+          ctx.fillText(node.state, x + 14, y + (compact ? 34 : 44));
+        }
+
+        function drawNode(node, time) {
+          var point = canvasPoint(node);
+          var selected = node.id === selectedId;
+          if (mode === "field") {
+            drawFieldNode(node, point, selected, time);
+            hitAreas.push({ id: node.id, x: point.x - 58, y: point.y - 50, w: 116, h: 110 });
+          } else if (mode === "time") {
+            ctx.beginPath();
+            ctx.arc(point.x, point.y, selected ? 15 : 10, 0, Math.PI * 2);
+            ctx.fillStyle = selected ? colors.blue : rgba(colors.skyRgb, .9);
+            ctx.shadowColor = selected ? colors.glowStrong : "transparent";
+            ctx.shadowBlur = 16;
+            ctx.fill();
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = rgba(colors.highlightRgb, .9);
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            ctx.textAlign = "center";
+            ctx.fillStyle = selected ? colors.ink : colors.inkSoft;
+            ctx.font = (selected ? "600 11px " : "500 10px ") + rootStyle.getPropertyValue("--display");
+            ctx.fillText(node.title, point.x, point.y + 34);
+            hitAreas.push({ id: node.id, x: point.x - 50, y: point.y - 28, w: 100, h: 72 });
+          } else {
+            drawCardNode(node, point, selected, mode === "board");
+            hitAreas.push({ id: node.id, x: point.x - 78, y: point.y - 38, w: 156, h: 76 });
+          }
+        }
+
+        function draw(time) {
+          var transitioning = updateTransition(time);
+          ctx.clearRect(0, 0, size.width, size.height);
+          hitAreas = [];
+          drawBackground();
+          drawLinks();
+          if (previewState.value === "live") {
+            nodes.forEach(function (node) { drawNode(node, time); });
+          } else if (previewState.value === "loading") {
+            for (var i = 0; i < 7; i += 1) {
+              var x = size.width * (.18 + (i % 4) * .2);
+              var y = size.height * (.34 + Math.floor(i / 4) * .27);
+              ctx.beginPath();
+              ctx.arc(x, y, 16 + (i % 3) * 5, 0, Math.PI * 2);
+              ctx.fillStyle = rgba(colors.mistRgb, .52);
+              ctx.fill();
+            }
+          }
+
+          if ((!reducedMotion && active && previewState.value === "live") || transitioning) {
+            frame = requestAnimationFrame(draw);
+          } else {
+            frame = 0;
+          }
+        }
+
+        function updateInspector() {
+          var node = nodes.find(function (item) { return item.id === selectedId; }) || nodes[4];
+          var connections = links.filter(function (link) { return link.indexOf(node.id) > -1; }).length;
+          document.getElementById("inspectorTitle").textContent = node.title;
+          document.getElementById("inspectorType").textContent = "Work state / " + node.state;
+          document.getElementById("inspectorConnections").textContent = connections + (connections === 1 ? " related object" : " related objects");
+          document.getElementById("inspectorRelation").textContent = node.relation;
+          document.getElementById("inspectorContext").textContent = node.context;
+          document.getElementById("inspectorContextCopy").textContent = "Identity and evidence remain available in every view.";
+        }
+
+        function updateState() {
+          var value = previewState.value;
+          stateOverlay.hidden = value === "live";
+          if (value === "loading") {
+            stateTitle.textContent = "Preparing shared state";
+            stateCopy.textContent = "Keeping the final geometry in place while objects arrive.";
+            stateAction.textContent = "Return live";
+          } else if (value === "empty") {
+            stateTitle.textContent = "No work objects here";
+            stateCopy.textContent = "Change the view or add work to create the first relationship.";
+            stateAction.textContent = "Show sample";
+          } else if (value === "error") {
+            stateTitle.textContent = "Workspace link lost";
+            stateCopy.textContent = "The last trusted arrangement stays visible until the link returns.";
+            stateAction.textContent = "Retry link";
+          }
+          if (!frame && active) frame = requestAnimationFrame(draw);
+        }
+
+        modeButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setMode(button.dataset.mode);
+          });
+        });
+
+        canvas.addEventListener("click", function (event) {
+          if (previewState.value !== "live") return;
+          var rect = canvas.getBoundingClientRect();
+          var x = event.clientX - rect.left;
+          var y = event.clientY - rect.top;
+          var hit = hitAreas.slice().reverse().find(function (area) {
+            return x >= area.x && x <= area.x + area.w && y >= area.y && y <= area.y + area.h;
+          });
+          if (hit) {
+            selectedId = hit.id;
+            updateInspector();
+            draw(performance.now());
+          }
+        });
+
+        canvas.addEventListener("pointermove", function (event) {
+          if (previewState.value !== "live") return;
+          var rect = canvas.getBoundingClientRect();
+          var x = event.clientX - rect.left;
+          var y = event.clientY - rect.top;
+          var hit = hitAreas.some(function (area) {
+            return x >= area.x && x <= area.x + area.w && y >= area.y && y <= area.y + area.h;
+          });
+          canvas.style.cursor = hit ? "pointer" : "default";
+        });
+
+        document.querySelectorAll("[data-zoom]").forEach(function (button) {
+          button.addEventListener("click", function () {
+            var action = button.dataset.zoom;
+            if (action === "in") zoom = clamp(zoom + .1, .8, 1.25);
+            if (action === "out") zoom = clamp(zoom - .1, .8, 1.25);
+            if (action === "fit") zoom = 1;
+            draw(performance.now());
+          });
+        });
+
+        previewState.addEventListener("change", updateState);
+        stateAction.addEventListener("click", function () {
+          previewState.value = "live";
+          updateState();
+        });
+
+        document.getElementById("openFlow").addEventListener("click", function () {
+          previewState.value = "live";
+          updateState();
+          setMode("flow");
+        });
+
+        document.getElementById("focusFlow").addEventListener("click", function () {
+          document.getElementById("workspace").scrollIntoView({ behavior: reducedMotion ? "auto" : "smooth" });
+          window.setTimeout(function () { setMode("flow"); }, reducedMotion ? 0 : 560);
+        });
+
+        document.addEventListener("keydown", function (event) {
+          if (["1","2","3","4"].indexOf(event.key) === -1) return;
+          var target = document.activeElement;
+          if (target && /input|select|textarea/i.test(target.tagName)) return;
+          setMode(["field","flow","board","time"][Number(event.key) - 1]);
+        });
+
+        window.addEventListener("clouddeck:theme", function () {
+          draw(performance.now());
+        });
+
+        new ResizeObserver(resize).observe(canvas);
+        observeCanvas(canvas, function (visible) {
+          active = visible;
+          if (visible && !frame) frame = requestAnimationFrame(draw);
+          if (!visible && frame) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+          }
+        });
+        updateInspector();
+        resize();
+        if (!reducedMotion) frame = requestAnimationFrame(draw);
+
+        return { setMode: setMode };
+      }
+
+      function createMorph() {
+        var canvas = document.getElementById("morphCanvas");
+        var ctx = canvas.getContext("2d");
+        var range = document.getElementById("shapeRange");
+        var tabs = Array.prototype.slice.call(document.querySelectorAll("[data-shape]"));
+        var size = { width: 1, height: 1 };
+        var current = 0;
+        var target = 0;
+        var active = true;
+        var frame = 0;
+        var played = false;
+
+        function resize() {
+          size = fitCanvas(canvas, ctx);
+          draw(performance.now());
+        }
+
+        function updateTabs() {
+          var nearest = current < 25 ? 0 : current > 75 ? 100 : 50;
+          tabs.forEach(function (button) {
+            button.setAttribute("aria-pressed", Number(button.dataset.shape) === nearest ? "true" : "false");
+          });
+        }
+
+        function drawMist(x, y, radius, alpha) {
+          var gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+          gradient.addColorStop(0, rgba(colors.skyRgb, .28 * alpha));
+          gradient.addColorStop(.55, rgba(colors.mistRgb, .36 * alpha));
+          gradient.addColorStop(1, rgba(colors.cloudRgb, 0));
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.ellipse(x, y, radius, radius * .58, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        function drawStage(time) {
+          var width = size.width;
+          var height = size.height;
+          var field = { x: width * .18, y: height * .62 };
+          var flow = { x: width * .51, y: height * .53 };
+          var board = { x: width * .81, y: height * .54 };
+          drawMist(field.x, field.y, width * .18, 1);
+          drawMist(flow.x, flow.y, width * .14, .55);
+
+          ctx.beginPath();
+          ctx.moveTo(field.x, field.y);
+          ctx.bezierCurveTo(width * .31, height * .64, width * .38, height * .48, flow.x, flow.y);
+          ctx.bezierCurveTo(width * .63, height * .57, width * .69, height * .48, board.x, board.y);
+          ctx.strokeStyle = colors.canvasLine;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          var graphNodes = [
+            [flow.x - 90, flow.y - 80], [flow.x + 8, flow.y - 96],
+            [flow.x + 91, flow.y - 38], [flow.x - 74, flow.y + 83],
+            [flow.x + 62, flow.y + 92]
+          ];
+          graphNodes.forEach(function (node, index) {
+            ctx.beginPath();
+            ctx.moveTo(flow.x, flow.y);
+            ctx.lineTo(node[0], node[1]);
+            ctx.strokeStyle = colors.canvasLine;
+            ctx.lineWidth = 1;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(node[0], node[1], index % 2 ? 8 : 11, 0, Math.PI * 2);
+            ctx.fillStyle = index % 2 ? rgba(colors.skyRgb, .8) : colors.canvasHighlight;
+            ctx.fill();
+            ctx.strokeStyle = colors.canvasLine;
+            ctx.stroke();
+          });
+
+          for (var i = 0; i < 3; i += 1) {
+            var cardY = board.y - 92 + i * 76;
+            roundedRect(ctx, board.x - 79, cardY, 158, 58, 14);
+            ctx.fillStyle = colors.canvasSurface;
+            ctx.shadowColor = colors.shadow;
+            ctx.shadowBlur = 12;
+            ctx.shadowOffsetY = 6;
+            ctx.fill();
+            ctx.shadowColor = "transparent";
+            ctx.strokeStyle = i === 1 ? rgba(colors.blueRgb, .5) : colors.canvasLineSoft;
+            ctx.stroke();
+            ctx.fillStyle = i === 1 ? colors.blue : colors.mist;
+            roundedRect(ctx, board.x - 62, cardY + 15, 26, 26, 8);
+            ctx.fill();
+            ctx.fillStyle = colors.inkSoft;
+            ctx.fillRect(board.x - 25, cardY + 19, 74, 4);
+            ctx.fillStyle = rgba(colors.mistRgb, .5);
+            ctx.fillRect(board.x - 25, cardY + 29, 54, 3);
+          }
+
+          var p = current / 100;
+          var segment = p <= .5 ? p * 2 : (p - .5) * 2;
+          var start = p <= .5 ? field : flow;
+          var end = p <= .5 ? flow : board;
+          var eased = easeInOut(segment);
+          var x = lerp(start.x, end.x, eased);
+          var y = lerp(start.y, end.y, eased) - Math.sin(segment * Math.PI) * 38;
+          var radius = lerp(38, p < .55 ? 25 : 18, clamp(p * 1.3, 0, 1));
+
+          ctx.beginPath();
+          ctx.arc(x, y, radius * 1.55, 0, Math.PI * 2);
+          var halo = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.6);
+          halo.addColorStop(0, rgba(colors.blueRgb, .24));
+          halo.addColorStop(1, rgba(colors.blueRgb, 0));
+          ctx.fillStyle = halo;
+          ctx.fill();
+          drawOrb(ctx, x, y, radius, 1);
+
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.font = "600 12px " + rootStyle.getPropertyValue("--display");
+          ctx.fillStyle = colors.muted;
+          ctx.fillText("Field", field.x, height * .87);
+          ctx.fillText("Flow", flow.x, height * .87);
+          ctx.fillText("Board", board.x, height * .87);
+        }
+
+        function draw(time) {
+          if (Math.abs(target - current) > .08) {
+            current = reducedMotion ? target : lerp(current, target, .08);
+            range.value = String(Math.round(current));
+          } else {
+            current = target;
+          }
+          ctx.clearRect(0, 0, size.width, size.height);
+          drawStage(time);
+          updateTabs();
+          if (active && Math.abs(target - current) > .08) {
+            frame = requestAnimationFrame(draw);
+          } else {
+            frame = 0;
+          }
+        }
+
+        function setTarget(value) {
+          target = clamp(Number(value), 0, 100);
+          if (!frame) frame = requestAnimationFrame(draw);
+        }
+
+        range.addEventListener("input", function () {
+          current = Number(range.value);
+          target = current;
+          draw(performance.now());
+        });
+
+        tabs.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setTarget(button.dataset.shape);
+          });
+        });
+
+        window.addEventListener("clouddeck:theme", function () {
+          draw(performance.now());
+        });
+
+        new ResizeObserver(resize).observe(canvas);
+        var observer = new IntersectionObserver(function (entries) {
+          active = entries[0].isIntersecting;
+          if (active && !played) {
+            played = true;
+            setTarget(reducedMotion ? 50 : 100);
+          }
+        }, { threshold: .35 });
+        observer.observe(canvas);
+        resize();
+      }
+
+      function createFocusCanvas() {
+        var canvas = document.getElementById("focusCanvas");
+        var ctx = canvas.getContext("2d");
+        var size = { width: 1, height: 1 };
+        var active = true;
+        var frame = 0;
+
+        function resize() {
+          size = fitCanvas(canvas, ctx);
+          draw(performance.now());
+        }
+
+        function draw(time) {
+          ctx.clearRect(0, 0, size.width, size.height);
+          var center = { x: size.width * .5, y: size.height * .42 };
+          var orbit = [
+            [.18,.32], [.79,.27], [.17,.67], [.82,.63], [.34,.78], [.68,.79]
+          ];
+          orbit.forEach(function (node, index) {
+            var x = size.width * node[0];
+            var y = size.height * node[1];
+            ctx.beginPath();
+            ctx.moveTo(center.x, center.y);
+            ctx.bezierCurveTo(lerp(center.x,x,.42), center.y, lerp(center.x,x,.58), y, x, y);
+            ctx.strokeStyle = colors.canvasLine;
+            ctx.stroke();
+            var radius = 8 + index % 3 * 3;
+            var gradient = ctx.createRadialGradient(x - 4, y - 5, 1, x, y, radius);
+            gradient.addColorStop(0, colors.canvasHighlight);
+            gradient.addColorStop(1, rgba(colors.skyRgb, .66));
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(x, y, radius, 0, Math.PI * 2);
+            ctx.fill();
+          });
+          drawOrb(ctx, center.x, center.y, 42 + (reducedMotion ? 0 : Math.sin(time * .002) * 1.5));
+          if (!reducedMotion && active) {
+            frame = requestAnimationFrame(draw);
+          } else {
+            frame = 0;
+          }
+        }
+
+        new ResizeObserver(resize).observe(canvas);
+        window.addEventListener("clouddeck:theme", function () {
+          draw(performance.now());
+        });
+        observeCanvas(canvas, function (visible) {
+          active = visible;
+          if (visible && !frame) frame = requestAnimationFrame(draw);
+          if (!visible && frame) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+          }
+        });
+        resize();
+        if (!reducedMotion) frame = requestAnimationFrame(draw);
+      }
+
+      function createPulseBoard() {
+        var sessions = [
+          {
+            id: "weather-check",
+            project: "personal",
+            projectLabel: "Personal companion",
+            state: "needs-me",
+            title: "Today outside Nakivo weather",
+            activity: "Waiting for a human checklist",
+            summary: "The agent has the route context. It needs a quick weather and commute check before continuing.",
+            time: "2m ago",
+            children: "1 child paused",
+            outcome: "Prepare a lightweight outside-weather note that the session can use before planning the commute.",
+            checklist: ["Temperature", "Rain", "Wind", "Commute advice"],
+            events: [
+              { time: "09:48", text: "Agent requested a weather checklist." },
+              { time: "09:47", text: "Context gathered from the personal planning session." }
+            ]
+          },
+          {
+            id: "release-window",
+            project: "nakivo",
+            projectLabel: "Nakivo promotion engine",
+            state: "needs-me",
+            title: "Confirm promotion release window",
+            activity: "Decision requested",
+            summary: "Implementation is ready to schedule, but the rollout window is still open.",
+            time: "11m ago",
+            children: "No active children",
+            outcome: "Choose the release window before the rollout checklist is generated.",
+            checklist: ["Choose a rollout date", "Confirm rollback owner", "Confirm monitoring window"],
+            events: [
+              { time: "09:39", text: "Agent created a decision request." },
+              { time: "09:30", text: "Promotion implementation checkpoint saved." }
+            ]
+          },
+          {
+            id: "pulse-v0",
+            project: "clouddeck",
+            projectLabel: "CloudDeck Pulse",
+            state: "in-flight",
+            title: "Build the Pulse Board V0",
+            activity: "Produce",
+            summary: "Implementing the Kanban surface, local mock state and human-response loop.",
+            time: "Now",
+            children: "2 children active",
+            outcome: "Prove the smallest useful loop: agent update, human response, session resumes.",
+            events: [
+              { time: "09:49", text: "Card and lane interactions are being assembled." },
+              { time: "09:44", text: "Wireframe translated into a browser prototype." }
+            ]
+          },
+          {
+            id: "claude-hooks",
+            project: "clouddeck",
+            projectLabel: "CloudDeck Pulse",
+            state: "in-flight",
+            title: "Scout Claude lifecycle hooks",
+            activity: "Explore",
+            summary: "Mapping meaningful events that can update a local session board without tool-call noise.",
+            time: "6m ago",
+            children: "3 children, 1 complete",
+            outcome: "Identify the minimum hook and checkpoint contract for the real connector.",
+            events: [
+              { time: "09:43", text: "A research child returned hook candidates." },
+              { time: "09:41", text: "Session started a connector capability pass." }
+            ]
+          },
+          {
+            id: "api-plan",
+            project: "nakivo",
+            projectLabel: "Nakivo promotion engine",
+            state: "in-flight",
+            title: "Review API build plan",
+            activity: "Verify",
+            summary: "Comparing the post-POC plan against the delivery boundary and current service contracts.",
+            time: "17m ago",
+            children: "1 reviewer active",
+            outcome: "Leave a review-ready implementation path with unresolved questions visible.",
+            events: [
+              { time: "09:32", text: "Reviewer started a contract check." },
+              { time: "09:26", text: "Plan artifacts were attached to the session." }
+            ]
+          },
+          {
+            id: "auth-review",
+            project: "clouddeck",
+            projectLabel: "CloudDeck Pulse",
+            state: "review",
+            title: "Approve session transition rules",
+            activity: "Review ready",
+            summary: "The proposed state precedence and attention rules are ready for a human decision.",
+            time: "8m ago",
+            children: "No active children",
+            outcome: "Confirm a deterministic projection from native events to board lanes.",
+            events: [
+              { time: "09:41", text: "Agent marked the transition rules review ready." },
+              { time: "09:35", text: "Failure and stale-session behavior were added." }
+            ]
+          },
+          {
+            id: "prototype-audit",
+            project: "personal",
+            projectLabel: "Personal companion",
+            state: "parked",
+            title: "Audit CloudDeck visual language",
+            activity: "Paused",
+            summary: "A visual audit is parked until the functional V0 interaction loop is approved.",
+            time: "Yesterday",
+            children: "No active children",
+            outcome: "Refine the visual system after the board proves useful.",
+            events: [
+              { time: "Yesterday", text: "Session was parked while V0 took priority." }
+            ]
+          },
+          {
+            id: "session-post",
+            project: "clouddeck",
+            projectLabel: "CloudDeck Pulse",
+            state: "finished",
+            title: "Verify session post message",
+            activity: "Completed",
+            summary: "A benign message was posted to a resumed session and returned an acknowledgement.",
+            time: "24m ago",
+            children: "No active children",
+            outcome: "Validate the response delivery leg of the future companion loop.",
+            events: [
+              { time: "09:25", text: "Session returned a successful acknowledgement." }
+            ]
+          }
+        ];
+        var lanes = [
+          { id: "needs-me", label: "Needs Me" },
+          { id: "in-flight", label: "In Flight" },
+          { id: "review", label: "Review" },
+          { id: "parked", label: "Parked" }
+        ];
+        var board = document.getElementById("pulseBoard");
+        var project = document.getElementById("pulseProject");
+        var search = document.getElementById("pulseSearch");
+        var drawer = document.getElementById("pulseDrawer");
+        var backdrop = document.getElementById("pulseDrawerBackdrop");
+        var toast = document.getElementById("pulseToast");
+        var finishedList = document.getElementById("pulseFinishedList");
+        var finishedSummary = document.getElementById("pulseFinishedSummary");
+        var finishedToggle = document.getElementById("pulseFinishedToggle");
+        var selectedId = null;
+        var toastTimer = 0;
+        var eventIndex = 0;
+
+        function escapeHtml(value) {
+          return String(value).replace(/[&<>\"]/g, function (character) {
+            return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[character];
+          });
+        }
+
+        function stateLabel(state) {
+          return {
+            "needs-me": "Needs input",
+            "in-flight": "In flight",
+            review: "Review ready",
+            parked: "Parked",
+            finished: "Finished"
+          }[state];
+        }
+
+        function visibleSessions() {
+          var query = search.value.trim().toLowerCase();
+          return sessions.filter(function (session) {
+            var projectMatch = project.value === "all" || session.project === project.value;
+            var searchMatch = !query || (session.title + " " + session.summary + " " + session.projectLabel).toLowerCase().indexOf(query) > -1;
+            return projectMatch && searchMatch;
+          });
+        }
+
+        function cardTemplate(session) {
+          return "<button class=\"pulse-card\" type=\"button\" data-session-id=\"" + escapeHtml(session.id) + "\" data-attention=\"" + (session.state === "needs-me") + "\">" +
+            "<span class=\"pulse-card-project\">" + escapeHtml(session.projectLabel) + "</span>" +
+            "<h4>" + escapeHtml(session.title) + "</h4>" +
+            "<p>" + escapeHtml(session.summary) + "</p>" +
+            "<div class=\"pulse-card-bottom\">" +
+              "<span class=\"pulse-card-child\">" + escapeHtml(session.children) + "</span>" +
+              "<span class=\"pulse-state " + escapeHtml(session.state) + "\">" + escapeHtml(stateLabel(session.state)) + "</span>" +
+            "</div>" +
+            "<span class=\"pulse-card-meta\">" + escapeHtml(session.activity) + " - " + escapeHtml(session.time) + "</span>" +
+          "</button>";
+        }
+
+        function render() {
+          var visible = visibleSessions();
+          board.innerHTML = lanes.map(function (lane) {
+            var cards = visible.filter(function (session) { return session.state === lane.id; });
+            return "<section class=\"pulse-lane\" data-lane=\"" + lane.id + "\" aria-label=\"" + lane.label + " sessions\">" +
+              "<div class=\"pulse-lane-head\"><h3 class=\"pulse-lane-title\"><i aria-hidden=\"true\"></i>" + lane.label + "</h3><span class=\"pulse-count\">" + cards.length + "</span></div>" +
+              "<div class=\"pulse-cards\">" + (cards.length ? cards.map(cardTemplate).join("") : "<div class=\"pulse-empty\">Nothing here right now.</div>") + "</div>" +
+            "</section>";
+          }).join("");
+
+          var completed = visible.filter(function (session) { return session.state === "finished"; });
+          finishedSummary.textContent = completed.length ? completed.length + " completed session" + (completed.length > 1 ? "s" : "") + " in this view." : "No completed sessions in this view.";
+          finishedToggle.disabled = !completed.length;
+          finishedList.innerHTML = completed.map(function (session) {
+            return "<div class=\"pulse-finished-item\"><strong>" + escapeHtml(session.title) + "</strong><br><span>" + escapeHtml(session.summary) + "</span></div>";
+          }).join("");
+
+          board.querySelectorAll("[data-session-id]").forEach(function (card) {
+            card.addEventListener("click", function () { openDrawer(card.dataset.sessionId); });
+          });
+        }
+
+        function openDrawer(id) {
+          var session = sessions.find(function (item) { return item.id === id; });
+          if (!session) return;
+          selectedId = id;
+          var request = session.checklist && session.state === "needs-me" ?
+            "<section class=\"pulse-drawer-section\"><h4>Requested checklist</h4><div class=\"pulse-checklist\">" + session.checklist.map(function (item) {
+              return "<label class=\"pulse-check\"><input type=\"checkbox\" name=\"pulse-check\" value=\"" + escapeHtml(item) + "\"><span>" + escapeHtml(item) + "</span></label>";
+            }).join("") + "</div></section>" : "";
+          var action = session.state === "needs-me" ? "Send response" : session.state === "review" ? "Approve review" : session.state === "parked" ? "Resume session" : "Save mock checkpoint";
+          drawer.innerHTML = "<div class=\"pulse-drawer-head\"><div><p>" + escapeHtml(session.projectLabel) + " / " + escapeHtml(stateLabel(session.state)) + "</p><h3 id=\"pulseDrawerTitle\">" + escapeHtml(session.title) + "</h3></div><button class=\"pulse-close\" type=\"button\" aria-label=\"Close session detail\">×</button></div>" +
+            "<div class=\"pulse-drawer-body\"><p class=\"pulse-outcome\">" + escapeHtml(session.outcome) + "</p>" + request +
+            "<section class=\"pulse-drawer-section\"><h4>Session timeline</h4><ol class=\"pulse-timeline\">" + session.events.map(function (event) {
+              return "<li><time>" + escapeHtml(event.time) + "</time>" + escapeHtml(event.text) + "</li>";
+            }).join("") + "</ol></section></div>" +
+            "<div class=\"pulse-drawer-foot\"><button class=\"button button-primary\" id=\"pulseDrawerAction\" type=\"button\">" + action + " <span aria-hidden=\"true\">→</span></button></div>";
+          drawer.hidden = false;
+          backdrop.hidden = false;
+          drawer.querySelector(".pulse-close").addEventListener("click", closeDrawer);
+          drawer.querySelector("#pulseDrawerAction").addEventListener("click", function () { applyDrawerAction(session); });
+          drawer.querySelector(".pulse-close").focus();
+        }
+
+        function closeDrawer() {
+          drawer.hidden = true;
+          backdrop.hidden = true;
+          selectedId = null;
+        }
+
+        function showToast(message) {
+          toast.textContent = message;
+          toast.classList.add("is-visible");
+          window.clearTimeout(toastTimer);
+          toastTimer = window.setTimeout(function () { toast.classList.remove("is-visible"); }, 3200);
+        }
+
+        function applyDrawerAction(session) {
+          if (session.state === "needs-me") {
+            var checked = Array.prototype.slice.call(drawer.querySelectorAll("input[name='pulse-check']:checked")).map(function (input) { return input.value; });
+            session.state = "in-flight";
+            session.activity = "Response received";
+            session.time = "Now";
+            session.events.unshift({ time: "Now", text: checked.length ? "Human response delivered: " + checked.join(", ") + "." : "Human acknowledged the request and resumed the session." });
+            showToast("Response delivered to the mock session.");
+          } else if (session.state === "review") {
+            session.state = "finished";
+            session.activity = "Approved";
+            session.time = "Now";
+            session.events.unshift({ time: "Now", text: "Human approved the review checkpoint." });
+            showToast("Review approved. Session moved to Finished.");
+          } else if (session.state === "parked") {
+            session.state = "in-flight";
+            session.activity = "Resumed";
+            session.time = "Now";
+            session.events.unshift({ time: "Now", text: "Human resumed the parked session." });
+            showToast("Mock session resumed.");
+          } else {
+            session.events.unshift({ time: "Now", text: "A local checkpoint was saved in the prototype." });
+            showToast("Mock checkpoint saved.");
+          }
+          closeDrawer();
+          render();
+        }
+
+        function playMockEvent() {
+          var events = [
+            function () {
+              var session = sessions.find(function (item) { return item.id === "claude-hooks"; });
+              session.children = "3 children, 2 complete";
+              session.time = "Now";
+              session.events.unshift({ time: "Now", text: "A research child completed and returned a hook summary." });
+              showToast("Mock event: child session completed.");
+            },
+            function () {
+              var session = sessions.find(function (item) { return item.id === "api-plan"; });
+              session.state = "review";
+              session.activity = "Review ready";
+              session.time = "Now";
+              session.events.unshift({ time: "Now", text: "Agent marked the API build plan ready for review." });
+              showToast("Mock event: API plan is ready for review.");
+            },
+            function () {
+              var session = sessions.find(function (item) { return item.id === "pulse-v0"; });
+              session.state = "needs-me";
+              session.activity = "Decision requested";
+              session.time = "Now";
+              session.checklist = ["Keep finished sessions collapsed", "Use session as the primary record", "Defer drag-and-drop control"];
+              session.events.unshift({ time: "Now", text: "Agent requested a scope decision before continuing." });
+              showToast("Mock event: Pulse Board needs a decision.");
+            }
+          ];
+          events[eventIndex % events.length]();
+          eventIndex += 1;
+          render();
+        }
+
+        project.addEventListener("change", render);
+        search.addEventListener("input", render);
+        document.getElementById("pulseEvent").addEventListener("click", playMockEvent);
+        finishedToggle.addEventListener("click", function () {
+          var open = !finishedList.classList.contains("is-open");
+          finishedList.classList.toggle("is-open", open);
+          finishedToggle.setAttribute("aria-expanded", String(open));
+          finishedToggle.textContent = open ? "Hide finished" : "Show finished";
+        });
+        backdrop.addEventListener("click", closeDrawer);
+        document.addEventListener("keydown", function (event) {
+          if (event.key === "Escape" && !drawer.hidden) closeDrawer();
+        });
+        render();
+      }
+
+      function setupReveal() {
+        var elements = document.querySelectorAll(".reveal");
+        if (reducedMotion) {
+          elements.forEach(function (element) { element.classList.add("is-visible"); });
+          return;
+        }
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("is-visible");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: .12, rootMargin: "0px 0px -6% 0px" });
+        elements.forEach(function (element) { observer.observe(element); });
+      }
+
+      setupReveal();
+      createHeroField();
+      createWorkspace();
+      createMorph();
+      createFocusCanvas();
+      createPulseBoard();
+    }());
+  </script>
+</body>
+</html>

@@ -1,0 +1,396 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Global UI scale. The dashboard sizes most text with hardcoded px (text-[9px]
+   .. text-[33px]), which the root font-size can't scale, so one zoom bumps the
+   whole interface uniformly (text + spacing + charts). Tune --app-zoom to taste. */
+:root { --app-zoom: 1.12; }
+body { zoom: var(--app-zoom); }
+
+/* ===================================================================
+   FlightDeck Night - design tokens (single source of truth)
+   =================================================================== */
+:root {
+  /* ground */
+  --fd-void: #050505;
+  --fd-raise: #0B0C10;
+  --fd-raise-2: #101218;
+  --fd-glass: rgba(255, 255, 255, 0.045);
+  --fd-hair: rgba(255, 255, 255, 0.10);
+  --fd-hair-2: rgba(255, 255, 255, 0.07);
+  /* type color */
+  --fd-text: #F4F3EF;
+  --fd-dim: rgba(244, 243, 239, 0.62);
+  --fd-faint: rgba(244, 243, 239, 0.38);
+  /* signal (the one accent) */
+  --fd-coral: #D93A18;
+  --fd-coral-deep: #B92E0F;
+  --fd-coral-hot: #FF5133;
+  /* environment (panels/charts only) */
+  --fd-sky: #4E93CC;
+  --fd-sky-deep: #2E6FB0;
+  /* light-world constants */
+  --fd-bone: #EFEDE6;
+  --fd-ink: #17191E;
+  /* shape */
+  --fd-r-shell: 2rem;
+  --fd-r-core: calc(2rem - 6px);
+  --fd-r-chip: 1.25rem;
+  /* motion (the ONLY easing curve) */
+  --fd-ease: cubic-bezier(.32, .72, 0, 1);
+  --fd-glow: drop-shadow(0 0 7px rgba(255, 81, 51, 0.7));
+  --fd-ring-glow: drop-shadow(0 0 5px); /* instrument-ring glow; color-matched via currentColor */
+
+  /* Tailwind ramp channels (space-separated RGB for rgb(var()/<alpha>)) --
+     Night (default). The whole app theme-switches through these; Day overrides
+     below. */
+  --z-50: 251 250 246;  --z-100: 244 243 239; --z-200: 230 229 224;
+  --z-300: 202 201 196; --z-400: 156 155 150; --z-500: 126 125 121;
+  --z-600: 96 95 92;    --z-700: 42 44 51;    --z-800: 25 27 33;
+  --z-900: 11 12 16;    --z-950: 5 5 5;
+  --e-200: 255 140 116; --e-300: 255 106 77;  --e-400: 255 81 51;
+  --e-500: 217 58 24;   --e-600: 185 46 15;   --e-700: 155 38 9;
+}
+
+/* ===================================================================
+   Day mode -- daylight override (see docs/flightdeck-day.md). Warm bone
+   ground, soft-charcoal ink, coral signal kept, glow removed. Active when
+   <html data-theme="day">; Night is the default (no data-theme).
+   =================================================================== */
+:root[data-theme="day"] {
+  /* ramp channels inverted to bone -> ink; coral deepened for legible text */
+  --z-50: 35 32 25;     --z-100: 46 44 40;    --z-200: 52 50 45;
+  --z-300: 66 63 57;    --z-400: 90 86 78;    --z-500: 110 106 96;
+  --z-600: 138 133 122; --z-700: 207 200 184; --z-800: 216 210 196;
+  --z-900: 242 238 229; --z-950: 232 227 216;
+  --e-200: 242 194 180; --e-300: 224 138 111; --e-400: 198 53 15;
+  --e-500: 217 58 24;   --e-600: 176 44 12;   --e-700: 143 36 8;
+
+  /* --fd-* tokens re-lit for paper */
+  --fd-void: #E8E3D8; --fd-raise: #F2EEE5; --fd-raise-2: #DED8CB;
+  --fd-glass: rgba(46, 44, 40, 0.035);
+  --fd-hair: rgba(46, 44, 40, 0.14); --fd-hair-2: rgba(46, 44, 40, 0.08);
+  --fd-text: #2E2C28; --fd-dim: rgba(46, 44, 40, 0.66); --fd-faint: rgba(46, 44, 40, 0.42);
+  --fd-coral: #D93A18; --fd-coral-deep: #B02C0C; --fd-coral-hot: #C6350F;
+  --fd-sky: #3E7CB1; --fd-sky-deep: #2E6395;
+  --fd-bone: #EFEDE6; --fd-ink: #2E2C28;
+  --fd-glow: none; /* daylight does not glow */
+  --fd-ring-glow: none;
+}
+/* atmosphere + bezel re-lit for Day */
+:root[data-theme="day"] .fd-mesh {
+  background:
+    radial-gradient(680px 520px at 82% -4%, rgba(255, 190, 120, 0.16), transparent 62%),
+    radial-gradient(720px 620px at 4% 24%, rgba(217, 58, 24, 0.06), transparent 60%),
+    radial-gradient(620px 620px at 96% 92%, rgba(62, 124, 177, 0.08), transparent 64%);
+}
+:root[data-theme="day"] .fd-grain { opacity: 0.02; mix-blend-mode: multiply; }
+:root[data-theme="day"] .fd-shell { box-shadow: 0 1px 2px rgba(60, 52, 40, 0.12); }
+:root[data-theme="day"] .fd-core {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 20px -12px rgba(60, 52, 40, 0.26);
+}
+
+@layer base {
+  html {
+    font-family: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+    background: var(--fd-void);
+  }
+  /* All monospaced numeric values line up in columns. */
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+  ::selection {
+    background: rgb(255 81 51 / 0.30); /* coral SIGNAL, locked */
+    color: #fff;
+  }
+  /* Uniform focus ring for every interactive element (design system rule 8). */
+  :focus-visible {
+    outline: 2px solid var(--fd-coral-hot);
+    outline-offset: 3px;
+    border-radius: 6px;
+  }
+  /* Thin, theme-matched scrollbar. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(255 255 255 / 0.14) transparent;
+  }
+  *::-webkit-scrollbar { height: 8px; width: 8px; }
+  *::-webkit-scrollbar-thumb {
+    background: rgb(255 255 255 / 0.12);
+    border-radius: 9999px;
+  }
+  *::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 0.2); }
+}
+
+/* ===================================================================
+   Double-bezel instrument card (design system §1): a glass shell wrapping a
+   concentric raised core. The signature FlightDeck container for panels and
+   instruments. Concentric radii via the token calc; core carries the top
+   inset highlight so it reads as machined, lit hardware.
+   =================================================================== */
+.fd-shell {
+  background: var(--fd-glass);
+  border: 1px solid var(--fd-hair-2);
+  border-radius: var(--fd-r-shell);
+  padding: 6px;
+  /* flex column so the core fills the shell's full height -- in a stretched
+     grid row the shell matches its tallest sibling, and the core grows to it
+     instead of leaving a bezel gap below shorter content (e.g. Cost trend). */
+  display: flex;
+  flex-direction: column;
+}
+.fd-core {
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--fd-raise);
+  border-radius: var(--fd-r-core);
+  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+/* hover lift for interactive shells (no transform on containers, per DS) */
+.fd-shell.is-hoverable:hover .fd-core { background: var(--fd-raise-2); }
+
+/* ===================================================================
+   Atmosphere - fixed, inert page chrome (grain + mesh orbs)
+   =================================================================== */
+.fd-mesh {
+  position: fixed;
+  inset: -20%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(640px 520px at 78% 8%, rgba(255, 81, 51, 0.12), transparent 62%),
+    radial-gradient(760px 640px at 6% 30%, rgba(78, 147, 204, 0.13), transparent 64%),
+    radial-gradient(560px 560px at 92% 88%, rgba(46, 111, 176, 0.10), transparent 66%);
+}
+.fd-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ===================================================================
+   Brand: stylized-i wordmark + attitude-indicator roundel
+   =================================================================== */
+.fd-word {
+  font-weight: 800;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+  color: var(--fd-text);
+}
+.fdi {
+  position: relative;
+  display: inline-block;
+  width: 0.26em;
+  height: 0.53em;
+  margin: 0 0.012em;
+  vertical-align: baseline;
+}
+.fdi .stem {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  width: 0.155em;
+  height: 100%;
+  background: currentColor;
+  border-radius: 0.018em;
+}
+.fdi .dot {
+  position: absolute;
+  left: 50%;
+  top: -0.34em;
+  transform: translateX(-50%);
+  width: 0.30em;
+  height: 0.235em;
+  background: var(--fd-coral-hot);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: var(--fd-glow);
+}
+.fd-roundel { flex: none; }
+/* Flat wordmark: drop the coral-dot glow so a view region keeps at most the
+   two glowing marks the design system allows (e.g. nav mark stays flat while
+   the hero display wordmark + one instrument needle carry the glow). */
+.fd-word-flat .fdi .dot { filter: none; }
+/* Runway centerline: at display sizes the stem of the "i" carries a dashed
+   centerline (DS §9). Opt-in via .fd-word-runway so inline UI wordmarks stay
+   clean. Dark dashes over the bone-white stem read as a lit runway. */
+.fd-word-runway .fdi .stem::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 8%;
+  bottom: 8%;
+  width: 0.05em;
+  transform: translateX(-50%);
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--fd-void) 0,
+    var(--fd-void) 0.09em,
+    transparent 0.09em,
+    transparent 0.18em
+  );
+}
+
+/* ===================================================================
+   Route Loom - dense spatial session projection
+   =================================================================== */
+.loom-shell {
+  border-color: rgba(255, 255, 255, 0.16);
+  border-radius: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%),
+    rgba(11, 12, 16, 0.66);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+.loom-waypoint {
+  transform-origin: center;
+}
+.loom-route-segment {
+  transition: stroke 280ms var(--fd-ease), opacity 280ms var(--fd-ease);
+}
+.loom-inspector {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+@media (min-width: 1280px) {
+  .loom-inspector {
+    position: sticky;
+    top: 1.75rem;
+  }
+}
+
+/* ===================================================================
+   Markdown - read-only session transcript (recolored to tokens)
+   =================================================================== */
+.md {
+  font-size: 0.875rem;
+  line-height: 1.65;
+  color: var(--fd-text);
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0.6em 0; }
+.md h1, .md h2, .md h3, .md h4 {
+  margin: 1.1em 0 0.5em;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  color: var(--fd-text);
+}
+.md h1 { font-size: 1.15rem; }
+.md h2 { font-size: 1.05rem; }
+.md h3 { font-size: 0.98rem; }
+.md ul, .md ol { margin: 0.6em 0; padding-left: 1.4em; }
+.md ul { list-style: disc; }
+.md ol { list-style: decimal; }
+.md li { margin: 0.25em 0; }
+.md li > ul, .md li > ol { margin: 0.2em 0; }
+.md a { color: var(--fd-coral-hot); text-decoration: underline; text-underline-offset: 2px; }
+.md a:hover { color: #FF7A61; }
+.md strong { color: var(--fd-text); font-weight: 600; }
+.md blockquote {
+  margin: 0.7em 0;
+  padding-left: 0.9em;
+  border-left: 2px solid var(--fd-hair);
+  color: var(--fd-dim);
+}
+.md hr { margin: 1em 0; border: 0; border-top: 1px solid var(--fd-hair-2); }
+.md code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.82em;
+  background: var(--fd-raise-2);
+  border: 1px solid var(--fd-hair-2);
+  border-radius: 6px;
+  padding: 0.1em 0.35em;
+}
+.md pre {
+  margin: 0.7em 0;
+  padding: 0.85em 1em;
+  background: #08090c;
+  border: 1px solid var(--fd-hair-2);
+  border-radius: 12px;
+  overflow-x: auto;
+}
+.md pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--fd-text);
+}
+.md table {
+  margin: 0.7em 0;
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+  font-size: 0.82rem;
+}
+.md th, .md td { border: 1px solid var(--fd-hair-2); padding: 0.4em 0.7em; text-align: left; }
+.md th { background: var(--fd-raise-2); color: var(--fd-text); font-weight: 600; }
+
+/* ===================================================================
+   Diff instrument (repo-diff). Shell uses FlightDeck tokens; the diff body
+   keeps the universal add=green / del=red convention as a SEMANTIC layer
+   (separate from the coral accent, per the design system), tuned to the void
+   ground rather than GitHub's lighter dark.
+   =================================================================== */
+.rd-add-bg { background: #12261e; } .rd-add-fg { color: #4ade80; }
+.rd-del-bg { background: #2a1519; } .rd-del-fg { color: #ff6b6b; }
+.rd-add-gut { background: #16351f; } .rd-del-gut { background: #3a1a20; }
+.rd-diff { overflow-x: auto; }
+/* per-file header: plain in-flow bar (NOT sticky). A sticky header here fought
+   the nested scroll/overflow ancestors and could float over its own diff rows;
+   an in-flow opaque bar can never overlap content. The file tree sidebar
+   carries the "where am I" navigation instead. */
+.rd-file-summary {
+  background: var(--fd-raise); border-bottom: 1px solid var(--fd-hair-2);
+}
+table.rd-sxs {
+  border-collapse: collapse; width: 100%; table-layout: fixed;
+  font-family: "IBM Plex Mono", ui-monospace, monospace; font-size: 12px; line-height: 1.55;
+}
+.rd-sxs col.gc { width: 44px; }
+.rd-sxs col.cc { width: calc((100% - 88px) / 2); }
+.rd-sxs td.num {
+  text-align: right; padding: 0 8px; color: var(--fd-faint); user-select: none;
+  white-space: nowrap; border-right: 1px solid var(--fd-hair-2); vertical-align: top;
+}
+.rd-sxs td.num.sep { border-left: 1px solid var(--fd-hair); }
+.rd-sxs td.ln {
+  padding: 0 10px; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
+  vertical-align: top; color: var(--fd-dim);
+}
+.rd-sxs tr.ctx td.ln { color: var(--fd-dim); }
+.rd-sxs tr.add td.ln.r, .rd-sxs tr.pair td.ln.r { background: #12261e; color: #7ee0a0; }
+.rd-sxs tr.add td.num.r, .rd-sxs tr.pair td.num.r { background: #16351f; }
+.rd-sxs tr.del td.ln.l, .rd-sxs tr.pair td.ln.l { background: #2a1519; color: #ff9b9b; }
+.rd-sxs tr.del td.num.l, .rd-sxs tr.pair td.num.l { background: #3a1a20; }
+.rd-sxs td.ln.blank { background: rgba(255,255,255,.015); }
+.rd-sxs tr.hunkrow td {
+  background: var(--fd-raise-2); color: var(--fd-faint); padding: 2px 10px; font-size: 11px;
+}
+
+/* Motion collapses fully under reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* React Flow (Hub) - dark FlightDeck ground */
+.react-flow__renderer { background: #0b0c10; }
+.react-flow__edge-path { stroke: #4e93cc; stroke-width: 1.5; }
+.react-flow__controls button { background: #101218; border-color: #26262b; color: #f4f3ef; }
+.react-flow__attribution { display: none; }

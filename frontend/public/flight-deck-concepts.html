@@ -1,0 +1,2968 @@
+<!doctype html>
+<html lang="en" data-theme="night">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta name="description" content="FlightDeck spatial operating system concept for coding agents.">
+  <link rel="icon" href="data:,">
+  <title>FlightDeck Spatial OS - Concept Proposal</title>
+  <script>document.documentElement.classList.add("js");</script>
+  <style>
+    :root {
+      --bg: #070907;
+      --bg-soft: #0c0f0d;
+      --surface: #111512;
+      --surface-2: #171c18;
+      --surface-3: #1d231e;
+      --ink: #f1f2ea;
+      --ink-soft: #c4c9bf;
+      --muted: #92998f;
+      --faint: #788078;
+      --line: rgba(241, 242, 234, .12);
+      --line-strong: rgba(241, 242, 234, .25);
+      --signal: #ff5d3b;
+      --signal-soft: rgba(255, 93, 59, .15);
+      --codex: #73bde9;
+      --claude: #e2aa69;
+      --verified: #71cc96;
+      --queued: #a698cf;
+      --risk: #ef6f78;
+      --shadow: rgba(0, 0, 0, .36);
+      --grid: rgba(241, 242, 234, .055);
+      --radius: 14px;
+      --radius-small: 9px;
+      --ease: cubic-bezier(.16, 1, .3, 1);
+      --display: "Avenir Next", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    }
+
+    html[data-theme="day"] {
+      --bg: #e9ece6;
+      --bg-soft: #f0f2ed;
+      --surface: #f7f8f3;
+      --surface-2: #e2e6df;
+      --surface-3: #d8ddd5;
+      --ink: #171a17;
+      --ink-soft: #353b35;
+      --muted: #5e675e;
+      --faint: #636b63;
+      --line: rgba(23, 26, 23, .14);
+      --line-strong: rgba(23, 26, 23, .28);
+      --signal-soft: rgba(213, 63, 34, .13);
+      --signal: #c5331a;
+      --codex: #1c78a9;
+      --claude: #a55e1e;
+      --verified: #207641;
+      --queued: #685aa0;
+      --risk: #b82e3b;
+      --shadow: rgba(32, 42, 34, .16);
+      --grid: rgba(23, 26, 23, .06);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      overflow-x: hidden;
+      background:
+        radial-gradient(circle at 78% 10%, color-mix(in srgb, var(--codex) 8%, transparent), transparent 28rem),
+        radial-gradient(circle at 8% 26%, var(--signal-soft), transparent 31rem),
+        var(--bg);
+      color: var(--ink);
+      font-family: var(--display);
+      font-size: 16px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    body::before {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+      content: "";
+      opacity: .28;
+      background-image:
+        radial-gradient(circle at 20% 40%, rgba(255,255,255,.045) 0 1px, transparent 1px),
+        radial-gradient(circle at 70% 20%, rgba(255,255,255,.03) 0 1px, transparent 1px);
+      background-size: 7px 7px, 11px 11px;
+      mix-blend-mode: soft-light;
+    }
+
+    ::selection { color: var(--bg); background: var(--signal); }
+    a { color: inherit; text-decoration: none; }
+    button, input, select { font: inherit; }
+    button, select { color: inherit; }
+    button { cursor: pointer; }
+    canvas { display: block; max-width: 100%; }
+
+    :focus-visible {
+      outline: 2px solid var(--signal);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: fixed;
+      top: 8px;
+      left: 8px;
+      z-index: 100;
+      transform: translateY(-160%);
+      border-radius: var(--radius-small);
+      padding: 10px 14px;
+      background: var(--ink);
+      color: var(--bg);
+      font-weight: 700;
+    }
+    .skip-link:focus { transform: none; }
+
+    .shell {
+      width: min(1480px, calc(100% - 48px));
+      margin-inline: auto;
+    }
+
+    .mono {
+      font-family: var(--mono);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .eyebrow {
+      margin: 0 0 18px;
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .kicker {
+      margin: 0 0 9px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .nav {
+      position: sticky;
+      top: 0;
+      z-index: 15;
+      height: 68px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--bg) 82%, transparent);
+      backdrop-filter: blur(18px) saturate(130%);
+      -webkit-backdrop-filter: blur(18px) saturate(130%);
+    }
+
+    .nav-inner {
+      display: flex;
+      height: 100%;
+      align-items: center;
+      gap: 28px;
+    }
+
+    .brand {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 10px;
+      font-weight: 750;
+      letter-spacing: -.025em;
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      overflow: hidden;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      background:
+        linear-gradient(to bottom, color-mix(in srgb, var(--codex) 78%, var(--surface)) 0 49%, var(--surface) 49% 100%);
+      box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--bg) 30%, transparent);
+    }
+
+    .brand-mark::before {
+      position: absolute;
+      top: 14px;
+      left: 4px;
+      width: 20px;
+      height: 2px;
+      content: "";
+      background: var(--ink);
+    }
+
+    .brand-mark::after {
+      position: absolute;
+      top: 11px;
+      left: 12px;
+      width: 6px;
+      height: 6px;
+      content: "";
+      border-radius: 50%;
+      background: var(--signal);
+      box-shadow: -9px 3px 0 -2px var(--signal), 9px 3px 0 -2px var(--signal);
+    }
+
+    .brand-code {
+      margin-left: 5px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: .08em;
+    }
+
+    .nav-links {
+      display: flex;
+      min-width: 0;
+      align-items: center;
+      gap: 22px;
+      margin-left: auto;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    .nav-links a { transition: color .22s var(--ease); }
+    .nav-links a:hover { color: var(--ink); }
+
+    .nav-tools {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ghost-button,
+    .solid-button,
+    .chip,
+    .agent-chip,
+    .resource-button {
+      min-height: 42px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-small);
+      background: var(--surface);
+      color: var(--ink-soft);
+      transition:
+        transform .2s var(--ease),
+        border-color .2s var(--ease),
+        background .2s var(--ease),
+        color .2s var(--ease);
+    }
+
+    .ghost-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 9px;
+      padding: 0 14px;
+      font-size: 13px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .ghost-button:hover,
+    .chip:hover,
+    .agent-chip:hover,
+    .resource-button:hover {
+      border-color: color-mix(in srgb, var(--signal) 62%, var(--line));
+      color: var(--ink);
+    }
+
+    .ghost-button:active,
+    .solid-button:active,
+    .chip:active,
+    .agent-chip:active,
+    .resource-button:active {
+      transform: scale(.98);
+    }
+
+    .solid-button {
+      display: inline-flex;
+      min-height: 46px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 18px;
+      border-color: var(--signal);
+      background: var(--signal);
+      color: #17100d;
+      font-size: 14px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    html[data-theme="day"] .solid-button { color: #fff8f4; }
+    .solid-button:hover { transform: translateY(-2px); }
+
+    .signal-slash {
+      display: inline-block;
+      width: 18px;
+      height: 2px;
+      background: var(--signal);
+      transform: rotate(-34deg);
+    }
+
+    .hero {
+      display: grid;
+      min-height: calc(100dvh - 68px);
+      grid-template-columns: minmax(0, .82fr) minmax(480px, 1.18fr);
+      align-items: center;
+      gap: clamp(28px, 5vw, 82px);
+      padding-block: clamp(36px, 5vh, 68px);
+    }
+
+    .hero-copy { max-width: 660px; }
+    .hero h1 {
+      max-width: 11.5ch;
+      margin: 0;
+      font-size: clamp(49px, 6.3vw, 90px);
+      font-weight: 680;
+      letter-spacing: -.065em;
+      line-height: .93;
+    }
+
+    .hero h1 span { color: var(--muted); }
+    .hero-sub {
+      max-width: 29rem;
+      margin: 24px 0 0;
+      color: var(--ink-soft);
+      font-size: clamp(16px, 1.4vw, 19px);
+      line-height: 1.48;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 30px;
+    }
+
+    .hero-visual {
+      position: relative;
+      min-height: min(68vh, 690px);
+      perspective: 1200px;
+    }
+
+    .hero-dome {
+      position: absolute;
+      inset: 3% 0 1%;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(135deg, color-mix(in srgb, var(--surface-2) 94%, transparent), color-mix(in srgb, var(--surface) 74%, transparent));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.06),
+        0 34px 90px -42px var(--shadow);
+      transform: rotateX(var(--rx, 2deg)) rotateY(var(--ry, -5deg));
+      transform-style: preserve-3d;
+      transition: transform .65s var(--ease);
+    }
+
+    .hero-dome::before {
+      position: absolute;
+      inset: 0;
+      content: "";
+      pointer-events: none;
+      background:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+      background-size: 54px 54px;
+      mask-image: linear-gradient(to bottom, black, transparent 82%);
+    }
+
+    #heroRadar { width: 100%; height: 100%; }
+
+    .dome-meta {
+      position: absolute;
+      top: 18px;
+      left: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .09em;
+      text-transform: uppercase;
+    }
+
+    .live-state {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--verified);
+    }
+
+    .live-state::before {
+      width: 7px;
+      height: 7px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      content: "";
+      background: currentColor;
+    }
+
+    .dome-readout {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      width: min(330px, calc(100% - 36px));
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      padding: 14px 16px;
+      background: color-mix(in srgb, var(--bg) 74%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .readout-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .readout-row strong {
+      font-size: 18px;
+      letter-spacing: -.02em;
+    }
+
+    .readout-row span {
+      color: var(--codex);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .dome-readout p {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .thesis {
+      border-block: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 58%, transparent);
+    }
+
+    .thesis-inner {
+      display: grid;
+      grid-template-columns: .7fr 1.7fr .8fr;
+      align-items: center;
+      gap: 30px;
+      min-height: 196px;
+      padding-block: 30px;
+    }
+
+    .thesis-small {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 11px;
+      line-height: 1.7;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+    }
+
+    .thesis-claim {
+      margin: 0;
+      font-size: clamp(28px, 3.3vw, 48px);
+      font-weight: 580;
+      letter-spacing: -.045em;
+      line-height: 1.05;
+    }
+
+    .thesis-claim span { color: var(--signal); }
+    .thesis-proof {
+      padding-left: 22px;
+      border-left: 1px solid var(--line-strong);
+      color: var(--ink-soft);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .section {
+      position: relative;
+      padding-block: clamp(88px, 10vw, 160px);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .section-heading {
+      max-width: 790px;
+      margin-bottom: 42px;
+    }
+
+    .section-heading h2 {
+      max-width: 15ch;
+      margin: 0;
+      font-size: clamp(40px, 5.8vw, 78px);
+      font-weight: 620;
+      letter-spacing: -.055em;
+      line-height: .96;
+    }
+
+    .section-heading p {
+      max-width: 62ch;
+      margin: 18px 0 0;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.56;
+    }
+
+    .section-number {
+      position: absolute;
+      top: clamp(90px, 10vw, 160px);
+      right: max(24px, calc((100vw - 1480px) / 2));
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+    }
+
+    .concept-tag {
+      color: var(--signal);
+      font-size: 15px;
+      font-weight: 720;
+      letter-spacing: -.015em;
+    }
+
+    .deck-frame {
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: 0 34px 100px -62px var(--shadow);
+    }
+
+    .deck-toolbar {
+      display: flex;
+      min-height: 58px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 8px 12px 8px 18px;
+      border-bottom: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+    }
+
+    .deck-title {
+      min-width: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .deck-title b { color: var(--ink); }
+    .deck-title span { color: var(--muted); }
+
+    .segmented {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: var(--bg-soft);
+    }
+
+    .chip {
+      min-height: 34px;
+      padding: 0 11px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .chip[aria-pressed="true"],
+    .chip.active {
+      border-color: var(--line-strong);
+      background: var(--surface-3);
+      color: var(--ink);
+    }
+
+    .airspace-layout {
+      display: grid;
+      min-height: 650px;
+      grid-template-columns: minmax(0, 1fr) 330px;
+    }
+
+    .airspace-map {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      border-right: 1px solid var(--line);
+      background:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+        radial-gradient(circle at 54% 48%, color-mix(in srgb, var(--codex) 7%, transparent), transparent 46%);
+      background-size: 48px 48px, 48px 48px, auto;
+    }
+
+    #airspaceCanvas {
+      width: 100%;
+      height: 100%;
+      min-height: 650px;
+      touch-action: manipulation;
+    }
+
+    .map-axis {
+      position: absolute;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      pointer-events: none;
+    }
+    .map-axis.top { top: 14px; left: 16px; }
+    .map-axis.bottom { right: 16px; bottom: 14px; }
+
+    .airspace-side {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      background: var(--bg-soft);
+    }
+
+    .focus-panel { padding: 24px; }
+    .focus-id {
+      margin: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .focus-panel h3 {
+      margin: 10px 0 6px;
+      font-size: 27px;
+      font-weight: 650;
+      letter-spacing: -.035em;
+      line-height: 1.05;
+    }
+
+    .focus-agent {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .focus-metrics {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px 12px;
+      margin-top: 28px;
+    }
+
+    .metric-label {
+      display: block;
+      margin-bottom: 4px;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .metric-value {
+      display: block;
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .conflict-note {
+      margin-top: 26px;
+      border-left: 2px solid var(--risk);
+      padding: 2px 0 2px 13px;
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .agent-list {
+      display: grid;
+      gap: 7px;
+      margin-top: auto;
+      padding: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .agent-chip {
+      display: grid;
+      min-height: 51px;
+      grid-template-columns: 12px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 0 11px;
+      text-align: left;
+    }
+
+    .agent-chip[aria-pressed="true"] {
+      border-color: var(--signal);
+      background: var(--signal-soft);
+      color: var(--ink);
+    }
+
+    .agent-shape {
+      width: 9px;
+      height: 9px;
+      border: 2px solid var(--codex);
+      transform: rotate(45deg);
+    }
+
+    .agent-shape.claude {
+      border-color: var(--claude);
+      border-radius: 50%;
+      transform: none;
+    }
+
+    .agent-chip b { font-family: var(--mono); font-size: 11px; }
+    .agent-chip small { display: block; color: var(--faint); font-size: 10px; }
+    .agent-chip em { color: var(--muted); font-family: var(--mono); font-size: 10px; font-style: normal; }
+
+    .encoding-strip {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      border-top: 1px solid var(--line);
+    }
+
+    .encoding {
+      min-height: 86px;
+      padding: 17px 18px;
+      border-right: 1px solid var(--line);
+    }
+    .encoding:last-child { border-right: 0; }
+    .encoding b {
+      display: block;
+      margin-bottom: 5px;
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .encoding span { color: var(--muted); font-size: 12px; }
+
+    .route-frame { position: relative; }
+    .route-board-inner {
+      position: relative;
+      width: 100%;
+      height: 100%;
+    }
+    .route-board {
+      position: relative;
+      height: 590px;
+      overflow: hidden;
+      background:
+        linear-gradient(to bottom, transparent 19.8%, var(--line) 20%, transparent 20.2%),
+        linear-gradient(to bottom, transparent 39.8%, var(--line) 40%, transparent 40.2%),
+        linear-gradient(to bottom, transparent 59.8%, var(--line) 60%, transparent 60.2%),
+        linear-gradient(to bottom, transparent 79.8%, var(--line) 80%, transparent 80.2%),
+        var(--bg-soft);
+    }
+
+    #routeCanvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .lane-labels {
+      position: absolute;
+      inset: 0 auto 0 0;
+      display: grid;
+      width: 108px;
+      grid-template-rows: repeat(5, 1fr);
+      border-right: 1px solid var(--line);
+      background: color-mix(in srgb, var(--surface) 76%, transparent);
+    }
+
+    .lane-labels span {
+      display: flex;
+      align-items: center;
+      padding-left: 16px;
+      color: var(--faint);
+      font-family: var(--mono);
+      font-size: 9px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .route-nodes { position: absolute; inset: 0 0 0 108px; }
+    .route-node {
+      position: absolute;
+      width: 124px;
+      min-height: 72px;
+      transform: translate(-50%, -50%);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-small);
+      padding: 11px;
+      background: color-mix(in srgb, var(--surface-2) 94%, transparent);
+      color: var(--ink);
+      text-align: left;
+      box-shadow: 0 14px 38px -25px var(--shadow);
+      transition: transform .26s var(--ease), border-color .26s var(--ease), background .26s var(--ease);
+    }
+
+    .route-node:hover { transform: translate(-50%, -50%) translateY(-3px); }
+    .route-node[aria-pressed="true"] {
+      border-color: var(--signal);
+      background: color-mix(in srgb, var(--signal-soft) 55%, var(--surface-2));
+    }
+
+    .route-node::before {
+      position: absolute;
+      top: -6px;
+      left: -6px;
+      width: 10px;
+      height: 10px;
+      border: 2px solid var(--faint);
+      border-radius: 50%;
+      content: "";
+      background: var(--surface);
+    }
+
+    .route-node[data-state="active"]::before { border-color: var(--signal); background: var(--signal); }
+    .route-node[data-state="verified"]::before { border-color: var(--verified); background: var(--verified); }
+    .route-node[data-state="queued"]::before { border-color: var(--queued); }
+    .route-node b { display: block; font-size: 13px; line-height: 1.2; }
+    .route-node span {
+      display: block;
+      margin-top: 5px;
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .route-detail {
+      display: grid;
+      grid-template-columns: 1.2fr repeat(3, .6fr);
+      gap: 22px;
+      min-height: 118px;
+      align-items: center;
+      padding: 20px 24px;
+      border-top: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .route-detail h3 { margin: 0; font-size: 22px; letter-spacing: -.025em; }
+    .route-detail p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+
+    .paired-grid {
+      display: grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap: 18px;
+    }
+
+    .instrument {
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--surface);
+    }
+
+    .instrument-head {
+      display: flex;
+      min-height: 62px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      padding: 10px 14px 10px 20px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .instrument-head h3 { margin: 0; font-size: 15px; letter-spacing: -.015em; }
+    .instrument-head p { margin: 3px 0 0; color: var(--faint); font-family: var(--mono); font-size: 9px; text-transform: uppercase; }
+
+    .fuel-body {
+      display: grid;
+      min-height: 520px;
+      grid-template-columns: minmax(0, 1fr) 230px;
+    }
+
+    .fuel-body .instrument-canvas {
+      height: 520px;
+      min-height: 0;
+    }
+
+    .instrument-canvas {
+      position: relative;
+      min-height: 440px;
+      background:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+        var(--bg-soft);
+      background-size: 42px 42px;
+    }
+
+    #fuelCanvas, #weatherCanvas, #terrainCanvas, #replayCanvas {
+      width: 100%;
+      height: 100%;
+    }
+
+    .fuel-controls {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 24px;
+      border-left: 1px solid var(--line);
+      background: var(--bg-soft);
+    }
+
+    .fuel-controls label {
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--signal);
+    }
+
+    .range-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 8px;
+      color: var(--ink);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+
+    .forecast {
+      margin-top: 30px;
+      padding-top: 18px;
+      border-top: 1px solid var(--line);
+    }
+
+    .forecast strong {
+      display: block;
+      font-size: 31px;
+      letter-spacing: -.045em;
+    }
+
+    .forecast span { color: var(--muted); font-size: 12px; line-height: 1.5; }
+    .weather-body { min-height: 520px; }
+    .weather-canvas-wrap { position: relative; height: 390px; background: var(--bg-soft); }
+
+    .weather-brief {
+      display: grid;
+      min-height: 130px;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 18px;
+      padding: 22px 24px;
+      border-top: 1px solid var(--line);
+    }
+
+    .weather-brief h4 { margin: 0; font-size: 19px; }
+    .weather-brief p { max-width: 50ch; margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+    .impact-value { color: var(--risk); font-family: var(--mono); font-size: 20px; font-weight: 650; text-align: right; }
+    .impact-value small { display: block; color: var(--faint); font-size: 9px; font-weight: 500; text-transform: uppercase; }
+
+    .terrain-wrap {
+      display: grid;
+      min-height: 690px;
+      grid-template-columns: minmax(0, 1.5fr) 360px;
+    }
+
+    .terrain-stage {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 46%, color-mix(in srgb, var(--codex) 8%, transparent), transparent 48%),
+        var(--bg-soft);
+      cursor: crosshair;
+    }
+
+    .terrain-stage::after {
+      position: absolute;
+      inset: auto 0 0;
+      height: 28%;
+      content: "";
+      pointer-events: none;
+      background: linear-gradient(to top, var(--bg-soft), transparent);
+    }
+
+    .terrain-side {
+      padding: 24px;
+      border-left: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .terrain-side h3 {
+      max-width: 11ch;
+      margin: 0;
+      font-size: 31px;
+      letter-spacing: -.04em;
+      line-height: 1.02;
+    }
+
+    .terrain-side > p { color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .resource-list { display: grid; gap: 7px; margin-top: 28px; }
+    .resource-button {
+      display: grid;
+      min-height: 58px;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    .resource-button[aria-pressed="true"] { border-color: var(--signal); background: var(--signal-soft); }
+    .resource-button b { font-family: var(--mono); font-size: 11px; }
+    .resource-button span { display: block; margin-top: 3px; color: var(--faint); font-size: 10px; }
+    .resource-button em { color: var(--muted); font-family: var(--mono); font-size: 10px; font-style: normal; }
+
+    .terrain-callout {
+      margin-top: 28px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius-small);
+      background: var(--bg-soft);
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .replay-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) 360px;
+      min-height: 560px;
+    }
+
+    .replay-stage {
+      position: relative;
+      min-width: 0;
+      background:
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        var(--bg-soft);
+      background-size: 100% 72px;
+    }
+
+    .replay-side {
+      display: flex;
+      flex-direction: column;
+      padding: 28px;
+      border-left: 1px solid var(--line);
+    }
+
+    .replay-time { color: var(--signal); font-family: var(--mono); font-size: 11px; }
+    .replay-side h3 { margin: 14px 0 8px; font-size: 28px; letter-spacing: -.04em; line-height: 1.06; }
+    .replay-side p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.58; }
+    .replay-effects { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 26px; }
+    .replay-effect { padding-top: 12px; border-top: 1px solid var(--line); }
+    .replay-effect b { display: block; font-family: var(--mono); font-size: 16px; }
+    .replay-effect span { color: var(--faint); font-size: 10px; }
+
+    .replay-controls {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      align-items: center;
+      gap: 14px;
+      margin-top: auto;
+      padding-top: 28px;
+    }
+
+    .play-button {
+      min-width: 82px;
+      min-height: 42px;
+      border: 1px solid var(--signal);
+      border-radius: var(--radius-small);
+      background: var(--signal);
+      color: #17100d;
+      font-weight: 800;
+    }
+    html[data-theme="day"] .play-button { color: #fff8f4; }
+
+    .adaptive-deck {
+      display: grid;
+      min-height: 680px;
+      grid-template-columns: repeat(12, 1fr);
+      grid-template-rows: 1.1fr .72fr .8fr;
+      gap: 1px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      overflow: hidden;
+      background: var(--line);
+    }
+
+    .widget {
+      position: relative;
+      min-width: 0;
+      overflow: hidden;
+      padding: 22px;
+      background: var(--surface);
+      transition: background .3s var(--ease);
+    }
+
+    .widget h3 {
+      position: relative;
+      z-index: 2;
+      margin: 0;
+      font-size: 14px;
+      letter-spacing: -.015em;
+    }
+
+    .widget p {
+      position: relative;
+      z-index: 2;
+      max-width: 32ch;
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .widget-airspace { grid-column: span 7; grid-row: span 2; background: var(--bg-soft); }
+    .widget-fuel { grid-column: span 3; }
+    .widget-handoff { grid-column: span 2; background: color-mix(in srgb, var(--claude) 10%, var(--surface)); }
+    .widget-event { grid-column: span 5; background: color-mix(in srgb, var(--signal) 7%, var(--surface)); }
+    .widget-context { grid-column: span 4; }
+    .widget-conflict { grid-column: span 3; background: color-mix(in srgb, var(--risk) 9%, var(--surface)); }
+    .widget-footer { grid-column: span 12; display: flex; align-items: center; justify-content: space-between; }
+
+    .mini-orbit {
+      position: absolute;
+      inset: 15% 12% 4%;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+      transform: rotateX(64deg) rotateZ(-7deg);
+    }
+    .mini-orbit::before,
+    .mini-orbit::after {
+      position: absolute;
+      inset: 17%;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      content: "";
+    }
+    .mini-orbit::after { inset: 34%; border-color: var(--signal); }
+    .mini-flight {
+      position: absolute;
+      width: 11px;
+      height: 11px;
+      border: 2px solid var(--codex);
+      transform: rotate(45deg);
+    }
+    .mini-flight.a { top: 32%; left: 27%; }
+    .mini-flight.b { top: 58%; left: 62%; border-radius: 50%; border-color: var(--claude); }
+    .mini-flight.c { top: 42%; right: 17%; border-color: var(--risk); }
+
+    .mini-ring {
+      width: 128px;
+      height: 128px;
+      margin: 24px auto 0;
+      border: 11px solid var(--line);
+      border-top-color: var(--signal);
+      border-right-color: var(--claude);
+      border-radius: 50%;
+      transform: rotate(-25deg);
+    }
+
+    .handoff-gate {
+      position: absolute;
+      right: 21%;
+      bottom: 22%;
+      left: 21%;
+      height: 42%;
+      border: 2px solid var(--claude);
+      border-bottom: 0;
+      border-radius: 80px 80px 0 0;
+    }
+    .handoff-gate::before {
+      position: absolute;
+      bottom: -5px;
+      left: 50%;
+      width: 9px;
+      height: 9px;
+      content: "";
+      border-radius: 50%;
+      background: var(--verified);
+      transform: translateX(-50%);
+    }
+
+    .event-wave {
+      position: absolute;
+      inset: 36% 5% 10%;
+      background:
+        linear-gradient(155deg,
+          transparent 0 8%,
+          var(--line-strong) 8.5% 9.2%,
+          transparent 9.7% 20%,
+          var(--signal) 20.5% 21.5%,
+          transparent 22% 35%,
+          var(--line-strong) 35.5% 36.2%,
+          transparent 36.7% 48%,
+          var(--codex) 48.5% 49.5%,
+          transparent 50% 64%,
+          var(--line-strong) 64.5% 65.2%,
+          transparent 65.7%);
+      opacity: .8;
+    }
+
+    .context-bars {
+      display: flex;
+      height: 150px;
+      align-items: end;
+      gap: 7px;
+      margin-top: 24px;
+    }
+    .context-bars i {
+      flex: 1;
+      min-width: 5px;
+      height: var(--h);
+      background: color-mix(in srgb, var(--codex) var(--mix), var(--surface-3));
+      clip-path: polygon(50% 0, 100% 100%, 0 100%);
+    }
+
+    .conflict-figure {
+      position: absolute;
+      right: 12%;
+      bottom: 14%;
+      width: 58%;
+      aspect-ratio: 1;
+      border: 1px solid var(--risk);
+      border-radius: 50%;
+    }
+    .conflict-figure::before,
+    .conflict-figure::after {
+      position: absolute;
+      width: 19px;
+      height: 19px;
+      border: 3px solid var(--risk);
+      content: "";
+      background: var(--surface);
+    }
+    .conflict-figure::before { top: 18%; left: 13%; transform: rotate(45deg); }
+    .conflict-figure::after { right: 13%; bottom: 18%; border-radius: 50%; }
+
+    .adaptive-deck[data-depth="glance"] .widget p,
+    .adaptive-deck[data-depth="glance"] .widget-footer .depth-copy { opacity: 0; }
+    .adaptive-deck[data-depth="investigate"] .widget { background-color: var(--surface-2); }
+
+    .verbs {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      margin-top: 42px;
+      border-block: 1px solid var(--line);
+    }
+
+    .verb {
+      min-height: 190px;
+      padding: 28px 22px;
+      border-right: 1px solid var(--line);
+    }
+    .verb:last-child { border-right: 0; }
+    .verb b {
+      display: block;
+      font-size: clamp(26px, 3vw, 44px);
+      font-weight: 580;
+      letter-spacing: -.045em;
+    }
+    .verb span { display: block; max-width: 18ch; margin-top: 12px; color: var(--muted); font-size: 12px; }
+
+    .state-lab {
+      display: grid;
+      grid-template-columns: 1.55fr .75fr 1fr;
+      gap: 1px;
+      margin-top: 32px;
+      overflow: hidden;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      background: var(--line);
+    }
+
+    .state-cell {
+      position: relative;
+      min-height: 220px;
+      overflow: hidden;
+      padding: 24px;
+      background: var(--surface);
+    }
+
+    .state-cell h3 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+    .state-cell p { max-width: 34ch; margin: 6px 0 0; color: var(--muted); font-size: 12px; }
+
+    .loading-orbits {
+      position: absolute;
+      right: 5%;
+      bottom: -34%;
+      width: 62%;
+      aspect-ratio: 1;
+      border: 1px solid var(--line-strong);
+      border-radius: 50%;
+    }
+
+    .loading-orbits::before,
+    .loading-orbits::after {
+      position: absolute;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      content: "";
+    }
+    .loading-orbits::before { inset: 18%; }
+    .loading-orbits::after { inset: 36%; border-color: var(--signal); }
+
+    .loading-sweep {
+      position: absolute;
+      right: 5%;
+      bottom: -34%;
+      width: 62%;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      background: conic-gradient(from 280deg, transparent 0 84%, var(--signal-soft) 96%, transparent 100%);
+    }
+
+    .clear-glyph {
+      width: 92px;
+      height: 92px;
+      margin: 28px auto 0;
+      border: 1px solid var(--verified);
+      border-radius: 50%;
+      background:
+        linear-gradient(to bottom, transparent 49%, var(--verified) 49% 51%, transparent 51%);
+    }
+
+    .error-cell { background: color-mix(in srgb, var(--risk) 8%, var(--surface)); }
+    .error-path {
+      position: relative;
+      width: 100%;
+      height: 56px;
+      margin-top: 25px;
+      border-top: 1px dashed var(--risk);
+    }
+    .error-path::before {
+      position: absolute;
+      top: -7px;
+      left: 42%;
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--risk);
+      content: "";
+      background: var(--surface);
+      transform: rotate(45deg);
+    }
+
+    .retry-button {
+      min-height: 38px;
+      border: 1px solid var(--risk);
+      border-radius: var(--radius-small);
+      padding: 0 13px;
+      background: transparent;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .loading-sweep { animation: sweep 2.4s linear infinite; }
+      @keyframes sweep { to { transform: rotate(360deg); } }
+    }
+
+    .system-layout {
+      display: grid;
+      grid-template-columns: 1fr 1.08fr;
+      align-items: center;
+      gap: 70px;
+    }
+
+    .system-copy h2 {
+      max-width: 11ch;
+      margin: 0;
+      font-size: clamp(43px, 5.7vw, 76px);
+      font-weight: 620;
+      letter-spacing: -.055em;
+      line-height: .96;
+    }
+    .system-copy > p { max-width: 56ch; color: var(--muted); font-size: 16px; line-height: 1.6; }
+
+    .principles {
+      display: grid;
+      gap: 16px;
+      margin-top: 34px;
+    }
+    .principle {
+      display: grid;
+      grid-template-columns: 90px 1fr;
+      gap: 14px;
+      padding-top: 15px;
+      border-top: 1px solid var(--line);
+    }
+    .principle b { color: var(--signal); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .principle span { color: var(--ink-soft); font-size: 13px; }
+
+    .cutaway {
+      position: relative;
+      min-height: 640px;
+      perspective: 1100px;
+      perspective-origin: 50% 38%;
+    }
+
+    .cutaway-layer {
+      position: absolute;
+      right: 5%;
+      left: 5%;
+      height: 142px;
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      padding: 22px 26px;
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      box-shadow: 0 34px 58px -44px var(--shadow);
+      transform: rotateX(58deg) rotateZ(-6deg) translateZ(var(--z));
+      transform-style: preserve-3d;
+      transition: transform .5s var(--ease), border-color .3s var(--ease);
+    }
+    .cutaway-layer:hover {
+      border-color: var(--signal);
+      transform: rotateX(54deg) rotateZ(-4deg) translateZ(calc(var(--z) + 18px));
+    }
+    .cutaway-layer:nth-child(1) { top: 40px; --z: 0px; }
+    .cutaway-layer:nth-child(2) { top: 150px; --z: 35px; }
+    .cutaway-layer:nth-child(3) { top: 260px; --z: 70px; }
+    .cutaway-layer:nth-child(4) { top: 370px; --z: 105px; }
+    .cutaway-layer b { display: block; font-size: 19px; letter-spacing: -.02em; }
+    .cutaway-layer span { color: var(--muted); font-family: var(--mono); font-size: 10px; }
+    .cutaway-layer i {
+      position: absolute;
+      right: 22px;
+      bottom: 18px;
+      color: var(--signal);
+      font-family: var(--mono);
+      font-size: 10px;
+      font-style: normal;
+      text-transform: uppercase;
+    }
+
+    .recommendation {
+      display: grid;
+      min-height: 560px;
+      grid-template-columns: 1.25fr .75fr;
+      align-items: center;
+      gap: 60px;
+      padding-block: 100px;
+    }
+
+    .recommendation h2 {
+      max-width: 12ch;
+      margin: 0;
+      font-size: clamp(45px, 7vw, 94px);
+      font-weight: 620;
+      letter-spacing: -.065em;
+      line-height: .92;
+    }
+    .recommendation h2 span { color: var(--signal); }
+    .recommendation-copy { max-width: 470px; }
+    .recommendation-copy p { color: var(--ink-soft); font-size: 17px; line-height: 1.58; }
+
+    .build-slice {
+      display: grid;
+      gap: 0;
+      margin-top: 28px;
+      border-block: 1px solid var(--line);
+    }
+    .slice-row {
+      display: grid;
+      grid-template-columns: 110px 1fr;
+      gap: 18px;
+      padding: 17px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .slice-row:last-child { border-bottom: 0; }
+    .slice-row b { color: var(--muted); font-family: var(--mono); font-size: 10px; text-transform: uppercase; }
+    .slice-row span { font-size: 13px; }
+
+    .footer {
+      display: flex;
+      min-height: 110px;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+
+    .reveal {
+      opacity: 1;
+      transform: none;
+    }
+    .js .reveal {
+      opacity: 0;
+      transform: translateY(26px);
+      transition: opacity .75s var(--ease), transform .75s var(--ease);
+    }
+    .js .reveal.in-view { opacity: 1; transform: none; }
+
+    @media (max-width: 1180px) {
+      .nav-links { display: none; }
+      .nav-tools { margin-left: auto; }
+      .hero { grid-template-columns: .85fr 1.15fr; }
+      .paired-grid { grid-template-columns: 1fr; }
+      .terrain-wrap, .replay-layout { grid-template-columns: minmax(0, 1fr) 320px; }
+      .widget-airspace { grid-column: span 7; }
+      .widget-fuel { grid-column: span 5; }
+      .widget-handoff { grid-column: span 4; }
+      .widget-event { grid-column: span 8; }
+      .widget-context { grid-column: span 7; }
+      .widget-conflict { grid-column: span 5; }
+    }
+
+    @media (max-width: 900px) {
+      .shell { width: min(100% - 32px, 760px); }
+      .brand-code, .nav-tools .ghost-button span:last-child { display: none; }
+      .nav-tools .ghost-button { width: 42px; padding: 0; }
+      .hero {
+        min-height: auto;
+        grid-template-columns: 1fr;
+        padding-block: 56px 42px;
+      }
+      .hero-copy { max-width: 720px; }
+      .hero h1 { max-width: 10.5ch; font-size: clamp(49px, 12vw, 78px); }
+      .hero-visual { min-height: 460px; }
+      .thesis-inner { grid-template-columns: 1fr; gap: 18px; padding-block: 46px; }
+      .thesis-proof { padding: 0; border-left: 0; }
+      .section-number { display: none; }
+      .airspace-layout { grid-template-columns: 1fr; }
+      .airspace-map { border-right: 0; border-bottom: 1px solid var(--line); }
+      .airspace-side { display: grid; grid-template-columns: 1fr 1fr; }
+      .agent-list { margin: 0; border-top: 0; border-left: 1px solid var(--line); }
+      .encoding-strip { grid-template-columns: repeat(2, 1fr); }
+      .encoding:nth-child(even) { border-right: 0; }
+      .encoding:last-child { grid-column: span 2; border-top: 1px solid var(--line); }
+      .route-board { height: 660px; overflow-x: auto; }
+      .route-board-inner { min-width: 880px; height: 100%; }
+      .route-detail { grid-template-columns: 1fr 1fr; }
+      .fuel-body { grid-template-columns: 1fr; }
+      .fuel-controls { border-top: 1px solid var(--line); border-left: 0; }
+      .terrain-wrap, .replay-layout { grid-template-columns: 1fr; }
+      .terrain-stage { min-height: 540px; }
+      .terrain-side, .replay-side { border-top: 1px solid var(--line); border-left: 0; }
+      .replay-stage { min-height: 480px; }
+      .adaptive-deck { display: grid; min-height: auto; grid-template-columns: 1fr 1fr; grid-template-rows: none; }
+      .widget { min-height: 260px; grid-column: span 1 !important; grid-row: auto !important; }
+      .widget-airspace, .widget-event, .widget-footer { grid-column: span 2 !important; }
+      .verbs { grid-template-columns: 1fr 1fr; }
+      .verb { border-bottom: 1px solid var(--line); }
+      .verb:nth-child(even) { border-right: 0; }
+      .verb:last-child { grid-column: span 2; border-bottom: 0; }
+      .state-lab { grid-template-columns: 1fr 1fr; }
+      .state-cell:first-child { grid-column: span 2; }
+      .system-layout, .recommendation { grid-template-columns: 1fr; }
+      .cutaway { min-height: 590px; }
+      .recommendation { gap: 46px; padding-block: 90px; }
+    }
+
+    @media (max-width: 620px) {
+      .shell { width: calc(100% - 24px); }
+      .nav { height: 62px; }
+      .brand { font-size: 14px; }
+      .brand-mark { width: 29px; height: 29px; }
+      .hero { min-height: calc(100dvh - 62px); padding-top: 38px; }
+      .hero h1 { font-size: clamp(47px, 15.5vw, 66px); }
+      .hero-sub { font-size: 16px; }
+      .hero-actions { display: grid; grid-template-columns: 1fr 1fr; }
+      .hero { gap: 20px; padding-bottom: 22px; }
+      .hero-visual { min-height: 330px; }
+      .hero-dome { inset: 5% 0 0; transform: none; }
+      .dome-readout { right: 12px; bottom: 12px; left: 12px; width: auto; }
+      .section { padding-block: 82px; }
+      .section-heading { margin-bottom: 28px; }
+      .section-heading h2 { font-size: clamp(40px, 13vw, 58px); }
+      .deck-toolbar, .instrument-head { align-items: flex-start; flex-direction: column; padding-block: 13px; }
+      .segmented { max-width: 100%; overflow-x: auto; }
+      .airspace-map, #airspaceCanvas { min-height: 510px; }
+      .airspace-side { grid-template-columns: 1fr; }
+      .agent-list { border-top: 1px solid var(--line); border-left: 0; }
+      .encoding-strip { grid-template-columns: 1fr; }
+      .encoding, .encoding:nth-child(even), .encoding:last-child { grid-column: auto; border-right: 0; border-bottom: 1px solid var(--line); border-top: 0; }
+      .encoding:last-child { border-bottom: 0; }
+      .route-detail { grid-template-columns: 1fr 1fr; }
+      .route-detail > div:first-child { grid-column: span 2; }
+      .fuel-body { min-height: 0; }
+      .instrument-canvas { min-height: 360px; }
+      .fuel-body .instrument-canvas { height: 380px; min-height: 0; }
+      .weather-canvas-wrap { height: 340px; }
+      .weather-brief { grid-template-columns: 1fr; }
+      .impact-value { text-align: left; }
+      .terrain-stage { min-height: 440px; }
+      .terrain-side h3 { max-width: none; }
+      .replay-stage { min-height: 390px; }
+      .replay-side { padding: 22px; }
+      .adaptive-deck { grid-template-columns: 1fr; }
+      .widget, .widget-airspace, .widget-event, .widget-footer { grid-column: 1 !important; }
+      .widget-footer { align-items: flex-start; flex-direction: column; }
+      .verbs { grid-template-columns: 1fr; }
+      .verb, .verb:nth-child(even), .verb:last-child { grid-column: auto; border-right: 0; }
+      .state-lab { grid-template-columns: 1fr; }
+      .state-cell:first-child { grid-column: auto; }
+      .cutaway { min-height: 510px; }
+      .cutaway-layer { right: 0; left: 0; height: 126px; padding: 17px; }
+      .cutaway-layer:nth-child(1) { top: 20px; }
+      .cutaway-layer:nth-child(2) { top: 110px; }
+      .cutaway-layer:nth-child(3) { top: 200px; }
+      .cutaway-layer:nth-child(4) { top: 290px; }
+      .slice-row { grid-template-columns: 84px 1fr; }
+      .footer { align-items: flex-start; flex-direction: column; justify-content: center; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation: none !important;
+        transition-duration: .01ms !important;
+      }
+      .js .reveal { opacity: 1; transform: none; }
+      .hero-dome { transform: none !important; }
+    }
+
+    @media (prefers-reduced-transparency: reduce) {
+      .nav, .dome-readout { background: var(--bg); backdrop-filter: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to concepts</a>
+
+  <nav class="nav" aria-label="Concept navigation">
+    <div class="shell nav-inner">
+      <a class="brand" href="#top" aria-label="FlightDeck concept proposal home">
+        <span class="brand-mark" aria-hidden="true"></span>
+        <span>FlightDeck <span class="brand-code">TOKEN-AUDIT</span></span>
+      </a>
+      <div class="nav-links">
+        <a href="#airspace">Airspace</a>
+        <a href="#routes">Routes</a>
+        <a href="#terrain">Context</a>
+        <a href="#replay">Replay</a>
+        <a href="#system">System</a>
+      </div>
+      <div class="nav-tools">
+        <button class="ghost-button" id="themeToggle" type="button" aria-label="Switch to day theme">
+          <span class="signal-slash" aria-hidden="true"></span>
+          <span>Day deck</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <main id="main">
+    <header class="shell hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">Spatial operating system for coding agents</p>
+        <h1>Direct the <span>airspace.</span></h1>
+        <p class="hero-sub">See agents, cost, context and risk on one spatial surface.</p>
+        <div class="hero-actions">
+          <a class="solid-button" href="#airspace">Open airspace</a>
+          <a class="ghost-button" href="#principles">Read the thesis</a>
+        </div>
+      </div>
+
+      <div class="hero-visual" aria-label="Live spatial simulation using illustrative agent data">
+        <div class="hero-dome" id="heroDome">
+          <canvas id="heroRadar" role="img" aria-label="Seven coding agent sessions moving across one mission airspace"></canvas>
+          <div class="dome-meta">
+            <span class="live-state">Simulation live</span>
+            <span>Illustrative data</span>
+          </div>
+          <div class="dome-readout" aria-live="polite">
+            <div class="readout-row">
+              <strong id="heroFocus">FD-X04 / Prototype</strong>
+              <span id="heroState">ACTIVE</span>
+            </div>
+            <p id="heroDetail">Codex / GPT-5 / 54% context / $6.14</p>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <section class="thesis" id="principles">
+      <div class="shell thesis-inner reveal">
+        <div class="thesis-small">Perceptual premise<br>geometry before prose</div>
+        <p class="thesis-claim">A list says seven sessions. <span>Geometry shows two converging on App.jsx.</span></p>
+        <p class="thesis-proof">Position exposes relation. Path exposes dependency. Area exposes cost. Altitude exposes context. Motion exposes change.</p>
+      </div>
+    </section>
+
+    <section class="section" id="airspace">
+      <span class="section-number">Atlas / Formation</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Airspace Atlas + Formation Control</span>
+          <h2>Sessions become moving objects.</h2>
+          <p>See ownership, burn rate, context load and file collision in one glance. Click a flight to lock focus without leaving the surface.</p>
+        </div>
+
+        <div class="deck-frame reveal">
+          <div class="deck-toolbar">
+            <div class="deck-title"><b>M-07 FlightDeck Rebrand</b> <span>/ 7 flights / $18.73 used</span></div>
+            <div class="segmented" aria-label="Airspace lens">
+              <button class="chip active" type="button" data-lens="traffic" aria-pressed="true">Traffic</button>
+              <button class="chip" type="button" data-lens="cost" aria-pressed="false">Cost</button>
+              <button class="chip" type="button" data-lens="context" aria-pressed="false">Context</button>
+              <button class="chip" type="button" data-lens="risk" aria-pressed="false">Risk</button>
+            </div>
+          </div>
+
+          <div class="airspace-layout">
+            <div class="airspace-map">
+              <canvas id="airspaceCanvas" role="img" aria-label="Interactive airspace showing coding agent sessions and a file collision"></canvas>
+              <span class="map-axis top">Mission altitude / context load</span>
+              <span class="map-axis bottom">Topic space / shared resources</span>
+            </div>
+            <aside class="airspace-side" aria-label="Focused session">
+              <div class="focus-panel" aria-live="polite">
+                <p class="focus-id" id="focusId">FD-X04 / ACTIVE</p>
+                <h3 id="focusTask">Build interactive prototype</h3>
+                <p class="focus-agent" id="focusAgent">Codex / GPT-5</p>
+                <div class="focus-metrics">
+                  <div><span class="metric-label">Context</span><span class="metric-value" id="focusContext">54%</span></div>
+                  <div><span class="metric-label">Cost</span><span class="metric-value" id="focusCost">$6.14</span></div>
+                  <div><span class="metric-label">Burn</span><span class="metric-value" id="focusBurn">$4.90/h</span></div>
+                  <div><span class="metric-label">Files</span><span class="metric-value" id="focusFiles">4 touched</span></div>
+                </div>
+                <div class="conflict-note" id="focusConflict">Conflict arc: FD-C17 and FD-X04 are both touching App.jsx.</div>
+              </div>
+              <div class="agent-list" id="agentList" aria-label="Select an agent session"></div>
+            </aside>
+          </div>
+
+          <div class="encoding-strip" aria-label="Visual encoding">
+            <div class="encoding"><b>Position</b><span>Topic and ownership</span></div>
+            <div class="encoding"><b>Trail</b><span>Work history</span></div>
+            <div class="encoding"><b>Area</b><span>Spend magnitude</span></div>
+            <div class="encoding"><b>Altitude</b><span>Context pressure</span></div>
+            <div class="encoding"><b>Pulse</b><span>Active token flow</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="routes">
+      <span class="section-number">Route / Formation</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Route Loom</span>
+          <h2>Prompts become a navigable route.</h2>
+          <p>Waypoints expose parallel work, holding patterns, retries and verification gates. Formation presets redistribute agents across the route.</p>
+        </div>
+
+        <div class="deck-frame route-frame reveal">
+          <div class="deck-toolbar">
+            <div class="deck-title"><b>Refactor FlightDeck surface</b> <span>/ priority route open</span></div>
+            <div class="segmented" aria-label="Formation preset">
+              <button class="chip active" type="button" data-formation="parallel" aria-pressed="true">Parallel</button>
+              <button class="chip" type="button" data-formation="escort" aria-pressed="false">Review escort</button>
+              <button class="chip" type="button" data-formation="split" aria-pressed="false">Split wing</button>
+            </div>
+          </div>
+          <div class="route-board">
+            <div class="route-board-inner">
+              <canvas id="routeCanvas" aria-hidden="true"></canvas>
+              <div class="lane-labels" aria-hidden="true">
+                <span>Lead</span><span>Scout</span><span>Builder</span><span>Reviewer</span><span>Gate</span>
+              </div>
+              <div class="route-nodes" id="routeNodes" aria-label="Mission route waypoints"></div>
+            </div>
+          </div>
+          <div class="route-detail" aria-live="polite">
+            <div>
+              <h3 id="routeTitle">Interactive prototype</h3>
+              <p id="routeDesc">FD-X04 is building the spatial surface while FD-C17 frames the visual grammar.</p>
+            </div>
+            <div><span class="metric-label">Owner</span><span class="metric-value" id="routeOwner">FD-X04</span></div>
+            <div><span class="metric-label">ETA</span><span class="metric-value" id="routeEta">24 min</span></div>
+            <div><span class="metric-label">Route cost</span><span class="metric-value" id="routeCost">$6.14</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="weather">
+      <span class="section-number">Fuel / Weather</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Fuel Envelope + Weather Radar</span>
+          <h2>Cost becomes range. Risk becomes weather.</h2>
+          <p>Budget, quota and cache savings form one fuel envelope. Operational friction appears as terrain to avoid, not another alert list.</p>
+        </div>
+
+        <div class="paired-grid">
+          <article class="instrument reveal">
+            <div class="instrument-head">
+              <div><h3>Fuel Envelope</h3><p>Budget / 5h quota / weekly quota</p></div>
+              <span class="mono" style="font-size:11px;color:var(--verified)">SAFE RANGE</span>
+            </div>
+            <div class="fuel-body">
+              <div class="instrument-canvas">
+                <canvas id="fuelCanvas" role="img" aria-label="Three concentric rings show mission budget, five hour quota and weekly quota"></canvas>
+              </div>
+              <div class="fuel-controls">
+                <label for="concurrency">Concurrent flights</label>
+                <input id="concurrency" type="range" min="1" max="7" value="4">
+                <div class="range-row"><span>1</span><b id="concurrencyValue">4 active</b><span>7</span></div>
+                <div class="forecast">
+                  <strong id="projectedCost">$31.90</strong>
+                  <span id="forecastCopy">Projected mission cost. Safe for 34 more minutes at the current burn rate.</span>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <article class="instrument reveal">
+            <div class="instrument-head">
+              <div><h3>Weather Radar</h3><p>Friction layered over the mission</p></div>
+              <div class="segmented" aria-label="Weather signal">
+                <button class="chip active" type="button" data-weather="collision" aria-pressed="true">Collision</button>
+                <button class="chip" type="button" data-weather="retry" aria-pressed="false">Retry</button>
+                <button class="chip" type="button" data-weather="stale" aria-pressed="false">Stale</button>
+              </div>
+            </div>
+            <div class="weather-body">
+              <div class="weather-canvas-wrap">
+                <canvas id="weatherCanvas" role="img" aria-label="Contour radar showing operational friction around agent sessions"></canvas>
+              </div>
+              <div class="weather-brief" aria-live="polite">
+                <div>
+                  <h4 id="weatherTitle">Resource collision ahead</h4>
+                  <p id="weatherCopy">FD-C17 and FD-X04 share App.jsx. Divert concept work to review before the next write.</p>
+                </div>
+                <div class="impact-value"><span id="weatherImpact">$3.18</span><small>avoidable spend</small></div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="terrain">
+      <span class="section-number">Context terrain</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Context Terrain</span>
+          <h2>Knowledge becomes a landscape.</h2>
+          <p>Peaks show shared references, valleys show unread regions, bridges show common context and fractures show sources changed after read.</p>
+        </div>
+
+        <div class="deck-frame reveal">
+          <div class="deck-toolbar">
+            <div class="deck-title"><b>Repository terrain</b> <span>/ 19 resources / 4 flights</span></div>
+            <div class="segmented" aria-label="Terrain lens">
+              <button class="chip active" type="button" data-terrain="relevance" aria-pressed="true">Relevance</button>
+              <button class="chip" type="button" data-terrain="recency" aria-pressed="false">Recency</button>
+              <button class="chip" type="button" data-terrain="coverage" aria-pressed="false">Coverage</button>
+            </div>
+          </div>
+          <div class="terrain-wrap">
+            <div class="terrain-stage" id="terrainStage">
+              <canvas id="terrainCanvas" role="img" aria-label="Three dimensional wireframe terrain of files and shared agent context"></canvas>
+            </div>
+            <aside class="terrain-side">
+              <h3 id="terrainTitle">Peak context: App.jsx</h3>
+              <p id="terrainCopy">Three flights reference the same surface. Height is relevance, trail density is shared context.</p>
+              <div class="resource-list" id="resourceList" aria-label="Select a context resource"></div>
+              <div class="terrain-callout" id="terrainCallout">Fracture detected: index.css changed after FD-C17 last read it.</div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="replay">
+      <span class="section-number">Black box</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Black Box Replay</span>
+          <h2>Scrub cause and effect, not chat history.</h2>
+          <p>One time ribbon aligns tool calls, context shifts, cost slope and route changes. Every spatial lens returns to the same moment.</p>
+        </div>
+
+        <div class="deck-frame reveal">
+          <div class="deck-toolbar">
+            <div class="deck-title"><b>M-07 mission ribbon</b> <span>/ 14:18 to 14:46</span></div>
+            <span class="mono" style="font-size:10px;color:var(--muted)">Illustrative event stream</span>
+          </div>
+          <div class="replay-layout">
+            <div class="replay-stage">
+              <canvas id="replayCanvas" role="img" aria-label="Time ribbon with agent events, cost slope and context changes"></canvas>
+            </div>
+            <aside class="replay-side" aria-live="polite">
+              <span class="replay-time" id="replayTime">14:32:08</span>
+              <h3 id="replayTitle">Collision detected</h3>
+              <p id="replayCopy">FD-C17 and FD-X04 both moved into App.jsx. Weather Radar marked a resource conflict.</p>
+              <div class="replay-effects">
+                <div class="replay-effect"><b id="replayCost">+$1.24</b><span>cost delta</span></div>
+                <div class="replay-effect"><b id="replayContext">+11%</b><span>context delta</span></div>
+              </div>
+              <div class="replay-controls">
+                <button class="play-button" id="playReplay" type="button">Play</button>
+                <input id="replayRange" type="range" min="0" max="6" value="3" aria-label="Replay mission time">
+              </div>
+            </aside>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="adaptive">
+      <span class="section-number">Adaptive deck</span>
+      <div class="shell">
+        <div class="section-heading reveal">
+          <span class="concept-tag">Adaptive Deck</span>
+          <h2>Widgets change depth, not just size.</h2>
+          <p>A widget collapses into a glanceable signal, expands into evidence, then becomes a full control surface on the same canvas.</p>
+        </div>
+
+        <div class="deck-toolbar reveal" style="border:1px solid var(--line-strong);border-bottom:0;border-radius:var(--radius) var(--radius) 0 0">
+          <div class="deck-title"><b>Workspace / Orchestrate</b> <span>/ adaptive mosaic</span></div>
+          <div class="segmented" aria-label="Widget information depth">
+            <button class="chip" type="button" data-depth="glance" aria-pressed="false">Glance</button>
+            <button class="chip active" type="button" data-depth="focus" aria-pressed="true">Focus</button>
+            <button class="chip" type="button" data-depth="investigate" aria-pressed="false">Investigate</button>
+          </div>
+        </div>
+        <div class="adaptive-deck reveal" id="adaptiveDeck" data-depth="focus">
+          <article class="widget widget-airspace">
+            <h3>Mission Pulse</h3>
+            <p>Seven flights share one mission envelope.</p>
+            <div class="mini-orbit" aria-hidden="true"></div>
+            <i class="mini-flight a" aria-hidden="true"></i>
+            <i class="mini-flight b" aria-hidden="true"></i>
+            <i class="mini-flight c" aria-hidden="true"></i>
+          </article>
+          <article class="widget widget-fuel">
+            <h3>Fuel Ring</h3>
+            <p>$23.27 remains in the mission budget.</p>
+            <div class="mini-ring" aria-hidden="true"></div>
+          </article>
+          <article class="widget widget-handoff">
+            <h3>Handoff Gate</h3>
+            <p>FD-X12 is ready for verification.</p>
+            <div class="handoff-gate" aria-hidden="true"></div>
+          </article>
+          <article class="widget widget-event">
+            <h3>Live Event Ribbon</h3>
+            <p>Cost slope changed after the second prototype retry.</p>
+            <div class="event-wave" aria-hidden="true"></div>
+          </article>
+          <article class="widget widget-context">
+            <h3>Context Mini-map</h3>
+            <p>App.jsx remains the dominant shared peak.</p>
+            <div class="context-bars" aria-hidden="true">
+              <i style="--h:28%;--mix:30%"></i><i style="--h:48%;--mix:42%"></i><i style="--h:86%;--mix:80%"></i>
+              <i style="--h:64%;--mix:62%"></i><i style="--h:39%;--mix:36%"></i><i style="--h:57%;--mix:52%"></i>
+            </div>
+          </article>
+          <article class="widget widget-conflict">
+            <h3>Conflict Radar</h3>
+            <p>One active convergence requires a route decision.</p>
+            <div class="conflict-figure" aria-hidden="true"></div>
+          </article>
+          <div class="widget widget-footer">
+            <div class="depth-copy"><b style="font-size:14px">Drag changes placement. Resize changes information depth.</b><p>Pin any widget onto Airspace as a live analytical layer.</p></div>
+            <span class="mono" style="color:var(--signal);font-size:11px">6 widgets / 1 shared state</span>
+          </div>
+        </div>
+
+        <div class="verbs reveal" aria-label="Core spatial interactions">
+          <div class="verb"><b>Zoom</b><span>Navigate fleet, mission and session without route changes.</span></div>
+          <div class="verb"><b>Lasso</b><span>Create a working formation from visible flights.</span></div>
+          <div class="verb"><b>Drag</b><span>Assign ownership by moving a flight onto a waypoint.</span></div>
+          <div class="verb"><b>Scrub</b><span>Return every lens to the same historical state.</span></div>
+          <div class="verb"><b>Orbit</b><span>Inspect context relationships without opening a modal.</span></div>
+        </div>
+
+        <div class="state-lab reveal" aria-label="Loading, empty and error state grammar">
+          <article class="state-cell">
+            <h3>Acquiring telemetry</h3>
+            <p>Loading preserves the final geometry, so the operator understands what will arrive.</p>
+            <div class="loading-orbits" aria-hidden="true"></div>
+            <div class="loading-sweep" aria-hidden="true"></div>
+          </article>
+          <article class="state-cell">
+            <h3>Clear airspace</h3>
+            <p>No active flights need attention.</p>
+            <div class="clear-glyph" aria-hidden="true"></div>
+          </article>
+          <article class="state-cell error-cell" id="errorState">
+            <h3 id="linkState">Telemetry link lost</h3>
+            <p id="linkCopy">Last trusted state remains visible while the connection is restored.</p>
+            <div class="error-path" aria-hidden="true"></div>
+            <button class="retry-button" id="retrySignal" type="button">Retry signal</button>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="system">
+      <div class="shell system-layout">
+        <div class="system-copy reveal">
+          <span class="concept-tag">System cutaway</span>
+          <h2>One state. Eight perceptual lenses.</h2>
+          <p>The concepts are not separate products. A shared semantic layer normalizes Codex, Claude Code, cost, files and tool events into one mission model.</p>
+          <div class="principles">
+            <div class="principle"><b>Local first</b><span>Read transcripts and telemetry without sending data outside the operator's machine.</span></div>
+            <div class="principle"><b>Read only</b><span>The first slice observes and explains. Agent control arrives behind explicit permissions.</span></div>
+            <div class="principle"><b>Shape safe</b><span>Color always pairs with position, shape or pattern, so status is never color-only.</span></div>
+            <div class="principle"><b>Motion honest</b><span>Movement communicates state, causality or feedback. Decorative loops are excluded.</span></div>
+          </div>
+        </div>
+        <div class="cutaway reveal" aria-label="Four layer architecture">
+          <div class="cutaway-layer"><b>Telemetry</b><span>Codex / Claude Code / tools / files / quota</span><i>events in</i></div>
+          <div class="cutaway-layer"><b>Mission semantics</b><span>objective / route / ownership / resource lock</span><i>normalize</i></div>
+          <div class="cutaway-layer"><b>Perceptual grammar</b><span>position / path / area / altitude / pulse</span><i>make visible</i></div>
+          <div class="cutaway-layer"><b>Operator actions</b><span>focus / pair / divert / slow / replay</span><i>decide</i></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="shell recommendation">
+      <div class="reveal">
+        <h2>Build a new <span>sense,</span> not another dashboard.</h2>
+      </div>
+      <div class="recommendation-copy reveal">
+        <p>Start with Airspace Atlas plus Black Box Replay. They reuse current session and cost telemetry while proving the geometry-first value immediately.</p>
+        <div class="build-slice">
+          <div class="slice-row"><b>Observe</b><span>Airspace, resource collision, session focus and historical replay.</span></div>
+          <div class="slice-row"><b>Orchestrate</b><span>Route Loom, formation presets and explicit handoff gates.</span></div>
+          <div class="slice-row"><b>Forecast</b><span>Fuel envelope, weather prediction and alternative model simulation.</span></div>
+        </div>
+        <a class="solid-button" href="#airspace" style="margin-top:26px">Open airspace</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell footer">
+    <span>FlightDeck spatial OS / internal concept proposal</span>
+    <span>All missions, sessions, costs and events are illustrative mock data</span>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var root = document.documentElement;
+      var css = function (name) {
+        return getComputedStyle(root).getPropertyValue(name).trim();
+      };
+
+      var MOCK = Object.freeze({
+        mission: {
+          id: "M-07",
+          name: "FlightDeck Rebrand",
+          budget: 42,
+          spent: 18.73,
+          quota5h: 0.62,
+          quotaWeek: 0.37,
+          cacheSaved: 4.82
+        },
+        agents: [
+          { id: "FD-C17", provider: "Claude", model: "Opus 4.8", task: "Frame concept system", state: "active", context: 68, cost: 8.26, burn: 6.20, files: 3, orbit: .72, angle: .18, speed: .000018, platform: "claude", conflict: "FD-C17 and FD-X04 are both touching App.jsx." },
+          { id: "FD-X04", provider: "Codex", model: "GPT-5", task: "Build interactive prototype", state: "active", context: 54, cost: 6.14, burn: 4.90, files: 4, orbit: .57, angle: 2.55, speed: .000023, platform: "codex", conflict: "FD-C17 and FD-X04 are both touching App.jsx." },
+          { id: "FD-C09", provider: "Claude", model: "Sonnet 5", task: "Audit current interface", state: "holding", context: 81, cost: 2.47, burn: 1.10, files: 6, orbit: .84, angle: 4.28, speed: .000009, platform: "claude", conflict: "Holding until the prototype surface is ready for review." },
+          { id: "FD-X12", provider: "Codex", model: "GPT-5", task: "Verify responsive build", state: "queued", context: 22, cost: 1.86, burn: 0, files: 0, orbit: .36, angle: 5.32, speed: .000005, platform: "codex", conflict: "Queued at the verification gate." },
+          { id: "FD-C22", provider: "Claude", model: "Haiku 4.5", task: "Map terminology", state: "verified", context: 35, cost: 0.74, burn: 0, files: 1, orbit: .46, angle: 3.44, speed: 0, platform: "claude", conflict: "Mission vocabulary verified." },
+          { id: "FD-X19", provider: "Codex", model: "GPT-5 mini", task: "Check accessibility", state: "active", context: 29, cost: 0.91, burn: 1.24, files: 2, orbit: .91, angle: 1.42, speed: .000014, platform: "codex", conflict: "Monitoring contrast, focus order and reduced motion." },
+          { id: "FD-C31", provider: "Claude", model: "Sonnet 5", task: "Review system framing", state: "holding", context: 47, cost: 1.05, burn: .48, files: 2, orbit: .66, angle: 5.88, speed: .000007, platform: "claude", conflict: "Waiting for the system cutaway narrative." }
+        ],
+        routes: [
+          { id: "audit", title: "Interface audit", owner: "FD-C09", eta: "Done", cost: "$2.47", state: "verified", lane: 1, x: .10, desc: "Existing navigation, spend, logbook and graph surfaces mapped." },
+          { id: "frame", title: "Concept framing", owner: "FD-C17", eta: "11 min", cost: "$8.26", state: "active", lane: 0, x: .30, desc: "Visual grammar and eight connected lenses are being framed." },
+          { id: "prototype", title: "Interactive prototype", owner: "FD-X04", eta: "24 min", cost: "$6.14", state: "active", lane: 2, x: .51, desc: "Spatial canvas, route, weather, terrain and replay are being built." },
+          { id: "a11y", title: "Accessibility sweep", owner: "FD-X19", eta: "19 min", cost: "$0.91", state: "active", lane: 3, x: .66, desc: "Keyboard focus, contrast, mobile collapse and reduced motion are checked." },
+          { id: "verify", title: "Browser verification", owner: "FD-X12", eta: "Queued", cost: "$1.86", state: "queued", lane: 4, x: .81, desc: "Desktop and mobile rendering wait at the verification gate." },
+          { id: "handoff", title: "Decision handoff", owner: "Unassigned", eta: "Open", cost: "$0.00", state: "queued", lane: 0, x: .94, desc: "A final route packages the concept, rationale and recommended first slice." }
+        ],
+        resources: [
+          { id: "App.jsx", note: "3 flights / high relevance", relevance: 1, recency: .72, coverage: .86, x: .36, y: .34, state: "peak" },
+          { id: "index.css", note: "changed after last read", relevance: .84, recency: .28, coverage: .77, x: .62, y: .42, state: "fracture" },
+          { id: "SessionDetail.jsx", note: "2 flights / shared trail", relevance: .72, recency: .81, coverage: .65, x: .74, y: .68, state: "bridge" },
+          { id: "test_quota.py", note: "unread by active flights", relevance: .42, recency: .93, coverage: .12, x: .22, y: .72, state: "valley" },
+          { id: "server.py", note: "stable source / low pressure", relevance: .52, recency: .66, coverage: .54, x: .48, y: .82, state: "stable" }
+        ],
+        events: [
+          { time: "14:18:12", title: "Mission opened", copy: "FD-C09 begins an audit of the current FlightDeck interface.", cost: "+$0.18", context: "+8%", type: "route" },
+          { time: "14:22:41", title: "Concept flight launched", copy: "FD-C17 reads existing brand tokens and starts framing the spatial grammar.", cost: "+$1.06", context: "+21%", type: "context" },
+          { time: "14:27:16", title: "Prototype branch assigned", copy: "FD-X04 receives the implementation waypoint and starts the static surface.", cost: "+$0.92", context: "+17%", type: "route" },
+          { time: "14:32:08", title: "Collision detected", copy: "FD-C17 and FD-X04 both move into App.jsx. Weather Radar marks a resource conflict.", cost: "+$1.24", context: "+11%", type: "risk" },
+          { time: "14:35:33", title: "Diversion accepted", copy: "FD-C17 shifts to review framing while FD-X04 keeps ownership of the prototype.", cost: "-$3.18", context: "-6%", type: "decision" },
+          { time: "14:40:19", title: "Verification gate armed", copy: "FD-X12 queues a desktop, mobile and reduced-motion browser pass.", cost: "+$0.44", context: "+4%", type: "gate" },
+          { time: "14:46:02", title: "Handoff route clear", copy: "The concept is ready to package with a recommended implementation slice.", cost: "+$0.23", context: "+1%", type: "verified" }
+        ]
+      });
+
+      window.FLIGHTDECK_MOCK = MOCK;
+
+      function setPressed(buttons, active) {
+        buttons.forEach(function (button) {
+          var on = button === active;
+          button.classList.toggle("active", on);
+          button.setAttribute("aria-pressed", String(on));
+        });
+      }
+
+      function setupTheme() {
+        var button = document.getElementById("themeToggle");
+        var label = button.querySelector("span:last-child");
+        button.addEventListener("click", function () {
+          var isNight = root.getAttribute("data-theme") === "night";
+          root.setAttribute("data-theme", isNight ? "day" : "night");
+          label.textContent = isNight ? "Night deck" : "Day deck";
+          button.setAttribute("aria-label", isNight ? "Switch to night theme" : "Switch to day theme");
+          document.dispatchEvent(new CustomEvent("flightdeck-theme"));
+        });
+      }
+
+      function setupReveal() {
+        var items = Array.prototype.slice.call(document.querySelectorAll(".reveal"));
+        if (reduceMotion || !("IntersectionObserver" in window)) {
+          items.forEach(function (item) { item.classList.add("in-view"); });
+          return;
+        }
+        var observer = new IntersectionObserver(function (entries) {
+          entries.forEach(function (entry) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add("in-view");
+              observer.unobserve(entry.target);
+            }
+          });
+        }, { threshold: .12 });
+        items.forEach(function (item) { observer.observe(item); });
+      }
+
+      function fitCanvas(canvas) {
+        var rect = canvas.getBoundingClientRect();
+        var ratio = Math.min(window.devicePixelRatio || 1, 2);
+        var width = Math.max(1, Math.round(rect.width * ratio));
+        var height = Math.max(1, Math.round(rect.height * ratio));
+        if (canvas.width !== width || canvas.height !== height) {
+          canvas.width = width;
+          canvas.height = height;
+        }
+        var ctx = canvas.getContext("2d");
+        ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+        return { ctx: ctx, w: rect.width, h: rect.height, ratio: ratio };
+      }
+
+      function roundedLabel(ctx, x, y, text, color, bg) {
+        ctx.save();
+        ctx.font = "10px " + css("--mono");
+        var width = ctx.measureText(text).width + 16;
+        ctx.fillStyle = bg;
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.roundRect(x - width / 2, y - 12, width, 24, 7);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, x, y + .5);
+        ctx.restore();
+      }
+
+      function createAirspace(canvas, mini) {
+        var agents = MOCK.agents;
+        var lens = "traffic";
+        var selected = mini ? 1 : 1;
+        var positions = [];
+        var visible = true;
+        var frame = 0;
+
+        function palette(agent) {
+          if (lens === "risk") {
+            return agent.conflict.indexOf("both touching") >= 0 ? css("--risk") : css("--faint");
+          }
+          if (lens === "context") {
+            return agent.context > 65 ? css("--claude") : agent.context > 40 ? css("--codex") : css("--verified");
+          }
+          if (lens === "cost") {
+            return agent.cost > 6 ? css("--signal") : agent.cost > 2 ? css("--claude") : css("--codex");
+          }
+          return agent.platform === "claude" ? css("--claude") : css("--codex");
+        }
+
+        function drawShape(ctx, x, y, size, agent, color, active) {
+          ctx.save();
+          ctx.translate(x, y);
+          ctx.lineWidth = active ? 2.6 : 1.8;
+          ctx.strokeStyle = color;
+          ctx.fillStyle = active ? color : css("--surface");
+          if (agent.platform === "claude") {
+            ctx.beginPath();
+            ctx.arc(0, 0, size, 0, Math.PI * 2);
+          } else {
+            ctx.rotate(Math.PI / 4);
+            ctx.beginPath();
+            ctx.rect(-size * .78, -size * .78, size * 1.56, size * 1.56);
+          }
+          ctx.fill();
+          ctx.stroke();
+          ctx.restore();
+        }
+
+        function draw(now) {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var cx = w * (mini ? .52 : .47);
+          var cy = h * .52;
+          var rx = Math.min(w * .42, h * .48);
+          var ry = rx * (mini ? .55 : .59);
+          var ink = css("--ink");
+          var line = css("--line");
+          var lineStrong = css("--line-strong");
+          var bg = css("--surface");
+          var speedTime = reduceMotion ? 0 : now;
+
+          ctx.save();
+          ctx.translate(cx, cy);
+          ctx.strokeStyle = line;
+          ctx.lineWidth = 1;
+          [1, .76, .52, .28].forEach(function (ring, index) {
+            ctx.beginPath();
+            ctx.ellipse(0, 0, rx * ring, ry * ring, 0, 0, Math.PI * 2);
+            ctx.strokeStyle = index === 0 ? lineStrong : line;
+            ctx.stroke();
+          });
+          for (var i = 0; i < 12; i += 1) {
+            var a = i / 12 * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(Math.cos(a) * rx * .16, Math.sin(a) * ry * .16);
+            ctx.lineTo(Math.cos(a) * rx, Math.sin(a) * ry);
+            ctx.strokeStyle = line;
+            ctx.stroke();
+          }
+          ctx.beginPath();
+          ctx.ellipse(0, 0, rx * .96, ry * .17, 0, 0, Math.PI * 2);
+          ctx.strokeStyle = line;
+          ctx.stroke();
+          ctx.restore();
+
+          if (!mini) {
+            var weather = ctx.createRadialGradient(cx + rx * .1, cy - ry * .1, 0, cx + rx * .1, cy - ry * .1, rx * .36);
+            weather.addColorStop(0, "rgba(239,111,120,.16)");
+            weather.addColorStop(.52, "rgba(239,111,120,.055)");
+            weather.addColorStop(1, "rgba(239,111,120,0)");
+            ctx.fillStyle = weather;
+            ctx.beginPath();
+            ctx.arc(cx + rx * .1, cy - ry * .1, rx * .36, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          positions = agents.map(function (agent, index) {
+            var angle = agent.angle + speedTime * agent.speed;
+            var altitude = (agent.context - 48) / 100;
+            var x = cx + Math.cos(angle) * rx * agent.orbit;
+            var y = cy + Math.sin(angle) * ry * agent.orbit - altitude * ry * .5;
+            return { x: x, y: y, angle: angle, agent: agent, index: index };
+          });
+
+          var aPos = positions[0], bPos = positions[1];
+          ctx.save();
+          ctx.strokeStyle = css("--risk");
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 6]);
+          ctx.beginPath();
+          ctx.moveTo(aPos.x, aPos.y);
+          ctx.quadraticCurveTo((aPos.x + bPos.x) / 2, Math.min(aPos.y, bPos.y) - 44, bPos.x, bPos.y);
+          ctx.stroke();
+          ctx.restore();
+
+          positions.forEach(function (pos) {
+            var agent = pos.agent;
+            var color = palette(agent);
+            var active = pos.index === selected;
+            var size = 4.5 + Math.sqrt(agent.cost) * (mini ? 1.1 : 1.45);
+            var trail = agent.state === "active" ? 7 : 3;
+            ctx.save();
+            for (var t = trail; t > 0; t -= 1) {
+              var ta = pos.angle - t * .035;
+              var tx = cx + Math.cos(ta) * rx * agent.orbit;
+              var ty = cy + Math.sin(ta) * ry * agent.orbit - (agent.context - 48) / 100 * ry * .5;
+              ctx.globalAlpha = (trail - t + 1) / trail * .24;
+              ctx.fillStyle = color;
+              ctx.beginPath();
+              ctx.arc(tx, ty, 1.2, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            ctx.restore();
+            if (active) {
+              ctx.strokeStyle = color;
+              ctx.globalAlpha = .42;
+              ctx.beginPath();
+              ctx.arc(pos.x, pos.y, size + 9 + Math.sin(now * .003) * 2, 0, Math.PI * 2);
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+            }
+            drawShape(ctx, pos.x, pos.y, size, agent, color, active);
+            if (!mini || active) {
+              ctx.fillStyle = active ? ink : css("--muted");
+              ctx.font = (active ? "600 " : "") + "10px " + css("--mono");
+              ctx.textAlign = "center";
+              ctx.fillText(agent.id, pos.x, pos.y + size + 18);
+            }
+          });
+
+          if (!mini) {
+            roundedLabel(ctx, cx, cy, "M-07 / $18.73", css("--signal"), bg);
+          }
+
+        }
+
+        function tick(now) {
+          frame = 0;
+          draw(now);
+          if (!reduceMotion && visible) frame = requestAnimationFrame(tick);
+        }
+
+        function updateFocus(index) {
+          selected = index;
+          var agent = agents[index];
+          if (mini) {
+            document.getElementById("heroFocus").textContent = agent.id + " / " + agent.task.replace("Build interactive ", "");
+            document.getElementById("heroState").textContent = agent.state.toUpperCase();
+            document.getElementById("heroDetail").textContent = agent.provider + " / " + agent.model + " / " + agent.context + "% context / $" + agent.cost.toFixed(2);
+          } else {
+            document.getElementById("focusId").textContent = agent.id + " / " + agent.state.toUpperCase();
+            document.getElementById("focusTask").textContent = agent.task;
+            document.getElementById("focusAgent").textContent = agent.provider + " / " + agent.model;
+            document.getElementById("focusContext").textContent = agent.context + "%";
+            document.getElementById("focusCost").textContent = "$" + agent.cost.toFixed(2);
+            document.getElementById("focusBurn").textContent = "$" + agent.burn.toFixed(2) + "/h";
+            document.getElementById("focusFiles").textContent = agent.files + (agent.files === 1 ? " touched" : " touched");
+            document.getElementById("focusConflict").textContent = agent.conflict;
+            Array.prototype.slice.call(document.querySelectorAll(".agent-chip")).forEach(function (button, i) {
+              button.setAttribute("aria-pressed", String(i === index));
+            });
+          }
+          if (reduceMotion) draw(0);
+        }
+
+        canvas.addEventListener("click", function (event) {
+          var rect = canvas.getBoundingClientRect();
+          var x = event.clientX - rect.left;
+          var y = event.clientY - rect.top;
+          var nearest = null;
+          positions.forEach(function (pos) {
+            var distance = Math.hypot(pos.x - x, pos.y - y);
+            if (!nearest || distance < nearest.distance) nearest = { index: pos.index, distance: distance };
+          });
+          if (nearest && nearest.distance < 34) updateFocus(nearest.index);
+        });
+
+        canvas.addEventListener("pointermove", function (event) {
+          var rect = canvas.getBoundingClientRect();
+          var x = event.clientX - rect.left;
+          var y = event.clientY - rect.top;
+          var near = positions.some(function (pos) { return Math.hypot(pos.x - x, pos.y - y) < 28; });
+          canvas.style.cursor = near ? "pointer" : "crosshair";
+        });
+
+        var observer = new IntersectionObserver(function (entries) {
+          visible = entries[0].isIntersecting;
+          if (visible && !reduceMotion && !frame) frame = requestAnimationFrame(tick);
+          if (!visible && frame) {
+            cancelAnimationFrame(frame);
+            frame = 0;
+          }
+        });
+        observer.observe(canvas);
+        document.addEventListener("flightdeck-theme", function () { draw(performance.now()); });
+        new ResizeObserver(function () { draw(performance.now()); }).observe(canvas);
+
+        draw(0);
+        if (!reduceMotion && !frame) frame = requestAnimationFrame(tick);
+        if (!mini) {
+          return {
+            setLens: function (value) { lens = value; draw(performance.now()); },
+            focus: updateFocus
+          };
+        }
+        return { focus: updateFocus };
+      }
+
+      function setupHeroTilt() {
+        var dome = document.getElementById("heroDome");
+        if (reduceMotion) return;
+        dome.addEventListener("pointermove", function (event) {
+          var rect = dome.getBoundingClientRect();
+          var x = (event.clientX - rect.left) / rect.width - .5;
+          var y = (event.clientY - rect.top) / rect.height - .5;
+          dome.style.setProperty("--ry", (x * 7).toFixed(2) + "deg");
+          dome.style.setProperty("--rx", (-y * 5 + 2).toFixed(2) + "deg");
+        });
+        dome.addEventListener("pointerleave", function () {
+          dome.style.setProperty("--ry", "-5deg");
+          dome.style.setProperty("--rx", "2deg");
+        });
+      }
+
+      function setupAirspace() {
+        createAirspace(document.getElementById("heroRadar"), true);
+        var deck = createAirspace(document.getElementById("airspaceCanvas"), false);
+        var list = document.getElementById("agentList");
+        MOCK.agents.slice(0, 4).forEach(function (agent, index) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "agent-chip";
+          button.setAttribute("aria-pressed", String(index === 1));
+          button.innerHTML =
+            '<i class="agent-shape ' + agent.platform + '" aria-hidden="true"></i>' +
+            '<span><b>' + agent.id + '</b><small>' + agent.task + '</small></span>' +
+            '<em>' + agent.context + '%</em>';
+          button.addEventListener("click", function () { deck.focus(index); });
+          list.appendChild(button);
+        });
+        var lensButtons = Array.prototype.slice.call(document.querySelectorAll("[data-lens]"));
+        lensButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setPressed(lensButtons, button);
+            deck.setLens(button.getAttribute("data-lens"));
+          });
+        });
+      }
+
+      function setupRoute() {
+        var canvas = document.getElementById("routeCanvas");
+        var nodesWrap = document.getElementById("routeNodes");
+        var formation = "parallel";
+        var current = 2;
+        var routeFrame = 0;
+        var routeVisible = true;
+        var nodeButtons = [];
+        var links = [[0,1], [1,2], [2,3], [3,4], [4,5], [2,4]];
+        var formationLanes = {
+          parallel: [1,0,2,3,4,0],
+          escort: [1,0,2,2.7,3.5,0],
+          split: [1,0,1.2,3.6,4,2.2]
+        };
+
+        function yFor(index) {
+          return (formationLanes[formation][index] + .5) / 5;
+        }
+
+        function updateDetail(index) {
+          current = index;
+          var route = MOCK.routes[index];
+          document.getElementById("routeTitle").textContent = route.title;
+          document.getElementById("routeDesc").textContent = route.desc;
+          document.getElementById("routeOwner").textContent = route.owner;
+          document.getElementById("routeEta").textContent = route.eta;
+          document.getElementById("routeCost").textContent = route.cost;
+          nodeButtons.forEach(function (button, i) {
+            button.setAttribute("aria-pressed", String(i === index));
+          });
+          draw(performance.now());
+        }
+
+        MOCK.routes.forEach(function (route, index) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "route-node";
+          button.dataset.state = route.state;
+          button.setAttribute("aria-pressed", String(index === current));
+          button.innerHTML = "<b>" + route.title + "</b><span>" + route.owner + " / " + route.eta + "</span>";
+          button.addEventListener("click", function () { updateDetail(index); });
+          nodesWrap.appendChild(button);
+          nodeButtons.push(button);
+        });
+
+        function placeNodes() {
+          var wrap = nodesWrap.getBoundingClientRect();
+          nodeButtons.forEach(function (button, index) {
+            button.style.left = (MOCK.routes[index].x * 100) + "%";
+            button.style.top = (yFor(index) * 100) + "%";
+          });
+          draw(performance.now());
+        }
+
+        function draw(now) {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var left = 108;
+          var innerW = w - left;
+          links.forEach(function (pair, index) {
+            var a = MOCK.routes[pair[0]], b = MOCK.routes[pair[1]];
+            var ax = left + a.x * innerW;
+            var ay = yFor(pair[0]) * h;
+            var bx = left + b.x * innerW;
+            var by = yFor(pair[1]) * h;
+            var active = pair[0] === current || pair[1] === current;
+            ctx.strokeStyle = active ? css("--signal") : css("--line-strong");
+            ctx.lineWidth = active ? 2.2 : 1.2;
+            ctx.beginPath();
+            ctx.moveTo(ax, ay);
+            var bend = Math.max(36, (bx - ax) * .45);
+            ctx.bezierCurveTo(ax + bend, ay, bx - bend, by, bx, by);
+            ctx.stroke();
+            if (!reduceMotion && (a.state === "active" || b.state === "active")) {
+              var p = ((now * .00022 + index * .17) % 1);
+              var q = 1 - p;
+              var c1x = ax + bend, c1y = ay, c2x = bx - bend, c2y = by;
+              var px = q*q*q*ax + 3*q*q*p*c1x + 3*q*p*p*c2x + p*p*p*bx;
+              var py = q*q*q*ay + 3*q*q*p*c1y + 3*q*p*p*c2y + p*p*p*by;
+              ctx.fillStyle = css("--signal");
+              ctx.beginPath();
+              ctx.arc(px, py, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+          });
+        }
+
+        function tick(now) {
+          routeFrame = 0;
+          draw(now);
+          if (!reduceMotion && routeVisible) routeFrame = requestAnimationFrame(tick);
+        }
+
+        var formationButtons = Array.prototype.slice.call(document.querySelectorAll("[data-formation]"));
+        formationButtons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setPressed(formationButtons, button);
+            formation = button.getAttribute("data-formation");
+            placeNodes();
+          });
+        });
+        new ResizeObserver(placeNodes).observe(document.querySelector(".route-board"));
+        document.addEventListener("flightdeck-theme", function () { draw(performance.now()); });
+        new IntersectionObserver(function (entries) {
+          routeVisible = entries[0].isIntersecting;
+          if (routeVisible && !reduceMotion && !routeFrame) routeFrame = requestAnimationFrame(tick);
+          if (!routeVisible && routeFrame) {
+            cancelAnimationFrame(routeFrame);
+            routeFrame = 0;
+          }
+        }).observe(canvas);
+        placeNodes();
+        if (!reduceMotion && !routeFrame) routeFrame = requestAnimationFrame(tick);
+      }
+
+      function setupFuel() {
+        var canvas = document.getElementById("fuelCanvas");
+        var range = document.getElementById("concurrency");
+        var count = Number(range.value);
+
+        function draw() {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var cx = w / 2, cy = h / 2;
+          var maxR = Math.min(w, h) * .36;
+          var rings = [
+            { r: maxR, value: MOCK.mission.spent / MOCK.mission.budget, color: css("--signal"), label: "MISSION $" },
+            { r: maxR * .74, value: MOCK.mission.quota5h, color: css("--claude"), label: "5H QUOTA" },
+            { r: maxR * .48, value: MOCK.mission.quotaWeek, color: css("--codex"), label: "WEEK" }
+          ];
+          rings.forEach(function (ring) {
+            ctx.lineWidth = Math.max(8, maxR * .065);
+            ctx.lineCap = "round";
+            ctx.strokeStyle = css("--line");
+            ctx.beginPath();
+            ctx.arc(cx, cy, ring.r, -.75 * Math.PI, .75 * Math.PI);
+            ctx.stroke();
+            ctx.strokeStyle = ring.color;
+            ctx.beginPath();
+            ctx.arc(cx, cy, ring.r, -.75 * Math.PI, -.75 * Math.PI + 1.5 * Math.PI * ring.value);
+            ctx.stroke();
+            ctx.fillStyle = css("--muted");
+            ctx.font = "9px " + css("--mono");
+            ctx.textAlign = "center";
+            ctx.fillText(ring.label, cx, cy - ring.r - 15);
+          });
+          var projected = 24.6 + count * 1.825;
+          var forecastAngle = -.75 * Math.PI + 1.5 * Math.PI * Math.min(projected / MOCK.mission.budget, 1);
+          ctx.strokeStyle = css("--risk");
+          ctx.lineWidth = 2;
+          ctx.setLineDash([4, 5]);
+          ctx.beginPath();
+          ctx.moveTo(cx, cy);
+          ctx.lineTo(cx + Math.cos(forecastAngle) * (maxR + 15), cy + Math.sin(forecastAngle) * (maxR + 15));
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = css("--ink");
+          ctx.font = "650 29px " + css("--display");
+          ctx.fillText("$" + (MOCK.mission.budget - MOCK.mission.spent).toFixed(2), cx, cy + 2);
+          ctx.fillStyle = css("--muted");
+          ctx.font = "10px " + css("--mono");
+          ctx.fillText("SAFE RANGE LEFT", cx, cy + 24);
+          ctx.fillStyle = css("--verified");
+          ctx.font = "10px " + css("--mono");
+          ctx.fillText("+$" + MOCK.mission.cacheSaved.toFixed(2) + " CACHE RETURN", cx, cy + 47);
+        }
+
+        function update() {
+          count = Number(range.value);
+          var projected = 24.6 + count * 1.825;
+          var minutes = Math.max(8, Math.round(52 - count * 4.5));
+          document.getElementById("concurrencyValue").textContent = count + (count === 1 ? " active" : " active");
+          document.getElementById("projectedCost").textContent = "$" + projected.toFixed(2);
+          document.getElementById("forecastCopy").textContent = "Projected mission cost. Safe for " + minutes + " more minutes at the current burn rate.";
+          draw();
+        }
+        range.addEventListener("input", update);
+        new ResizeObserver(draw).observe(canvas);
+        document.addEventListener("flightdeck-theme", draw);
+        update();
+      }
+
+      function setupWeather() {
+        var canvas = document.getElementById("weatherCanvas");
+        var mode = "collision";
+        var content = {
+          collision: { title: "Resource collision ahead", copy: "FD-C17 and FD-X04 share App.jsx. Divert concept work to review before the next write.", impact: "$3.18", spots: [[.43,.44,.32], [.61,.53,.24]] },
+          retry: { title: "Retry storm on prototype branch", copy: "Three repeated layout attempts are increasing burn without changing the accepted route.", impact: "$2.46", spots: [[.57,.46,.36], [.33,.68,.18]] },
+          stale: { title: "Stale source behind review path", copy: "index.css changed after FD-C17 last read it. Refresh context before accepting visual review.", impact: "$1.12", spots: [[.68,.37,.29], [.29,.32,.16]] }
+        };
+
+        function draw() {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var item = content[mode];
+          ctx.strokeStyle = css("--line");
+          ctx.lineWidth = 1;
+          for (var x = 0; x < w; x += 42) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+          }
+          for (var y = 0; y < h; y += 42) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+          }
+          item.spots.forEach(function (spot, index) {
+            var sx = spot[0] * w, sy = spot[1] * h, radius = spot[2] * Math.min(w, h);
+            var gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+            var rgb = mode === "stale" ? "226,170,105" : mode === "retry" ? "255,93,59" : "239,111,120";
+            gradient.addColorStop(0, "rgba(" + rgb + ",.38)");
+            gradient.addColorStop(.45, "rgba(" + rgb + ",.13)");
+            gradient.addColorStop(1, "rgba(" + rgb + ",0)");
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            [1, .72, .44].forEach(function (ring) {
+              ctx.strokeStyle = index === 0 ? css("--risk") : css("--line-strong");
+              ctx.beginPath();
+              ctx.ellipse(sx, sy, radius * ring, radius * ring * .62, -.2, 0, Math.PI * 2);
+              ctx.stroke();
+            });
+          });
+          ctx.strokeStyle = css("--codex");
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(w * .08, h * .78);
+          ctx.bezierCurveTo(w * .31, h * .67, w * .54, h * .77, w * .91, h * .22);
+          ctx.stroke();
+          roundedLabel(ctx, w * .18, h * .73, "FD-X04", css("--codex"), css("--surface"));
+          roundedLabel(ctx, w * .76, h * .38, "DIVERT", css("--verified"), css("--surface"));
+        }
+
+        var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-weather]"));
+        buttons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setPressed(buttons, button);
+            mode = button.getAttribute("data-weather");
+            var item = content[mode];
+            document.getElementById("weatherTitle").textContent = item.title;
+            document.getElementById("weatherCopy").textContent = item.copy;
+            document.getElementById("weatherImpact").textContent = item.impact;
+            draw();
+          });
+        });
+        new ResizeObserver(draw).observe(canvas);
+        document.addEventListener("flightdeck-theme", draw);
+        draw();
+      }
+
+      function setupTerrain() {
+        var canvas = document.getElementById("terrainCanvas");
+        var stage = document.getElementById("terrainStage");
+        var lens = "relevance";
+        var selected = 0;
+        var yaw = -.58;
+        var pitch = .56;
+        var resources = MOCK.resources;
+
+        function heightAt(x, y) {
+          var total = 0;
+          resources.forEach(function (resource) {
+            var dx = x - resource.x;
+            var dy = y - resource.y;
+            var value = resource[lens];
+            total += value * Math.exp(-(dx * dx + dy * dy) / .018);
+          });
+          return Math.min(1.35, total);
+        }
+
+        function project(x, y, z, w, h) {
+          var px = x - .5, py = y - .5;
+          var rx = px * Math.cos(yaw) - py * Math.sin(yaw);
+          var ry = px * Math.sin(yaw) + py * Math.cos(yaw);
+          return {
+            x: w * .5 + rx * Math.min(w * .76, h * .92),
+            y: h * .62 + ry * Math.min(w * .32, h * .38) - z * h * .24 * pitch
+          };
+        }
+
+        function draw() {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var cols = 24, rows = 20;
+          ctx.lineWidth = 1;
+          for (var yi = 0; yi <= rows; yi += 1) {
+            ctx.beginPath();
+            for (var xi = 0; xi <= cols; xi += 1) {
+              var x = xi / cols, y = yi / rows, z = heightAt(x, y);
+              var p = project(x, y, z, w, h);
+              if (xi === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+            }
+            ctx.strokeStyle = yi % 4 === 0 ? css("--line-strong") : css("--line");
+            ctx.stroke();
+          }
+          for (var xj = 0; xj <= cols; xj += 1) {
+            ctx.beginPath();
+            for (var yj = 0; yj <= rows; yj += 1) {
+              var gx = xj / cols, gy = yj / rows, gz = heightAt(gx, gy);
+              var gp = project(gx, gy, gz, w, h);
+              if (yj === 0) ctx.moveTo(gp.x, gp.y); else ctx.lineTo(gp.x, gp.y);
+            }
+            ctx.strokeStyle = xj % 4 === 0 ? colorWithAlpha(css("--codex"), .35) : css("--line");
+            ctx.stroke();
+          }
+          resources.forEach(function (resource, index) {
+            var z = heightAt(resource.x, resource.y);
+            var p = project(resource.x, resource.y, z, w, h);
+            var color = resource.state === "fracture" ? css("--risk") : index === selected ? css("--signal") : css("--ink-soft");
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, index === selected ? 5 : 3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = color;
+            ctx.beginPath();
+            ctx.moveTo(p.x, p.y);
+            ctx.lineTo(p.x, p.y + Math.min(72, z * 44));
+            ctx.stroke();
+            ctx.fillStyle = color;
+            ctx.font = (index === selected ? "600 " : "") + "10px " + css("--mono");
+            ctx.textAlign = "center";
+            ctx.fillText(resource.id, p.x, p.y - 10);
+          });
+        }
+
+        function colorWithAlpha(color, alpha) {
+          if (color.charAt(0) === "#") {
+            var hex = color.slice(1);
+            if (hex.length === 3) hex = hex.split("").map(function (c) { return c + c; }).join("");
+            var n = parseInt(hex, 16);
+            return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + alpha + ")";
+          }
+          return color;
+        }
+
+        function updateResource(index) {
+          selected = index;
+          var resource = resources[index];
+          var names = { peak: "Peak context: ", fracture: "Fracture: ", bridge: "Shared bridge: ", valley: "Context valley: ", stable: "Stable ground: " };
+          document.getElementById("terrainTitle").textContent = names[resource.state] + resource.id;
+          document.getElementById("terrainCopy").textContent = resource.note + ". The active terrain lens is " + lens + ".";
+          document.getElementById("terrainCallout").textContent =
+            resource.state === "fracture"
+              ? "Source changed after the last read. Refresh context before review."
+              : resource.state === "valley"
+                ? "No active flight has crossed this resource. Route a scout through the gap."
+                : "Pin this resource to compare how each flight constructed its context.";
+          Array.prototype.slice.call(document.querySelectorAll(".resource-button")).forEach(function (button, i) {
+            button.setAttribute("aria-pressed", String(i === index));
+          });
+          draw();
+        }
+
+        var list = document.getElementById("resourceList");
+        resources.forEach(function (resource, index) {
+          var button = document.createElement("button");
+          button.type = "button";
+          button.className = "resource-button";
+          button.setAttribute("aria-pressed", String(index === 0));
+          button.innerHTML = "<span><b>" + resource.id + "</b><span>" + resource.note + "</span></span><em>" + Math.round(resource.relevance * 100) + "%</em>";
+          button.addEventListener("click", function () { updateResource(index); });
+          list.appendChild(button);
+        });
+
+        if (!reduceMotion) {
+          stage.addEventListener("pointermove", function (event) {
+            var rect = stage.getBoundingClientRect();
+            yaw = -.58 + ((event.clientX - rect.left) / rect.width - .5) * .24;
+            pitch = .52 + ((event.clientY - rect.top) / rect.height - .5) * .12;
+            draw();
+          });
+          stage.addEventListener("pointerleave", function () { yaw = -.58; pitch = .56; draw(); });
+        }
+
+        var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-terrain]"));
+        buttons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setPressed(buttons, button);
+            lens = button.getAttribute("data-terrain");
+            updateResource(selected);
+          });
+        });
+        new ResizeObserver(draw).observe(canvas);
+        document.addEventListener("flightdeck-theme", draw);
+        draw();
+      }
+
+      function setupReplay() {
+        var canvas = document.getElementById("replayCanvas");
+        var range = document.getElementById("replayRange");
+        var play = document.getElementById("playReplay");
+        var current = Number(range.value);
+        var timer = null;
+
+        function draw() {
+          var f = fitCanvas(canvas);
+          var ctx = f.ctx, w = f.w, h = f.h;
+          ctx.clearRect(0, 0, w, h);
+          var labels = ["ROUTE", "CONTEXT", "TOOLS", "COST", "RISK"];
+          var top = 52, rowH = (h - 104) / labels.length;
+          labels.forEach(function (label, row) {
+            var y = top + row * rowH;
+            ctx.fillStyle = css("--faint");
+            ctx.font = "9px " + css("--mono");
+            ctx.textAlign = "left";
+            ctx.fillText(label, 15, y + 4);
+            ctx.strokeStyle = css("--line");
+            ctx.beginPath();
+            ctx.moveTo(74, y);
+            ctx.lineTo(w - 20, y);
+            ctx.stroke();
+          });
+          MOCK.events.forEach(function (event, index) {
+            var x = 92 + index / (MOCK.events.length - 1) * (w - 126);
+            var row = { route: 0, context: 1, decision: 2, gate: 2, verified: 0, risk: 4 }[event.type];
+            var y = top + row * rowH;
+            var color = event.type === "risk" ? css("--risk") : event.type === "decision" ? css("--signal") : event.type === "verified" ? css("--verified") : css("--codex");
+            ctx.strokeStyle = index <= current ? color : css("--line-strong");
+            ctx.lineWidth = index === current ? 3 : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x, y - 14);
+            ctx.lineTo(x, y + 14);
+            ctx.stroke();
+            ctx.fillStyle = index === current ? color : css("--surface-3");
+            ctx.beginPath();
+            ctx.arc(x, y, index === current ? 6 : 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = css("--faint");
+            ctx.font = "9px " + css("--mono");
+            ctx.textAlign = "center";
+            ctx.fillText(event.time.slice(0,5), x, h - 22);
+          });
+          var cursorX = 92 + current / (MOCK.events.length - 1) * (w - 126);
+          ctx.strokeStyle = css("--signal");
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 5]);
+          ctx.beginPath();
+          ctx.moveTo(cursorX, 20);
+          ctx.lineTo(cursorX, h - 42);
+          ctx.stroke();
+          ctx.setLineDash([]);
+
+          var costBase = h - 68;
+          ctx.strokeStyle = css("--claude");
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          MOCK.events.forEach(function (event, index) {
+            var x = 92 + index / (MOCK.events.length - 1) * (w - 126);
+            var y = costBase - index * 5 - (index >= 3 ? 13 : 0) + (index >= 4 ? 11 : 0);
+            if (index === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        }
+
+        function update(index) {
+          current = Math.max(0, Math.min(MOCK.events.length - 1, index));
+          range.value = String(current);
+          var event = MOCK.events[current];
+          document.getElementById("replayTime").textContent = event.time;
+          document.getElementById("replayTitle").textContent = event.title;
+          document.getElementById("replayCopy").textContent = event.copy;
+          document.getElementById("replayCost").textContent = event.cost;
+          document.getElementById("replayContext").textContent = event.context;
+          draw();
+        }
+
+        function stop() {
+          if (timer) window.clearInterval(timer);
+          timer = null;
+          play.textContent = "Play";
+        }
+
+        range.addEventListener("input", function () { stop(); update(Number(range.value)); });
+        play.addEventListener("click", function () {
+          if (timer) { stop(); return; }
+          play.textContent = "Pause";
+          if (current >= MOCK.events.length - 1) update(0);
+          if (reduceMotion) { update(Math.min(current + 1, MOCK.events.length - 1)); stop(); return; }
+          timer = window.setInterval(function () {
+            if (current >= MOCK.events.length - 1) { stop(); return; }
+            update(current + 1);
+          }, 850);
+        });
+        new ResizeObserver(draw).observe(canvas);
+        document.addEventListener("flightdeck-theme", draw);
+        update(current);
+      }
+
+      function setupAdaptive() {
+        var deck = document.getElementById("adaptiveDeck");
+        var buttons = Array.prototype.slice.call(document.querySelectorAll("[data-depth]"));
+        buttons.forEach(function (button) {
+          button.addEventListener("click", function () {
+            setPressed(buttons, button);
+            deck.setAttribute("data-depth", button.getAttribute("data-depth"));
+          });
+        });
+        document.getElementById("retrySignal").addEventListener("click", function (event) {
+          document.getElementById("linkState").textContent = "Signal restored";
+          document.getElementById("linkCopy").textContent = "The deck reconciled two buffered events without losing the operator's focus.";
+          document.getElementById("errorState").classList.remove("error-cell");
+          event.currentTarget.textContent = "Connected";
+          event.currentTarget.disabled = true;
+        });
+      }
+
+      setupTheme();
+      setupReveal();
+      setupHeroTilt();
+      setupAirspace();
+      setupRoute();
+      setupFuel();
+      setupWeather();
+      setupTerrain();
+      setupReplay();
+      setupAdaptive();
+    }());
+  </script>
+</body>
+</html>

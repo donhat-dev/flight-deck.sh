@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+watchdog>=4.0
+pytest>=8.0
+httpx>=0.27
+zen-engine==0.53.0
+# PostgreSQL (Phase 2). Present so the host .venv is ready; db.py stays on
+# SQLite until cfg["database_url"] is set.
+psycopg[binary]>=3.1
+psycopg_pool>=3.2

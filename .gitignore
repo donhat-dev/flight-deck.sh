@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- FlightDeck project-specific (merged from token-audit) ---
+.venv/
+node_modules/
+audit.db*
+*.pyc
+__pycache__/
+.pytest_cache/
+.superpowers/
+frontend/dist/

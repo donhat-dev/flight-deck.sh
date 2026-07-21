@@ -1,0 +1,32 @@
+# FlightDeck systemd --user unit (template).
+# Install with `make service` (fills __PROJ__ / __NODE_BIN__), then:
+#   loginctl enable-linger $USER          # survive logout / reboot
+#   systemctl --user enable --now flightdeck
+# NOTE: binds :8010 — stop the Docker container first (they clash):
+#   (cd __PROJ__/docker && docker compose down)
+[Unit]
+Description=FlightDeck (Claude Code management deck)
+After=network.target
+
+[Service]
+Type=simple
+# Package lives in backend/flightdeck; run with cwd=backend so `flightdeck` imports.
+WorkingDirectory=__PROJ__/backend
+# Explicit PATH so nvm's node (claude / ccusage) resolves under systemd's
+# minimal env — the #1 host-mode trap.
+Environment=PATH=__NODE_BIN__:/usr/bin:/bin
+Environment=TOKEN_AUDIT_CONFIG=config.toml
+Environment=TOKEN_AUDIT_SUBSCRIPTION_USD=200
+Environment=CLAUDE_CONFIG_DIR=%h/.claude
+# The package now sits a level deeper (backend/flightdeck), so its relative-path
+# fallbacks resolve wrong — pin the workspace root + NAKIVO graph explicitly.
+Environment=FLIGHTDECK_WORKSPACE=/home/nathando/Documents/Projects
+Environment=TOKEN_AUDIT_GRAPH_FILE=/home/nathando/Documents/Projects/nakivo-graph/nakivo-graph.json
+# Phase 2: when the shared PostgreSQL exists, point FlightDeck at it here.
+# Environment=TOKEN_AUDIT_DATABASE_URL=postgresql://USER@127.0.0.1/flightdeck
+ExecStart=__PROJ__/.venv/bin/uvicorn flightdeck.server:app --host 127.0.0.1 --port 8010
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=default.target
