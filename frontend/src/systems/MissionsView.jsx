@@ -197,7 +197,7 @@ function KindBadge({ kind }) {
   );
 }
 
-function MissionCard({ m, onOpen, fx }) {
+function MissionCard({ m, onOpen, fx, parentTitle, childStats }) {
   const s = holdState(m);
   const note = m.kind === "NOTE";
   const doneCls = m.is_read ? "border-zinc-800 opacity-60" : "border-emerald-500/60 fd-done-glow";
@@ -227,7 +227,18 @@ function MissionCard({ m, onOpen, fx }) {
         <KindBadge kind={m.kind} />
       </div>
       <div className="mt-1.5 text-sm font-semibold leading-snug text-zinc-100">{m.title}</div>
+      {parentTitle && (
+        <div className="mt-1 truncate font-mono text-[10px] text-zinc-600">↳ {parentTitle}</div>
+      )}
       {m.note && <div className="mt-1 line-clamp-4 text-xs leading-relaxed text-zinc-500"><TypeOut text={m.note} /></div>}
+      {childStats && (
+        <div className="mt-2 flex items-center gap-2">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-zinc-800">
+            <div className="h-full rounded-full bg-emerald-500" style={{ width: `${childStats.total ? Math.round(100 * childStats.done / childStats.total) : 0}%` }} />
+          </div>
+          <span className="font-mono text-[10px] text-zinc-500">◑ {childStats.done}/{childStats.total}</span>
+        </div>
+      )}
       <div className="mt-2 flex items-center gap-1.5">
         {(m.tags || []).map((t) => <Tag key={t}>{t}</Tag>)}
         {m.priority === "HIGH" && <Tag>high</Tag>}
@@ -365,6 +376,24 @@ function DetailModal({ mid, onClose, onChanged }) {
                   {!(m.log || []).length && <li className="text-xs text-zinc-600">No history yet</li>}
                 </ol>
               </div>
+              {m.children && m.children.length > 0 && (
+                <div>
+                  <div className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-600">
+                    Subtasks ({m.children.filter((c) => c.status === "DONE").length}/{m.children.length})
+                  </div>
+                  <div className="mt-2 space-y-1.5">
+                    {m.children.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between gap-3 rounded-lg border border-zinc-800 px-3 py-2">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm text-zinc-200">{c.title}</div>
+                          {c.hold && <div className="font-mono text-[10px] text-zinc-500">{c.hold.name} · {c.hold.state.toLowerCase()}</div>}
+                        </div>
+                        <span className="shrink-0 rounded-full border border-zinc-800 bg-white/5 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wider text-zinc-400">{c.status.replace("_", " ")}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
             {m.kind !== "NOTE" && (
               <div className="flex items-center gap-2 border-t border-zinc-800/80 p-4">
@@ -471,6 +500,17 @@ export default function MissionsView() {
 
   const byCol = (k) => data.missions.filter((m) => m.status === k);
   const activeCount = data.sessions.length;
+  // parent/child rollup (A2): children live in their own columns; a parent shows a
+  // progress rollup, a child shows a "↳ parent" lineage chip.
+  const byId = {};
+  data.missions.forEach((m) => { byId[m.id] = m; });
+  const childStatsOf = {};
+  data.missions.forEach((m) => {
+    if (!m.parent_id) return;
+    const s = childStatsOf[m.parent_id] || { total: 0, done: 0 };
+    s.total += 1; if (m.status === "DONE") s.done += 1;
+    childStatsOf[m.parent_id] = s;
+  });
 
   // Open a card; opening a freshly-done (glowing) one marks it read -> it dims.
   const open = (m) => {
@@ -526,7 +566,9 @@ export default function MissionsView() {
                 <span className="font-mono text-[11px] text-zinc-600">{cards.length}</span>
               </div>
               {c.k === "INBOX" && <QuickAdd status="INBOX" onCreated={(m) => { reload(); if (m) setOpenId(m.id); }} />}
-              {cards.map((m) => <MissionCard key={m.id} m={m} onOpen={open} fx={fx[m.id]} />)}
+              {cards.map((m) => <MissionCard key={m.id} m={m} onOpen={open} fx={fx[m.id]}
+                parentTitle={m.parent_id ? (byId[m.parent_id] && byId[m.parent_id].title) : null}
+                childStats={childStatsOf[m.id]} />)}
               {!cards.length && c.k !== "INBOX" && (
                 <div className="rounded-xl border border-dashed border-zinc-900 py-6 text-center font-mono text-[10px] uppercase tracking-wider text-zinc-700">Empty</div>
               )}

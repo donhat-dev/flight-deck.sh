@@ -80,6 +80,7 @@ def init(conn) -> None:
           tags TEXT NOT NULL DEFAULT '[]',
           priority TEXT NOT NULL DEFAULT 'NORMAL',
           kind TEXT NOT NULL DEFAULT 'TODO',
+          parent_id TEXT,
           hold_session TEXT,
           hold_name TEXT,
           hold_state TEXT,
@@ -115,8 +116,19 @@ def init(conn) -> None:
     _ensure_hold_beat_column(conn)
     _ensure_hold_name_column(conn)
     _ensure_is_read_column(conn)
+    _ensure_parent_id_column(conn)
     conn.commit()
     _seed_if_empty(conn)
+
+
+def _ensure_parent_id_column(conn) -> None:
+    """Migration: add parent_id (a child TODO links to its parent; NULL = top-level)."""
+    if db.is_postgres():
+        conn.execute("ALTER TABLE missions ADD COLUMN IF NOT EXISTS parent_id text")
+    else:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(missions)").fetchall()}
+        if "parent_id" not in cols:
+            conn.execute("ALTER TABLE missions ADD COLUMN parent_id TEXT")
 
 
 def _ensure_is_read_column(conn) -> None:
@@ -182,6 +194,7 @@ def _row_to_mission(r, log: Optional[list] = None) -> dict:
         "tags": json.loads(r["tags"] or "[]"),
         "priority": r["priority"],
         "kind": r["kind"],
+        "parent_id": r["parent_id"],
         "is_read": bool(r["is_read"]),
         "hold": hold,
         "created_at": r["created_at"],
@@ -215,7 +228,12 @@ def get_mission(conn, mid: str) -> Optional[dict]:
         (mid,),
     ).fetchall()
     log = [{"session_id": lr["session_id"], "action": lr["action"], "at": lr["at"]} for lr in log_rows]
-    return _row_to_mission(r, log=log)
+    m = _row_to_mission(r, log=log)
+    child_rows = conn.execute(
+        "SELECT * FROM missions WHERE parent_id=? ORDER BY " + _STATUS_ORDER + ", updated_at DESC", (mid,)
+    ).fetchall()
+    m["children"] = [_row_to_mission(c) for c in child_rows]
+    return m
 
 
 def list_sessions(conn) -> List[dict]:
@@ -230,16 +248,17 @@ def list_sessions(conn) -> List[dict]:
 
 def create_mission(conn, title: str, note: str = "", tags: Optional[list] = None,
                    priority: str = "NORMAL", status: str = "INBOX",
-                   kind: str = "TODO", claim_session: Optional[str] = None) -> dict:
+                   kind: str = "TODO", parent_id: Optional[str] = None,
+                   claim_session: Optional[str] = None) -> dict:
     mid = _new_id()
     now = _now()
     status = status if status in STATUSES else "INBOX"
     kind = kind if kind in KINDS else "TODO"
     conn.execute(
-        "INSERT INTO missions (id, status, title, note, tags, priority, kind, "
+        "INSERT INTO missions (id, status, title, note, tags, priority, kind, parent_id, "
         "hold_session, hold_name, hold_state, hold_since, hold_beat, is_read, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (mid, status, title, note or "", json.dumps(tags or []), priority or "NORMAL", kind,
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (mid, status, title, note or "", json.dumps(tags or []), priority or "NORMAL", kind, parent_id,
          None, None, None, None, None, 0, now, now),
     )
     _log(conn, mid, None, "CREATED", now)
@@ -292,6 +311,7 @@ def delete_mission(conn, mid: str) -> bool:
     """Delete a mission and its log. Returns True if a row was removed."""
     cur = conn.execute("DELETE FROM missions WHERE id=?", (mid,))
     conn.execute("DELETE FROM mission_log WHERE mission_id=?", (mid,))
+    conn.execute("UPDATE missions SET parent_id=NULL WHERE parent_id=?", (mid,))  # orphan children, no dangling
     conn.commit()
     return (cur.rowcount or 0) > 0
 

@@ -22,6 +22,7 @@ class CreateBody(BaseModel):
     priority: str = "NORMAL"
     status: str = "INBOX"
     kind: str = "TODO"
+    parent_id: Optional[str] = None
     claim_session: Optional[str] = None
 
 
@@ -71,7 +72,7 @@ def create_mission(request: Request, body: CreateBody):
         return store.create_mission(
             conn, title=body.title, note=body.note, tags=body.tags,
             priority=body.priority, status=body.status, kind=body.kind,
-            claim_session=body.claim_session)
+            parent_id=body.parent_id, claim_session=body.claim_session)
 
 
 @router.patch("/{mid}")

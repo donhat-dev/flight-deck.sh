@@ -113,6 +113,19 @@ def test_delete_mission():
     assert store.delete_mission(c, "m_nope") is False
 
 
+def test_parent_child_and_orphan_on_delete():
+    c = _conn()
+    store.init(c)
+    p = store.create_mission(c, "parent")
+    ch = store.create_mission(c, "child", parent_id=p["id"])
+    assert ch["parent_id"] == p["id"]
+    got = store.get_mission(c, p["id"])
+    assert len(got["children"]) == 1 and got["children"][0]["id"] == ch["id"]
+    # deleting the parent orphans the child (parent_id -> NULL), no dangling ref
+    store.delete_mission(c, p["id"])
+    assert store.get_mission(c, ch["id"])["parent_id"] is None
+
+
 def test_get_missing_returns_none():
     c = _conn()
     store.init(c)

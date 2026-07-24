@@ -75,14 +75,16 @@ def mission_get(id: str) -> dict:
 @mcp.tool()
 def mission_create(title: str, note: str = "", tags: Optional[List[str]] = None,
                    priority: str = "NORMAL", status: str = "INBOX",
-                   kind: str = "TODO", claim_session: Optional[str] = None) -> dict:
-    """Create a mission. kind="NOTE" for memory/reference, "TODO" for a task
-    (default). Pass claim_session to also hold it for that session on create."""
+                   kind: str = "TODO", parent_id: Optional[str] = None,
+                   claim_session: Optional[str] = None) -> dict:
+    """Create a mission. kind="NOTE" for memory/reference, "TODO" for a task (default).
+    Pass parent_id to make this a subtask of another mission (e.g. a subagent's own
+    TODO under the orchestrator's parent). Pass claim_session to also hold it on create."""
     c = _conn()
     try:
         return store.create_mission(c, title=title, note=note, tags=tags or [],
                                     priority=priority, status=status, kind=kind,
-                                    claim_session=claim_session)
+                                    parent_id=parent_id, claim_session=claim_session)
     finally:
         c.close()
 
