@@ -15,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from flightdeck import config, db, runtime
 from flightdeck.hub import credentials
 from flightdeck.hub.nodes import load as hub_load
-from flightdeck.routers import charts, core, diff, hub, sessions, stream
+from flightdeck.missions import store as missions_store
+from flightdeck.routers import charts, core, diff, hub, missions, sessions, stream
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -41,6 +42,7 @@ def create_app() -> FastAPI:
     # everywhere else. Flows are files, not DB rows -- flows_dir below.
     hub_load.load_all()
     credentials.init(write_conn)
+    missions_store.init(write_conn)
     flows_dir = os.environ.get("TOKEN_AUDIT_FLOWS_DIR") or os.path.join(
         os.path.dirname(__file__), "..", "flows")
 
@@ -59,6 +61,7 @@ def create_app() -> FastAPI:
     # Endpoint routers (extracted from the old create_app mega-factory).
     app.include_router(core.router)
     app.include_router(sessions.router)
+    app.include_router(missions.router)
     app.include_router(charts.router)
     app.include_router(diff.router)
     app.include_router(hub.router)
