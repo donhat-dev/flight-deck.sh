@@ -8,7 +8,6 @@ agui/ router pattern). This file just wires them together.
 Single process / 1 worker by design (docs/host-stack-migration.md).
 """
 import os
-import sqlite3
 
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -16,7 +15,8 @@ from fastapi.staticfiles import StaticFiles
 from flightdeck import config, db, runtime
 from flightdeck.hub import credentials
 from flightdeck.hub.nodes import load as hub_load
-from flightdeck.routers import charts, core, diff, hub, sessions, stream
+from flightdeck.missions import store as missions_store
+from flightdeck.routers import charts, core, diff, hub, missions, sessions, stream
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -25,25 +25,24 @@ from flightdeck.agui import routes as agui_routes
 
 def create_app() -> FastAPI:
     cfg = config.load(os.environ.get("TOKEN_AUDIT_CONFIG", "config.toml"))
+    db.configure(cfg)   # pick engine: PostgreSQL if database_url set, else SQLite
 
     # Ensure schema exists (creates tables), then close that init connection.
     conn = db.connect(cfg["db_path"])
     conn.close()
 
     # Dedicated long-lived WRITE connection, used ONLY by the watcher/ingest
-    # (serialized by the runtime lock). WAL mode lets per-request readers proceed
-    # without blocking on the writer's commits; the bounded busy-timeout makes a
-    # blocked reader raise after 5s instead of wedging a threadpool worker.
-    write_conn = sqlite3.connect(cfg["db_path"], check_same_thread=False)
-    write_conn.row_factory = sqlite3.Row
-    write_conn.execute("PRAGMA journal_mode=WAL")
-    write_conn.execute("PRAGMA busy_timeout=5000")
+    # (serialized by the runtime lock). SQLite: WAL + bounded busy-timeout so
+    # per-request readers never block on the writer. PostgreSQL: a dedicated
+    # connection with explicit commits. (Engine details live in db.py.)
+    write_conn = db.open_write(cfg["db_path"])
 
     # Integration Hub: register node types (registry side-effect import) and
     # ensure the credentials table exists, on the same write connection used
     # everywhere else. Flows are files, not DB rows -- flows_dir below.
     hub_load.load_all()
     credentials.init(write_conn)
+    missions_store.init(write_conn)
     flows_dir = os.environ.get("TOKEN_AUDIT_FLOWS_DIR") or os.path.join(
         os.path.dirname(__file__), "..", "flows")
 
@@ -62,6 +61,7 @@ def create_app() -> FastAPI:
     # Endpoint routers (extracted from the old create_app mega-factory).
     app.include_router(core.router)
     app.include_router(sessions.router)
+    app.include_router(missions.router)
     app.include_router(charts.router)
     app.include_router(diff.router)
     app.include_router(hub.router)

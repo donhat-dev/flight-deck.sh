@@ -22,8 +22,9 @@ Environment=CLAUDE_CONFIG_DIR=%h/.claude
 # fallbacks resolve wrong — pin the workspace root + NAKIVO graph explicitly.
 Environment=FLIGHTDECK_WORKSPACE=/home/nathando/Documents/Projects
 Environment=TOKEN_AUDIT_GRAPH_FILE=/home/nathando/Documents/Projects/nakivo-graph/nakivo-graph.json
-# Phase 2: when the shared PostgreSQL exists, point FlightDeck at it here.
-# Environment=TOKEN_AUDIT_DATABASE_URL=postgresql://USER@127.0.0.1/flightdeck
+# Secrets (TOKEN_AUDIT_DATABASE_URL, …) come from the gitignored .env at the
+# repo root. Optional (leading '-'); absolute path filled by `make service`.
+EnvironmentFile=-__PROJ__/.env
 ExecStart=__PROJ__/.venv/bin/uvicorn flightdeck.server:app --host 127.0.0.1 --port 8010
 Restart=always
 RestartSec=2

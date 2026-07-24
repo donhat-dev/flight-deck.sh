@@ -16,6 +16,7 @@ import CommsView from "./systems/CommsView.jsx";
 import ManualsView from "./systems/ManualsView.jsx";
 import HangarView from "./systems/HangarView.jsx";
 import RelayView from "./agui/RelayView.jsx";
+import MissionsView from "./systems/MissionsView.jsx";
 
 /* ---- hash routing ------------------------------------------------------ */
 // Hash routing keeps deep links working under the static file mount without a
@@ -138,6 +139,7 @@ const SYS_NAV = [
   { k: "manuals", label: "Manuals", icon: "⎘" },
   { k: "hangar", label: "Hangar", icon: "⌂" },
   { k: "relay", label: "Relay", icon: "⇌" },
+  { k: "missions", label: "Missions", icon: "▲" },
 ];
 const RANGES = [
   { k: "today", label: "Today" },
@@ -669,6 +671,10 @@ export default function App() {
       ) : view === "relay" ? (
         <Shell variant="contained" header={<Header title="Relay" subtitle="AG-UI event flow — live agent run" />}>
           <RelayView />
+        </Shell>
+      ) : view === "missions" ? (
+        <Shell variant="contained" header={<Header title="Missions" subtitle="Personal TODO and notes, shared across agent sessions" />}>
+          <MissionsView />
         </Shell>
       ) : (
       // Spend + Logbook share one contained Shell: identical Header (title +

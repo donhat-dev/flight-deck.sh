@@ -3,6 +3,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 ROOT="$(pwd)"
 
+# load local secrets (TOKEN_AUDIT_DATABASE_URL, …) from the gitignored .env
+set -a; [ -f "$ROOT/.env" ] && . "$ROOT/.env"; set +a
+
 # venv lives at the repo root; deps come from backend/requirements.txt
 python3 -m venv .venv 2>/dev/null || true
 . .venv/bin/activate

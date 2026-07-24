@@ -10,11 +10,13 @@ durable PostgreSQL**, cleanly, without hurting the local dev loop.
 > `--user` unit + host `.venv`) — **done, verified** (boots on host, 89 tests
 > pass). `TOKEN_AUDIT_DATABASE_URL` knob added (defaults to SQLite).
 >
-> **Scope change:** standing up the shared PostgreSQL is **out of scope** — the
-> owner provisions it and supplies `DATABASE_URL`. Phase 1 (DB bring-up) is
-> therefore skipped here; **Phase 2 (port `db.py` to psycopg) is unblocked only
-> once that URL exists** and can be verified against a live DB. Until then the
-> app stays on SQLite (unchanged).
+> **Phase 2 — DONE (live on PostgreSQL).** `db.py` is engine-aware (psycopg3 +
+> pool when `database_url` set, SQLite otherwise/for tests). PG schema splits
+> UNLOGGED (messages/tool_calls/files) vs LOGGED (session_meta/credentials).
+> The systemd service now serves :8010 from PostgreSQL (:5442); SQLite kept for
+> the test suite. DB provisioning stays the owner's; the URL lives in a
+> gitignored `.env`. Phase 3 (drop the SQLite single-writer lock/WAL) is moot —
+> that code is guarded to the SQLite path and simply not used on PG.
 
 ## Guiding principles (locked)
 

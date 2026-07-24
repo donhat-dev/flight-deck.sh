@@ -8,3 +8,5 @@ zen-engine==0.53.0
 # SQLite until cfg["database_url"] is set.
 psycopg[binary]>=3.1
 psycopg_pool>=3.2
+# Missions MCP server (flightdeck.mcp_server) -- standalone process over stdio.
+fastmcp>=2.0
