@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "warp-fleet": {
+      "command": "python",
+      "args": [
+        "C:\\Users\\Admin\\Documents\\flight-deck.sh\\warp-fleet\\fleet_mcp.py"
+      ]
+    }
+  }
+}
