@@ -39,7 +39,10 @@ body {
   line-height: 1.6;
 }
 .doc { max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
-.doc-title { font-size: 2rem; line-height: 1.2; margin: 0 0 1.5rem; }
+/* The document supplies its own top heading (markdown `# Title`); the template
+   deliberately does NOT inject one, or every artifact would show its title
+   twice. `<title>` in the head still names the tab and the artifact. */
+.doc > h1:first-child { font-size: 2rem; line-height: 1.2; margin: 0 0 1.5rem; }
 h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--hair); padding-bottom: .3rem; }
 a { color: var(--accent); }
 code, pre { font-family: ui-monospace, monospace; font-size: .9em; }

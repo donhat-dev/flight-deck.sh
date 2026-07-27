@@ -84,6 +84,13 @@ def t_list(status=None, language=None, kind=None, origin_id=None, query=None,
     return {"treasures": rows, "count": len(rows)}
 
 
+def t_discover(do_import=False, max_files=400, max_age_days=None):
+    from flightdeck.treasures import discover
+    return discover.run(_conn(), _state["cfg"]["projects_dir"],
+                        do_import=do_import, max_files=max_files,
+                        max_age_days=max_age_days)
+
+
 TOOLS = {
     "treasure_wrap": (
         t_wrap,
@@ -120,6 +127,16 @@ TOOLS = {
          "query": {"type": "string"},
          "limit": {"type": "integer"},
          "offset": {"type": "integer"}},
+        []),
+    "treasure_discover": (
+        t_discover,
+        "Scan ~/.claude/projects for markdown/HTML documents the agent wrote to "
+        "files but that are not in the library yet. Dry run by default; pass "
+        "do_import=true to wrap and index the new ones. Reports its bounds and "
+        "what it skipped.",
+        {"do_import": {"type": "boolean"},
+         "max_files": {"type": "integer"},
+         "max_age_days": {"type": "integer"}},
         []),
 }
 

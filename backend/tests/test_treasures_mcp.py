@@ -25,7 +25,8 @@ def test_initialize_and_tools_list(wired):
     assert init["result"]["serverInfo"]["name"] == "treasures"
     listed = wired.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
-    assert names == {"treasure_wrap", "treasure_get", "treasure_list"}
+    assert names == {"treasure_wrap", "treasure_get", "treasure_list",
+                     "treasure_discover"}
     for tool in listed["result"]["tools"]:
         assert tool["description"] and tool["inputSchema"]["type"] == "object"
 

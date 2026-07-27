@@ -17,6 +17,7 @@ import ManualsView from "./systems/ManualsView.jsx";
 import HangarView from "./systems/HangarView.jsx";
 import RelayView from "./agui/RelayView.jsx";
 import MissionsView from "./systems/MissionsView.jsx";
+import TreasuresView from "./treasures/TreasuresView.jsx";
 
 /* ---- hash routing ------------------------------------------------------ */
 // Hash routing keeps deep links working under the static file mount without a
@@ -130,6 +131,7 @@ const NAV = [
   { k: "graph", label: "Charts", icon: "⌗" },
   { k: "diff", label: "Diff", icon: "⇄" },
   { k: "hub", label: "Hub", icon: "⬡" },
+  { k: "treasures", label: "Treasures", icon: "◈" },
 ];
 // Systems section: environment management (read-only v1) as opposed to the
 // usage-analytics views above. Comms = MCP servers, Manuals = skills,
@@ -675,6 +677,10 @@ export default function App() {
       ) : view === "missions" ? (
         <Shell variant="contained" header={<Header title="Missions" subtitle="Personal TODO and notes, shared across agent sessions" />}>
           <MissionsView />
+        </Shell>
+      ) : view === "treasures" ? (
+        <Shell variant="contained" header={<Header title="Treasures" subtitle="Artifact library — wrap, preview, provenance" />}>
+          <TreasuresView onOpenSession={(id) => { setView("sessions"); goSession(id); }} />
         </Shell>
       ) : (
       // Spend + Logbook share one contained Shell: identical Header (title +
