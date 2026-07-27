@@ -34,6 +34,16 @@ Two concrete pains, both measured against how this workspace actually works
 | Edit (v1) | **Milkdown** (WYSIWYG over markdown) | Edits stay in the primary source; re-render regenerates the artifact. ProseMirror-based, headless, MIT. |
 | Home | `treasures/` inside the **flight-deck.sh monorepo** | Shares the store code, templates, and docs with the dashboard that renders it. |
 
+**Amendments made while implementing slice 1** (each verified, not assumed):
+
+| Amendment | Change | Why |
+|---|---|---|
+| Package path | `backend/flightdeck/treasures/` (not repo-root `treasures/`) | The package must import `flightdeck.db`; a subpackage beside `hub/`, `systems/`, `agui/` keeps imports plain and matches the existing layout. |
+| Timestamp type | `text` ISO-8601 UTC, set in Python (not `timestamptz`) | Keeps **one** portable DDL for SQLite (tests) and PostgreSQL (production) — no `now()` vs `CURRENT_TIMESTAMP` split — and matches the existing `messages.ts` / `tool_calls.ts` columns. |
+| MCP registration | Registered in **both** `flight-deck.sh/.mcp.json` **and** the workspace-root `/home/nathando/Documents/Projects/.mcp.json` | Claude Code reads the `.mcp.json` of the session's cwd. Sessions run from the workspace root, so the repo-local file alone would never be loaded. The repo copy keeps the tool self-contained for a fresh clone. MCP config loads at session start, so a **new session** is required after changing it. |
+| Render workdir | pandoc runs in a **temporary** dir, not the version dir | pandoc needs the template/CSS/fonts copied beside the source to resolve relative paths. Writing them into `v{n}/` left ~13 KB of duplicated build inputs in every version forever; the rendered HTML already carries them base64-embedded. Caught by inspecting the filestore after the first live wrap. |
+| Font acquisition | `make fonts` sends a browser User-Agent, then anchors on the CSS's `/* vietnamese */` block | The css2 API ignores `subset=`. Subsetting follows the User-Agent, and an old UA gets `.ttf`. Anchoring matters as well: "first woff2 URL" grabs the wrong block. |
+
 ## 3. Architecture
 
 ```

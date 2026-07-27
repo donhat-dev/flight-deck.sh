@@ -12,7 +12,7 @@ WORKSPACE   := /home/nathando/Documents/Projects
 GRAPH_FILE  := /home/nathando/Documents/Projects/nakivo-graph/nakivo-graph.json
 RUN_ENV     := FLIGHTDECK_WORKSPACE=$(WORKSPACE) TOKEN_AUDIT_GRAPH_FILE=$(GRAPH_FILE)
 
-.PHONY: venv build dev serve service enable logs test
+.PHONY: venv build dev serve service enable logs test pandoc fonts
 
 venv:                       ## create .venv (repo root) + install python deps
 	python3 -m venv .venv
@@ -48,3 +48,30 @@ logs:                       ## follow the durable service logs
 
 test:                       ## run the test suite in the venv
 	cd backend && ../.venv/bin/python -m pytest tests -q
+
+FONT_DIR := backend/flightdeck/treasures/templates/fonts
+# Google's css2 API subsets by User-Agent, not by a `subset=` query param (that
+# param is ignored) -- an old/plain UA gets served bare .ttf. A modern desktop
+# Chrome UA gets woff2, split into multiple @font-face blocks (one per script
+# subset, e.g. /* vietnamese */, /* latin-ext */, /* latin */, in no fixed
+# order). We anchor on the `/* vietnamese */` comment and take the src URL
+# from the block that follows it, so we get the subset that actually carries
+# U+1EA0-1EF9 (the block latin-ext lacks) rather than whichever URL is first.
+FONT_UA  := Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
+
+pandoc:                     ## fetch the pinned static pandoc into ~/.flightdeck/bin
+	bash scripts/fetch-pandoc.sh
+
+fonts:                      ## fetch Vietnamese-capable artifact fonts (woff2)
+	mkdir -p $(FONT_DIR)
+	curl -sSL -A "$(FONT_UA)" \
+	  'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap' \
+	  -o /tmp/flightdeck-space-grotesk.css
+	curl -sSL -o $(FONT_DIR)/space-grotesk-vietnamese.woff2 \
+	  "$$(grep -A 8 '/\* vietnamese \*/' /tmp/flightdeck-space-grotesk.css | grep -o 'https://[^)]*\.woff2' | head -1)"
+	curl -sSL -A "$(FONT_UA)" \
+	  'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,600&display=swap' \
+	  -o /tmp/flightdeck-playfair-display.css
+	curl -sSL -o $(FONT_DIR)/playfair-display-vietnamese.woff2 \
+	  "$$(grep -A 8 '/\* vietnamese \*/' /tmp/flightdeck-playfair-display.css | grep -o 'https://[^)]*\.woff2' | head -1)"
+	ls -la $(FONT_DIR)

@@ -1,0 +1,51 @@
+/* Artifact tokens. Fonts are LOCAL woff2 files; pandoc --embed-resources
+   base64-inlines them, so the published artifact makes zero network requests.
+   Space Grotesk + Playfair Display carry the Vietnamese block (per
+   ARTIFACT_STYLE.md); the app's Outfit/IBM-Plex latin-ext subsets do not. */
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('fonts/space-grotesk-vietnamese.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('fonts/playfair-display-vietnamese.woff2') format('woff2');
+  font-weight: 600;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --ink: #12131a;
+  --paper: #fbfaf7;
+  --muted: #5d6070;
+  --hair: rgba(18, 19, 26, 0.12);
+  --accent: #0f766e;
+}
+html[data-theme='night'] {
+  --ink: #e7e7ea;
+  --paper: #0b0b0d;
+  --muted: #9a9aa5;
+  --hair: rgba(231, 231, 234, 0.14);
+  --accent: #2dd4bf;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  line-height: 1.6;
+}
+.doc { max-width: 46rem; margin: 0 auto; padding: 3rem 1.5rem 6rem; }
+.doc-title { font-size: 2rem; line-height: 1.2; margin: 0 0 1.5rem; }
+h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--hair); padding-bottom: .3rem; }
+a { color: var(--accent); }
+code, pre { font-family: ui-monospace, monospace; font-size: .9em; }
+pre { overflow-x: auto; padding: 1rem; border: 1px solid var(--hair); border-radius: .5rem; }
+table { width: 100%; border-collapse: collapse; margin: 1.5rem 0; }
+th, td { border-bottom: 1px solid var(--hair); padding: .5rem .6rem; text-align: left; }
+blockquote { margin: 1.5rem 0; padding-left: 1rem; border-left: 2px solid var(--accent);
+             color: var(--muted); font-family: 'Playfair Display', serif; font-style: italic; }
+img { max-width: 100%; height: auto; }

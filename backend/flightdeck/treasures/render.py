@@ -1,0 +1,111 @@
+"""Wrap content into a self-contained artifact with pandoc.
+
+One transform, not a chain: `content (markdown | html fragment) + template +
+tokens.css` -> a single HTML file with every asset inlined as a data URI.
+Verified during design: pandoc's --embed-resources recurses into the linked
+stylesheet, so `@font-face url(x.woff2)` becomes data:font/woff2;base64 and no
+external reference survives.
+
+pandoc resolves relative asset paths against its working directory, so the
+template dir is copied into the caller's workdir before invoking it.
+"""
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+
+TEMPLATES = Path(__file__).resolve().parent / "templates"
+TEMPLATE_FILE = TEMPLATES / "artifact.html"
+TOKENS_CSS = TEMPLATES / "tokens.css"
+FONTS_DIR = TEMPLATES / "fonts"
+
+# claude.ai caps a rendered artifact at 16 MiB; warn from 80% up.
+SIZE_WARN_BYTES = int(0.8 * 16 * 1024 * 1024)
+
+# Any src=/href=/url() pointing at a real host. The favicon's data URI embeds
+# the SVG *namespace* (http://www.w3.org/2000/svg), which is an identifier
+# rather than a fetch, so w3.org is excluded.
+EXTERNAL_REF_RE = re.compile(
+    r"""(?:src|href)\s*=\s*["'](?!data:)https?://(?!www\.w3\.org/)[^"']+"""
+    r"""|url\(\s*["']?(?!data:)https?://(?!www\.w3\.org/)[^)"']+""",
+    re.IGNORECASE)
+
+# Remote assets pandoc will fetch during the build (convenient, but never silent).
+_REMOTE_IN_SOURCE_RE = re.compile(r"https?://[^\s)\"'<>]+", re.IGNORECASE)
+
+
+def font_paths() -> list[str]:
+    """The woff2 files tokens.css references. Used by the coverage test."""
+    return sorted(str(p) for p in FONTS_DIR.glob("*.woff2"))
+
+
+def pandoc_path() -> str:
+    """Resolve the pandoc binary: env override, ~/.flightdeck/bin, then PATH."""
+    env = os.environ.get("TREASURES_PANDOC")
+    candidates = [env] if env else []
+    candidates.append(str(Path.home() / ".flightdeck" / "bin" / "pandoc"))
+    for cand in candidates:
+        if cand and os.path.isfile(cand) and os.access(cand, os.X_OK):
+            return cand
+    found = shutil.which("pandoc")
+    if found:
+        return found
+    raise RuntimeError(
+        "pandoc not found. Run `make pandoc` (installs the pinned static "
+        "binary into ~/.flightdeck/bin, no root needed) or set TREASURES_PANDOC.")
+
+
+def render(source_text: str, *, source_format: str, title: str,
+           language: str = "en", kind: str = "report", workdir: str) -> dict:
+    """Render `source_text` into a self-contained HTML string.
+
+    source_format: "markdown" or "html" (an HTML fragment, not a document).
+    workdir: a real directory; the template + fonts are copied in so pandoc can
+             resolve the relative asset paths, and any `assets/` the caller has
+             already placed there is picked up too.
+    """
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(TOKENS_CSS, work / "tokens.css")
+    dest_fonts = work / "fonts"
+    dest_fonts.mkdir(exist_ok=True)
+    for font in FONTS_DIR.glob("*.woff2"):
+        shutil.copy2(font, dest_fonts / font.name)
+
+    ext = "md" if source_format == "markdown" else "html"
+    src = work / f"source.{ext}"
+    src.write_text(source_text, encoding="utf-8")
+
+    argv = [pandoc_path(), src.name]
+    if source_format == "html":
+        argv += ["-f", "html"]
+    argv += [
+        "--standalone", "--embed-resources",
+        "--template", str(TEMPLATE_FILE),
+        "-c", "tokens.css",
+        "-M", f"title={title}",
+        "-M", f"lang={language}",
+        "-M", f"kind={kind}",
+    ]
+    proc = subprocess.run(argv, cwd=str(work), capture_output=True,
+                          text=True, timeout=120)
+    if proc.returncode != 0:
+        raise RuntimeError(f"pandoc failed: {proc.stderr.strip()[:500]}")
+
+    html = proc.stdout
+    warnings = []
+    if proc.stderr.strip():
+        warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
+    for url in sorted(set(_REMOTE_IN_SOURCE_RE.findall(source_text))):
+        warnings.append(f"fetched remote asset during wrap: {url}")
+    leftovers = EXTERNAL_REF_RE.findall(html)
+    if leftovers:
+        warnings.append(
+            f"{len(leftovers)} external reference(s) survived — the artifact is "
+            f"NOT self-contained: {leftovers[:3]}")
+    size = len(html.encode("utf-8"))
+    if size > SIZE_WARN_BYTES:
+        warnings.append(
+            f"rendered size {size / 1048576:.1f} MiB approaches the 16 MiB cap")
+    return {"html": html, "bytes": size, "warnings": warnings}
