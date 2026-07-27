@@ -32,9 +32,11 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
     else:
         art_id = filestore.new_id()
         slug = filestore.slugify(title)
-        art_dir = filestore.artifact_dir(slug, art_id)
+        # Path only — the directory is created after a successful render, so a
+        # render failure cannot leave an empty artifact dir behind.
+        art_dir = filestore.artifact_dir_path(slug, art_id)
 
-    version = filestore.next_version(art_dir)
+    version = filestore.next_version(art_dir) if art_dir.exists() else 1
     ext = "md" if source_format == "markdown" else "html"
     # Render in a throwaway dir: pandoc needs its template/CSS/fonts copied
     # beside the source to resolve relative paths, and those build inputs must
@@ -45,6 +47,8 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
         rendered = render.render(content, source_format=source_format,
                                  title=title, language=language, kind=kind,
                                  workdir=workdir)
+    # Render succeeded — now the artifact dir is worth creating.
+    art_dir = filestore.artifact_dir(slug, art_id)
     paths = filestore.write_version(art_dir, version, content, ext,
                                     rendered["html"])
 

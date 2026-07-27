@@ -103,3 +103,27 @@ def test_scan_skips_the_filestore_itself(monkeypatch, tmp_path):
     out = discover.scan(str(tmp_path / "projects"))
     assert out["candidates"] == []
     assert out["skipped"]["in_filestore"] == 1
+
+
+def test_one_unrenderable_document_does_not_abort_the_batch(monkeypatch, tmp_path):
+    """A partial import that reports what it dropped beats one that stops dead."""
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = db.connect(str(tmp_path / "t.db"))
+    store.init(conn)
+    projects = str(_tree(tmp_path))
+
+    real_wrap = discover.service.wrap
+    calls = {"n": 0}
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("pandoc failed: synthetic")
+        return real_wrap(*args, **kwargs)
+
+    monkeypatch.setattr(discover.service, "wrap", flaky)
+    out = discover.run(conn, projects, do_import=True)
+    assert out["imported"] == 1                     # the second one still landed
+    assert len(out["failed"]) == 1
+    assert "synthetic" in out["failed"][0]["error"]
+    assert len(store.list_rows(conn)) == 1

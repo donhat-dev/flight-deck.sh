@@ -35,6 +35,22 @@ EXTERNAL_REF_RE = re.compile(
 _REMOTE_IN_SOURCE_RE = re.compile(r"https?://[^\s)\"'<>]+", re.IGNORECASE)
 
 
+# A leading YAML frontmatter block: `---`, key/value lines, closing `---`.
+# Required to look like YAML (at least one `key:` line) so a document opening
+# with a genuine horizontal rule is left alone.
+_FRONTMATTER_RE = re.compile(
+    r"\A---[ \t]*\r?\n(?P<body>(?:.*\r?\n)*?)---[ \t]*\r?\n", re.MULTILINE)
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Drop a leading YAML frontmatter block. It is metadata, not document body,
+    and the title/lang/kind we render with are passed explicitly."""
+    m = _FRONTMATTER_RE.match(text)
+    if m and re.search(r"^[A-Za-z_][\w-]*\s*:", m.group("body"), re.MULTILINE):
+        return text[m.end():]
+    return text
+
+
 def font_paths() -> list[str]:
     """The woff2 files tokens.css references. Used by the coverage test."""
     return sorted(str(p) for p in FONTS_DIR.glob("*.woff2"))
@@ -75,11 +91,18 @@ def render(source_text: str, *, source_format: str, title: str,
 
     ext = "md" if source_format == "markdown" else "html"
     src = work / f"source.{ext}"
-    src.write_text(source_text, encoding="utf-8")
+    body = _strip_frontmatter(source_text) if source_format == "markdown" else source_text
+    src.write_text(body, encoding="utf-8")
 
     argv = [pandoc_path(), src.name]
     if source_format == "html":
         argv += ["-f", "html"]
+    else:
+        # Disable the YAML metadata block: real documents (SKILL.md, specs) open
+        # with frontmatter whose unquoted `key: value with: colons` is invalid
+        # YAML, and pandoc would abort the whole render. Title/lang/kind come
+        # from -M anyway, so the block carries nothing we need.
+        argv += ["-f", "markdown-yaml_metadata_block"]
     argv += [
         "--standalone", "--embed-resources",
         "--template", str(TEMPLATE_FILE),

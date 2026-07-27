@@ -158,16 +158,27 @@ def run(conn, projects_dir: str, *, do_import: bool = False, **bounds) -> dict:
     known = {r["source_checksum"] for r in store.list_rows(conn, limit=100000)
              if r["source_checksum"]}
     imported = 0
+    failed = []
     for cand in result["candidates"]:
         cand["already_imported"] = cand["checksum"] in known
         if do_import and not cand["already_imported"]:
-            service.wrap(conn, title=cand["title"], content=cand["content"],
-                         source_format=cand["source_format"],
-                         language=cand["language"],
-                         origin_kind=cand["origin_kind"],
-                         origin_id=cand["origin_id"],
-                         origin_path=cand["origin_path"],
-                         authored_at=cand["authored_at"])
+            try:
+                service.wrap(conn, title=cand["title"], content=cand["content"],
+                             source_format=cand["source_format"],
+                             language=cand["language"],
+                             origin_kind=cand["origin_kind"],
+                             origin_id=cand["origin_id"],
+                             origin_path=cand["origin_path"],
+                             authored_at=cand["authored_at"])
+            except Exception as e:
+                # One unrenderable document must not abort the batch. Record it
+                # and carry on — a partial import that says what it dropped
+                # beats an import that stops at document 29 in silence.
+                cand["import_error"] = f"{type(e).__name__}: {e}"
+                failed.append({"title": cand["title"],
+                               "file_path": cand["file_path"],
+                               "error": cand["import_error"][:300]})
+                continue
             cand["already_imported"] = True
             known.add(cand["checksum"])
             imported += 1
@@ -175,4 +186,5 @@ def run(conn, projects_dir: str, *, do_import: bool = False, **bounds) -> dict:
     for cand in result["candidates"]:
         cand.pop("content", None)
     result["imported"] = imported
+    result["failed"] = failed
     return result

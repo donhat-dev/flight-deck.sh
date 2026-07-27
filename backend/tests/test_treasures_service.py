@@ -73,3 +73,21 @@ def test_wrap_accepts_html_fragment(monkeypatch, tmp_path):
                        source_format="html")
     assert store.get(conn, out["id"])["source_format"] == "html"
     assert (Path(out["dir_path"]) / "v1" / "source.html").is_file()
+
+
+def test_failed_render_leaves_no_orphan_dir(monkeypatch, tmp_path):
+    """A render failure must not leave an empty artifact dir behind — the
+    filestore and the index would then disagree about what exists."""
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    monkeypatch.setattr(service.render, "render",
+                        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("pandoc failed")))
+    try:
+        service.wrap(conn, title="Doomed doc", content="# Doomed\n")
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("expected the render failure to propagate")
+    root = filestore.root()
+    assert not list(root.glob("doomed-doc-*")), "orphan artifact dir left behind"
+    assert store.list_rows(conn) == []

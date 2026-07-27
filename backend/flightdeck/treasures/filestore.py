@@ -46,8 +46,14 @@ def slugify(title: str) -> str:
     return text[:60] or "untitled"
 
 
+def artifact_dir_path(slug: str, art_id: str) -> Path:
+    """Where the artifact WOULD live. Creates nothing, so a caller can render
+    first and only materialize the directory once the render succeeded."""
+    return root() / f"{slug}-{art_id}"
+
+
 def artifact_dir(slug: str, art_id: str) -> Path:
-    path = root() / f"{slug}-{art_id}"
+    path = artifact_dir_path(slug, art_id)
     path.mkdir(parents=True, exist_ok=True)
     (path / "assets").mkdir(exist_ok=True)
     return path
