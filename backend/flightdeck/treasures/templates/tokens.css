@@ -50,11 +50,20 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Content text capped at 58-70ch (§3); the card sits on the cool paper. */
+/* §3 uses TWO width tiers: a wide page wrap (up to 1760px on the reference's
+   multi-column report) so wide components can breathe, and prose capped at
+   58-70ch for legibility. A generated document is single-column, so .doc is a
+   moderate wrap (comfortably wider than a reading column, not a dashboard) —
+   and the 68ch cap moves onto the flowing text elements below, not the
+   container, so a wide table is free to use the extra room instead of being
+   squeezed into paragraph width. */
 .doc {
-  max-width: 68ch;
+  max-width: min(900px, 94vw);
   margin: 0 auto;
   padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2.6rem) 6rem;
+}
+.doc > p, .doc > ul, .doc > ol, .doc > blockquote {
+  max-width: 68ch;
 }
 
 /* --- nav (§3: sticky, 60px, backdrop-blur, single line, status tag right) -
