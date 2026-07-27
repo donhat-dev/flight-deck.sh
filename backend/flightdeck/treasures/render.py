@@ -31,8 +31,12 @@ EXTERNAL_REF_RE = re.compile(
     r"""|url\(\s*["']?(?!data:)https?://(?!www\.w3\.org/)[^)"']+""",
     re.IGNORECASE)
 
-# Remote assets pandoc will fetch during the build (convenient, but never silent).
-_REMOTE_IN_SOURCE_RE = re.compile(r"https?://[^\s)\"'<>]+", re.IGNORECASE)
+# Remote assets pandoc will fetch during the build (convenient, but never
+# silent). Excludes w3.org: a custom <svg> diagram's xmlns="http://www.w3.org/
+# 2000/svg" is a namespace identifier, never fetched, same exclusion as
+# EXTERNAL_REF_RE below applies to the rendered output.
+_REMOTE_IN_SOURCE_RE = re.compile(
+    r"(?!https?://www\.w3\.org/)https?://[^\s)\"'<>]+", re.IGNORECASE)
 
 
 # A leading YAML frontmatter block: `---`, key/value lines, closing `---`.
@@ -106,6 +110,14 @@ def render(source_text: str, *, source_format: str, title: str,
         argv += ["-f", "markdown-yaml_metadata_block"]
     argv += [
         "--standalone", "--embed-resources",
+        # Never reflow output text. pandoc's default --wrap=auto breaks lines
+        # at ~72 columns even inside a passed-through raw HTML block — verified
+        # to inject a raw newline into an inline <svg>'s <text> content (safe
+        # there, since SVG collapses whitespace, but the same reflow landing
+        # inside a <style> block's CSS string would be a syntax error). Output
+        # is machine-read HTML, never eyeballed as source, so there is no
+        # downside to leaving it unwrapped.
+        "--wrap=none",
         "--template", str(TEMPLATE_FILE),
         "-c", "tokens.css",
         "-M", f"title={title}",
