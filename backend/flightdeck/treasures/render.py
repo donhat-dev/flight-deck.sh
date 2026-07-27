@@ -73,7 +73,8 @@ def pandoc_path() -> str:
 
 
 def render(source_text: str, *, source_format: str, title: str,
-           language: str = "en", kind: str = "report", workdir: str) -> dict:
+           language: str = "en", kind: str = "report", status: str = "draft",
+           workdir: str) -> dict:
     """Render `source_text` into a self-contained HTML string.
 
     source_format: "markdown" or "html" (an HTML fragment, not a document).
@@ -110,6 +111,7 @@ def render(source_text: str, *, source_format: str, title: str,
         "-M", f"title={title}",
         "-M", f"lang={language}",
         "-M", f"kind={kind}",
+        "-M", f"status={status}",
     ]
     proc = subprocess.run(argv, cwd=str(work), capture_output=True,
                           text=True, timeout=120)

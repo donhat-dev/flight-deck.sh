@@ -57,6 +57,47 @@ body {
   padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2.6rem) 6rem;
 }
 
+/* --- nav (§3: sticky, 60px, backdrop-blur, single line, status tag right) -
+   Real page furniture, not fabricated content: title + the artifact's own
+   status. No in-page anchor links here — Treasures wraps arbitrary agent
+   markdown with no fixed section names to link to. */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 clamp(1.1rem, 4vw, 2.6rem);
+  background: rgba(245, 248, 251, .82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+nav .brand {
+  font-weight: 700;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+nav .tag {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  padding: .3rem .7rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper-2);
+  color: var(--ink-2);
+}
+nav .tag-published { color: var(--good); background: var(--good-bg); border-color: var(--good-line); }
+nav .tag-archived { color: var(--ink-2); background: var(--paper-2); opacity: .7; }
+
 /* --- headings ------------------------------------------------------------- */
 .doc > h1:first-child {
   font-size: clamp(30px, 4.4vw, 44px);

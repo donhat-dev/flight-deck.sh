@@ -43,10 +43,11 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
     # not accumulate inside every version dir (the rendered HTML already
     # carries them, base64-embedded). When asset support lands, the artifact's
     # assets/ dir gets copied into this workdir before the call.
+    status = existing["status"] if existing else "draft"
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
         rendered = render.render(content, source_format=source_format,
                                  title=title, language=language, kind=kind,
-                                 workdir=workdir)
+                                 status=status, workdir=workdir)
     # Render succeeded — now the artifact dir is worth creating.
     art_dir = filestore.artifact_dir(slug, art_id)
     paths = filestore.write_version(art_dir, version, content, ext,
@@ -60,7 +61,7 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
         "dir_path": str(art_dir),
         "kind": kind,
         "language": language,
-        "status": existing["status"] if existing else "draft",
+        "status": status,
         "version": version,
         "source_format": source_format,
         "source_checksum": filestore.checksum(content),
@@ -216,7 +217,8 @@ def rerender(conn, ident) -> dict:
     with tempfile.TemporaryDirectory(prefix="treasures-rerender-") as workdir:
         rendered = render.render(source, source_format=row["source_format"],
                                  title=row["title"], language=row["language"],
-                                 kind=row["kind"], workdir=workdir)
+                                 kind=row["kind"], status=row["status"],
+                                 workdir=workdir)
     Path(paths["artifact_path"]).write_text(rendered["html"], encoding="utf-8")
     row["render_checksum"] = filestore.checksum(rendered["html"])
     row["render_bytes"] = rendered["bytes"]
