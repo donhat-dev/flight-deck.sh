@@ -60,6 +60,24 @@ def test_external_ref_regex_ignores_svg_namespace():
     assert render.EXTERNAL_REF_RE.findall('<img src="https://cdn.example/x.png">')
 
 
+def test_external_ref_regex_ignores_plain_anchor_links():
+    """A citation <a href> is navigation, never a passive fetch — a report
+    linking another artifact must not be flagged 'not self-contained'."""
+    assert render.EXTERNAL_REF_RE.findall(
+        '<a href="https://claude.ai/code/artifact/abc">the report</a>') == []
+    # A <link href> (stylesheet-like) is still a passive fetch — still flagged.
+    assert render.EXTERNAL_REF_RE.findall(
+        '<link rel="stylesheet" href="https://cdn.example/x.css">')
+
+
+def test_render_does_not_warn_about_a_plain_citation_link(tmp_path):
+    md = "# T\n\nSee the [CRM-11198 report](https://claude.ai/code/artifact/abc).\n"
+    out = render.render(md, source_format="markdown", title="T",
+                        language="en", workdir=str(tmp_path))
+    assert not any("fetched remote asset" in w for w in out["warnings"])
+    assert not any("NOT self-contained" in w for w in out["warnings"])
+
+
 FRONTMATTER_MD = """---
 name: design-system-flightdeck-night
 description: Use when implementing FlightDeck UI: tokens, motion, a11y

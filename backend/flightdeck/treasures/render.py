@@ -23,20 +23,28 @@ FONTS_DIR = TEMPLATES / "fonts"
 # claude.ai caps a rendered artifact at 16 MiB; warn from 80% up.
 SIZE_WARN_BYTES = int(0.8 * 16 * 1024 * 1024)
 
-# Any src=/href=/url() pointing at a real host. The favicon's data URI embeds
-# the SVG *namespace* (http://www.w3.org/2000/svg), which is an identifier
-# rather than a fetch, so w3.org is excluded.
+# src=/<link href=/url() pointing at a real host — things the browser fetches
+# passively on load, which --embed-resources was supposed to inline. A plain
+# <a href> is deliberately NOT matched: it is user-initiated navigation (a
+# citation link), never a passive fetch, so it does not break self-containment
+# — same reasoning as excluding w3.org below, applied to a different false
+# positive (a report citing another artifact was wrongly flagged "not
+# self-contained" for the mere presence of that link).
 EXTERNAL_REF_RE = re.compile(
-    r"""(?:src|href)\s*=\s*["'](?!data:)https?://(?!www\.w3\.org/)[^"']+"""
+    r"""src\s*=\s*["'](?!data:)https?://(?!www\.w3\.org/)[^"']+"""
+    r"""|<link\b[^>]*\bhref\s*=\s*["'](?!data:)https?://(?!www\.w3\.org/)[^"']+"""
     r"""|url\(\s*["']?(?!data:)https?://(?!www\.w3\.org/)[^)"']+""",
     re.IGNORECASE)
 
-# Remote assets pandoc will fetch during the build (convenient, but never
-# silent). Excludes w3.org: a custom <svg> diagram's xmlns="http://www.w3.org/
-# 2000/svg" is a namespace identifier, never fetched, same exclusion as
-# EXTERNAL_REF_RE below applies to the rendered output.
+# Remote assets pandoc will actually fetch during the build: a markdown image
+# (`![alt](url)`) or a raw HTML `src=` attribute. A plain markdown/HTML link
+# (`[text](url)` / `<a href=url>`) is excluded on purpose — pandoc never fetches
+# it, so warning "fetched remote asset" about it would be false: no fetch
+# happens. Excludes w3.org for the same reason EXTERNAL_REF_RE does.
 _REMOTE_IN_SOURCE_RE = re.compile(
-    r"(?!https?://www\.w3\.org/)https?://[^\s)\"'<>]+", re.IGNORECASE)
+    r"""(?:!\[[^\]]*\]\(|\bsrc\s*=\s*["']?)"""
+    r"""(https?://(?!www\.w3\.org/)[^\s)\"'<>]+)""",
+    re.IGNORECASE)
 
 
 # A leading YAML frontmatter block: `---`, key/value lines, closing `---`.
