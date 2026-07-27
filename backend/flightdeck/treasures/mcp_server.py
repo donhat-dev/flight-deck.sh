@@ -166,6 +166,24 @@ def t_publish_prepare(ident):
     }
 
 
+def t_delete(ident, confirm=False):
+    """Permanently delete an artifact (files + index row).
+
+    Destructive and fail-closed: without confirm=true nothing happens. Use
+    treasure_update(status="archived") to merely hide an artifact.
+    """
+    if not confirm:
+        return {"error": "refused: pass confirm=true to permanently delete "
+                         f"{ident!r} (files + index row). To hide it instead, "
+                         "use treasure_update with status='archived'."}
+    try:
+        return service.delete(_conn(), ident)
+    except LookupError as e:
+        return {"error": str(e)}
+    except PermissionError as e:
+        return {"error": f"refused: {e}"}
+
+
 TOOLS = {
     "treasure_wrap": (
         t_wrap,
@@ -237,6 +255,15 @@ TOOLS = {
          "origin_path": {"type": "string"},
          "published_url": {"type": "string"},
          "duplicate_of": {"type": "string"}},
+        ["ident"]),
+    "treasure_delete": (
+        t_delete,
+        "PERMANENTLY delete an artifact: its files and its index row. "
+        "Fail-closed — nothing happens unless confirm=true is passed. Prefer "
+        "treasure_update with status='archived' to just hide something.",
+        {"ident": {"type": "string"},
+         "confirm": {"type": "boolean",
+                     "description": "must be true; guards against accidental loss"}},
         ["ident"]),
     "treasure_publish_prepare": (
         t_publish_prepare,

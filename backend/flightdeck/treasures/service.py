@@ -162,6 +162,45 @@ def link_source(conn, ident, *, origin_kind=None, origin_id=None,
     return _save_meta(conn, row)
 
 
+def delete(conn, ident) -> dict:
+    """Permanently remove an artifact: its files, then its index row.
+
+    Destructive, so it is fail-closed. `dir_path` comes from the index, but a
+    corrupted or hand-edited row must never be able to point this at, say, a
+    home directory: the resolved path has to sit strictly INSIDE the filestore,
+    and it may not be the filestore root itself. Anything else raises
+    PermissionError and nothing at all is removed — not even the row.
+
+    Prefer `update_meta(status="archived")` when the artifact should merely
+    leave the active list.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+
+    root = filestore.root().resolve()
+    target = Path(row["dir_path"]).resolve()
+    if target == root or root not in target.parents:
+        raise PermissionError(
+            f"refusing to delete {target}: outside the filestore ({root})")
+
+    removed_files = 0
+    if target.is_dir():
+        for f in sorted((p for p in target.rglob("*") if p.is_file()),
+                        reverse=True):
+            f.unlink()
+            removed_files += 1
+        for d in sorted((p for p in target.rglob("*") if p.is_dir()),
+                        reverse=True):
+            d.rmdir()
+        target.rmdir()
+    # Files are gone; drop the row last so a failure above leaves the index
+    # pointing at something a retry can still find.
+    store.delete(conn, row["id"])
+    return {"deleted": row["id"], "title": row["title"],
+            "dir_path": str(target), "removed_files": removed_files}
+
+
 def rerender(conn, ident) -> dict:
     """Re-render the current version IN PLACE from its stored source.
 

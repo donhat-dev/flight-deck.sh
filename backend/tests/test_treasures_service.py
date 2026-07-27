@@ -1,3 +1,4 @@
+import pytest
 import json
 from pathlib import Path
 
@@ -135,3 +136,67 @@ def test_rerender_all_reports_failures_and_keeps_going(monkeypatch, tmp_path):
     assert len(out["failed"]) == 1
     assert "synthetic" in out["failed"][0]["error"]
     assert service.get(conn, a["id"]) is not None          # nothing was destroyed
+
+
+def test_delete_removes_files_and_row(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    out = service.wrap(conn, title="Throwaway", content="# Throwaway\n\nBody.\n")
+    art_dir = Path(out["dir_path"])
+    assert art_dir.is_dir()
+
+    res = service.delete(conn, out["id"])
+    assert res["deleted"] == out["id"]
+    assert res["removed_files"] >= 3          # source, artifact, meta.json
+    assert not art_dir.exists()
+    assert store.get(conn, out["id"]) is None
+    assert store.list_rows(conn) == []
+
+
+def test_delete_unknown_ident_raises(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    with pytest.raises(LookupError):
+        service.delete(conn, "nope")
+
+
+def test_delete_refuses_a_path_outside_the_filestore(monkeypatch, tmp_path):
+    """NEGATIVE TEST — attempt the blocked action and prove nothing was lost.
+
+    A corrupted or hand-edited row must not be able to aim delete at somewhere
+    else on disk. The victim file has to survive AND the row must stay, so a
+    half-done delete cannot orphan the index.
+    """
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    out = service.wrap(conn, title="Hijack", content="# Hijack\n\nBody.\n")
+
+    outside = tmp_path / "precious"
+    outside.mkdir()
+    victim = outside / "do-not-touch.txt"
+    victim.write_text("keep me", encoding="utf-8")
+
+    row = store.get(conn, out["id"])
+    row["dir_path"] = str(outside)            # point the row off the filestore
+    store.upsert(conn, row)
+
+    with pytest.raises(PermissionError):
+        service.delete(conn, out["id"])
+    assert victim.read_text(encoding="utf-8") == "keep me"   # untouched
+    assert outside.is_dir()
+    assert store.get(conn, out["id"]) is not None            # row kept
+
+
+def test_delete_refuses_the_filestore_root_itself(monkeypatch, tmp_path):
+    """A row pointing at the root would wipe the whole library."""
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    keeper = service.wrap(conn, title="Keeper", content="# Keeper\n\nBody.\n")
+    row = store.get(conn, keeper["id"])
+    row["dir_path"] = str(filestore.root())
+    store.upsert(conn, row)
+
+    with pytest.raises(PermissionError):
+        service.delete(conn, keeper["id"])
+    assert filestore.root().is_dir()
+    assert list(filestore.root().iterdir())                  # library intact

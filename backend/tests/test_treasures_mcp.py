@@ -25,7 +25,7 @@ def test_initialize_and_tools_list(wired):
     assert init["result"]["serverInfo"]["name"] == "treasures"
     listed = wired.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
-    assert names == {"treasure_wrap", "treasure_get", "treasure_list",
+    assert names == {"treasure_wrap", "treasure_get", "treasure_list", "treasure_delete",
                      "treasure_discover", "treasure_update",
                      "treasure_link_source", "treasure_publish_prepare"}
     for tool in listed["result"]["tools"]:
@@ -166,3 +166,15 @@ def test_publish_prepare_returns_existing_path_and_verdict(wired):
 def test_publish_prepare_unknown_ident_is_an_error(wired):
     out = _call(wired, "treasure_publish_prepare", {"ident": "nope"})
     assert out["error"].startswith("not found")
+
+
+def test_delete_is_fail_closed_without_confirm(wired):
+    wrapped = _call(wired, "treasure_wrap",
+                    {"title": "Doomed", "content": "# Doomed\n\nBody here.\n"})
+    refused = _call(wired, "treasure_delete", {"ident": wrapped["id"]})
+    assert "confirm=true" in refused["error"]
+    assert _call(wired, "treasure_get", {"ident": wrapped["id"]})["id"] == wrapped["id"]
+
+    gone = _call(wired, "treasure_delete", {"ident": wrapped["id"], "confirm": True})
+    assert gone["deleted"] == wrapped["id"]
+    assert "not found" in _call(wired, "treasure_get", {"ident": wrapped["id"]})["error"]

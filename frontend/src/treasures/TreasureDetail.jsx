@@ -186,6 +186,33 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
   const [savedVersion, setSavedVersion] = useState(null);
   const [previewNonce, setPreviewNonce] = useState(0);
   const [milkdownReady, setMilkdownReady] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
+
+  // Permanent delete. Armed by a first click (see the back-nav), and the API
+  // still requires ?confirm=true, so both layers must agree before anything on
+  // disk is touched. On success we leave for the list — the page's subject no
+  // longer exists.
+  const doDelete = async () => {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(
+        `/api/treasures/${encodeURIComponent(id)}?confirm=true`,
+        { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail || `delete failed: ${res.status}`);
+      }
+      onBack?.();
+    } catch (e) {
+      setDeleteError(String(e.message || e));
+      setDeleteArmed(false);
+    } finally {
+      setDeleting(false);
+    }
+  };
   const apiRef = useRef(null); // () => current markdown, set once Milkdown reports ready
 
   useEffect(() => {
@@ -248,7 +275,49 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
         >
           ← Treasures
         </button>
+        {/* Two-step delete: the first click only arms it, so a stray click can
+            never destroy an artifact. The API is fail-closed too (it needs
+            ?confirm=true), and the server refuses any path outside the
+            filestore. Archiving is offered as the non-destructive option. */}
+        {detail && (
+          <div className="flex items-center gap-2">
+            {deleteArmed && (
+              <span className="font-mono text-[10px] text-rose-300">
+                deletes files + index row — permanent
+              </span>
+            )}
+            {deleteArmed && (
+              <button
+                type="button"
+                onClick={() => setDeleteArmed(false)}
+                className="rounded-lg border border-[color:var(--fd-hair-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 hover:bg-zinc-500/10"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={deleting}
+              onClick={() => (deleteArmed ? doDelete() : setDeleteArmed(true))}
+              title={deleteArmed
+                ? "Permanently delete this artifact"
+                : "Delete permanently (asks for confirmation)"}
+              className={`rounded-lg border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors disabled:opacity-50 ${
+                deleteArmed
+                  ? "border-rose-500/50 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"
+                  : "border-[color:var(--fd-hair-2)] text-zinc-500 hover:text-rose-300"
+              }`}
+            >
+              {deleting ? "Deleting…" : deleteArmed ? "Confirm delete" : "Delete"}
+            </button>
+          </div>
+        )}
       </div>
+      {deleteError && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 font-mono text-[11px] text-rose-300">
+          {deleteError}
+        </div>
+      )}
     </div>
   );
 

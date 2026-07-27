@@ -148,3 +148,26 @@ def link_treasure(request: Request, ident: str, body: LinkSourceIn):
                                    duplicate_of=body.duplicate_of)
     except LookupError:
         raise HTTPException(status_code=404, detail="treasure not found")
+
+
+@router.delete("/api/treasures/{ident}")
+def delete_treasure(request: Request, ident: str, confirm: bool = False):
+    """PERMANENTLY delete an artifact (files + index row).
+
+    Fail-closed: without `?confirm=true` this refuses, so a stray request can
+    never destroy anything. `service.delete` additionally refuses any path that
+    is not strictly inside the filestore. To merely hide an artifact, PATCH it
+    with status='archived'.
+    """
+    if not confirm:
+        raise HTTPException(
+            status_code=400,
+            detail="refused: add ?confirm=true to permanently delete "
+                   "(or PATCH status='archived' to hide it instead)")
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        return service.delete(conn, ident)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")
+    except PermissionError as e:
+        raise HTTPException(status_code=409, detail=f"refused: {e}")

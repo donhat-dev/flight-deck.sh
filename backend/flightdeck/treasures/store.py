@@ -87,6 +87,15 @@ def get(conn, ident: str) -> dict | None:
     return _as_dict(r) if r is not None else None
 
 
+def delete(conn, art_id: str) -> int:
+    """Remove one index row by primary key. Returns the rows affected (0 or 1).
+    The caller owns removing the files — see service.delete, which guards the
+    path before touching the filesystem."""
+    cur = conn.execute("DELETE FROM treasures WHERE id=?", (art_id,))
+    conn.commit()
+    return cur.rowcount
+
+
 def list_rows(conn, *, status=None, language=None, kind=None, origin_id=None,
               query=None, limit=100, offset=0) -> list[dict]:
     """Filtered, newest-first listing. `query` matches title or slug."""

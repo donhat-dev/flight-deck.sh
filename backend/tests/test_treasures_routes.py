@@ -143,3 +143,18 @@ def test_link_endpoint_with_published_url_flips_draft_to_published(client):
 def test_link_endpoint_unknown_ident_returns_404(client):
     r = client.post("/api/treasures/nope/link", json={"published_url": "https://x"})
     assert r.status_code == 404
+
+
+def test_delete_requires_confirm_then_removes(client):
+    ident = client.get("/api/treasures?language=vi").json()["treasures"][0]["id"]
+    # fail-closed: no confirm -> refused, and the artifact is still there
+    refused = client.delete(f"/api/treasures/{ident}")
+    assert refused.status_code == 400
+    assert "confirm" in refused.json()["detail"]
+    assert client.get(f"/api/treasures/{ident}").status_code == 200
+
+    ok = client.delete(f"/api/treasures/{ident}?confirm=true")
+    assert ok.status_code == 200
+    assert ok.json()["deleted"] == ident
+    assert client.get(f"/api/treasures/{ident}").status_code == 404
+    assert client.delete(f"/api/treasures/{ident}?confirm=true").status_code == 404
