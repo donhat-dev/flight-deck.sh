@@ -22,7 +22,21 @@ if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
 from flightdeck import config, db                       # noqa: E402
-from flightdeck.treasures import service, store         # noqa: E402
+from flightdeck.treasures import filestore, service, store  # noqa: E402
+
+
+# claude.ai's Artifact publish cap (see the `Artifact` tool description).
+_CLAUDE_AI_ARTIFACT_MAX_BYTES = 16 * 1024 * 1024
+
+# Favicon suggestion by artifact `kind`, for treasure_publish_prepare.
+_FAVICON_BY_KIND = {
+    "report": "\U0001F4CA",       # 📊
+    "spec-review": "\U0001F9ED",  # 🧭
+    "note": "\U0001F4DD",         # 📝
+    "dataflow": "\U0001F500",     # 🔀
+    "deck": "\U0001F39E",         # 🎞
+}
+_DEFAULT_FAVICON = "\U0001F48E"   # 💎
 
 _state = {"cfg": None, "conn": None}
 
@@ -91,6 +105,67 @@ def t_discover(do_import=False, max_files=400, max_age_days=None):
                         max_age_days=max_age_days)
 
 
+def t_update(ident, title=None, kind=None, language=None, status=None):
+    """Change metadata without re-rendering (shared logic in service)."""
+    try:
+        return service.update_meta(_conn(), ident, title=title, kind=kind,
+                                   language=language, status=status)
+    except (LookupError, ValueError) as e:
+        return {"error": str(e)}
+
+
+def t_link_source(ident, origin_kind=None, origin_id=None, origin_path=None,
+                  published_url=None, duplicate_of=None):
+    """Record provenance / the published URL (shared logic in service)."""
+    try:
+        return service.link_source(_conn(), ident, origin_kind=origin_kind,
+                                   origin_id=origin_id, origin_path=origin_path,
+                                   published_url=published_url,
+                                   duplicate_of=duplicate_of)
+    except LookupError as e:
+        return {"error": str(e)}
+
+
+def _description_from_source(source: str, title: str) -> str:
+    """First non-heading line of the markdown source, trimmed to ~160 chars;
+    falls back to the title when there is no such line."""
+    for line in (source or "").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if len(line) > 160:
+            line = line[:157].rstrip() + "..."
+        return line
+    return title
+
+
+def t_publish_prepare(ident):
+    """Gather everything an agent needs to hand the artifact to the claude.ai
+    `Artifact` tool, which is the only way to publish — this tool
+    deliberately does not attempt to publish by itself."""
+    conn = _conn()
+    row = service.get(conn, ident, include_source=True)
+    if row is None:
+        return {"error": f"not found: {ident}"}
+    artifact_path = Path(row["artifact_path"])
+    exists = artifact_path.is_file()
+    render_bytes = artifact_path.stat().st_size if exists else (row.get("render_bytes") or 0)
+    return {
+        "artifact_path": str(artifact_path),
+        "artifact_exists": exists,
+        "title": row["title"],
+        "description": _description_from_source(row.get("source") or "", row["title"]),
+        "favicon": _FAVICON_BY_KIND.get(row["kind"], _DEFAULT_FAVICON),
+        "render_bytes": render_bytes,
+        "size_ok": render_bytes <= _CLAUDE_AI_ARTIFACT_MAX_BYTES,
+        "next_step": (
+            "Publish this file with the Artifact tool "
+            f"(file_path={artifact_path}, title={row['title']!r}), then call "
+            "treasure_link_source with ident="
+            f"{row['id']!r} and published_url set to the URL it returns."),
+    }
+
+
 TOOLS = {
     "treasure_wrap": (
         t_wrap,
@@ -138,6 +213,41 @@ TOOLS = {
          "max_files": {"type": "integer"},
          "max_age_days": {"type": "integer"}},
         []),
+    "treasure_update": (
+        t_update,
+        "Change artifact metadata (title/kind/language/status) without "
+        "re-rendering. Only the given fields are touched. Rejects an "
+        "unknown status rather than storing it.",
+        {"ident": {"type": "string"},
+         "title": {"type": "string"},
+         "kind": {"type": "string"},
+         "language": {"type": "string", "enum": ["en", "vi"]},
+         "status": {"type": "string",
+                    "enum": ["draft", "published", "archived"]}},
+        ["ident"]),
+    "treasure_link_source": (
+        t_link_source,
+        "Record provenance and/or the published URL for an artifact. Giving "
+        "published_url while the row is still draft also flips its status "
+        "to published — publishing is a state transition on the same row.",
+        {"ident": {"type": "string"},
+         "origin_kind": {"type": "string"},
+         "origin_id": {"type": "string",
+                       "description": "Claude session id, when known"},
+         "origin_path": {"type": "string"},
+         "published_url": {"type": "string"},
+         "duplicate_of": {"type": "string"}},
+        ["ident"]),
+    "treasure_publish_prepare": (
+        t_publish_prepare,
+        "Gather everything needed to hand an artifact to the claude.ai "
+        "Artifact tool for publishing — the only way to publish; this tool "
+        "does not publish by itself. Returns the artifact path, a "
+        "title/description/favicon suggestion, a size verdict against the "
+        "16 MiB claude.ai cap, and the next step (publish, then call "
+        "treasure_link_source with the returned URL).",
+        {"ident": {"type": "string"}},
+        ["ident"]),
 }
 
 

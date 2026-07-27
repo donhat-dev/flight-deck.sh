@@ -15,7 +15,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from flightdeck import db
-from flightdeck.treasures import filestore, service
+from flightdeck.treasures import filestore, service, store
 
 router = APIRouter(tags=["treasures"])
 
@@ -99,3 +99,52 @@ def put_source(request: Request, ident: str, body: SourceIn):
     return service.wrap(conn, title=row["title"], content=body.content,
                         source_format=row["source_format"], kind=row["kind"],
                         language=row["language"], artifact_id=row["id"])
+
+
+
+
+class MetaUpdateIn(BaseModel):
+    title: str | None = None
+    kind: str | None = None
+    language: str | None = None
+    status: str | None = None
+
+
+@router.patch("/api/treasures/{ident}")
+def patch_treasure(request: Request, ident: str, body: MetaUpdateIn):
+    """Change metadata (title/kind/language/status) without re-rendering.
+    Only the given fields are touched; the meta.json sidecar is rewritten so
+    disk and the index stay in agreement. Logic lives in service so the MCP
+    tool and this endpoint cannot drift apart."""
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        return service.update_meta(conn, ident, title=body.title,
+                                   kind=body.kind, language=body.language,
+                                   status=body.status)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")
+
+class LinkSourceIn(BaseModel):
+    origin_kind: str | None = None
+    origin_id: str | None = None
+    origin_path: str | None = None
+    published_url: str | None = None
+    duplicate_of: str | None = None
+
+
+@router.post("/api/treasures/{ident}/link")
+def link_treasure(request: Request, ident: str, body: LinkSourceIn):
+    """Record provenance and/or the published URL. Giving published_url while
+    the row is still draft also flips its status to published (shared with the
+    MCP tool via service.link_source)."""
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        return service.link_source(conn, ident, origin_kind=body.origin_kind,
+                                   origin_id=body.origin_id,
+                                   origin_path=body.origin_path,
+                                   published_url=body.published_url,
+                                   duplicate_of=body.duplicate_of)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")

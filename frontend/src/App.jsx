@@ -18,6 +18,10 @@ import HangarView from "./systems/HangarView.jsx";
 import RelayView from "./agui/RelayView.jsx";
 import MissionsView from "./systems/MissionsView.jsx";
 import TreasuresView from "./treasures/TreasuresView.jsx";
+// Lazy: TreasureDetail pulls in Milkdown (WYSIWYG editor), a sizeable
+// dependency only ever needed on the single #/treasure/<id> route — keeping
+// it out of the main bundle instead of growing every other view's load.
+const TreasureDetail = React.lazy(() => import("./treasures/TreasureDetail.jsx"));
 
 /* ---- hash routing ------------------------------------------------------ */
 // Hash routing keeps deep links working under the static file mount without a
@@ -28,6 +32,8 @@ function parseRoute(hash) {
     const params = new URLSearchParams(m[2] || "");
     return { name: "session", id: decodeURIComponent(m[1]), view: params.get("view") || null };
   }
+  const t = (hash || "").match(/^#\/treasure\/([^?]+)$/);
+  if (t) return { name: "treasure", id: decodeURIComponent(t[1]) };
   if ((hash || "").match(/^#\/loom\/?$/)) return { name: "loom" };
   if ((hash || "").match(/^#\/welcome\/?$/)) return { name: "welcome" };
   return { name: "home" };
@@ -43,6 +49,10 @@ function useHash() {
 }
 const goSession = (id, view) => {
   window.location.hash = `#/session/${encodeURIComponent(id)}${view ? `?view=${view}` : ""}`;
+};
+const goTreasure = (id) => {
+  window.location.hash = `#/treasure/${encodeURIComponent(id)}`;
+  window.scrollTo(0, 0);
 };
 const goLoom = () => { window.location.hash = "#/loom"; window.scrollTo(0, 0); };
 // Session detail intentionally lands at the bottom (latest turn) on open —
@@ -524,7 +534,10 @@ export default function App() {
 
   const totalSpan = daily.length ? `${daily[0].date} to ${daily[daily.length - 1].date}` : "";
 
-  const NAV_ACTIVE = route.name === "session" ? null : route.name === "loom" ? "loom" : view;
+  const NAV_ACTIVE = route.name === "session" ? null
+    : route.name === "loom" ? "loom"
+    : route.name === "treasure" ? "treasures"
+    : view;
 
   // One renderer for both nav sections so the button styling can't drift.
   const navBtn = (n) => (
@@ -642,6 +655,18 @@ export default function App() {
         <Shell variant="contained">
           <SessionDetail sessionId={route.id} initialView={route.view} onBack={goHome} />
         </Shell>
+      ) : route.name === "treasure" ? (
+        // Same pattern as the session branch above: a full-page detail reached
+        // by a hash route, owning its own sticky back-nav, rendered inside the
+        // contained Shell WITHOUT a shared Header. `key` forces a clean remount
+        // (fresh fetch, fresh Milkdown instance) when navigating treasure -> treasure.
+        <Shell variant="contained">
+          <React.Suspense fallback={<div className="p-6 text-sm text-zinc-500">Loading…</div>}>
+            <TreasureDetail key={route.id} id={route.id}
+                            onBack={() => { setView("treasures"); goHome(); }}
+                            onOpenSession={(sid) => { setView("sessions"); goSession(sid); }} />
+          </React.Suspense>
+        </Shell>
       ) : route.name === "loom" || view === "loom" ? (
         <Shell variant="bleed" header={<Header title="Route Loom" />}>
           <RouteLoom onOpenSession={(id) => { setView("loom"); goSession(id, "clearance"); }} />
@@ -680,7 +705,8 @@ export default function App() {
         </Shell>
       ) : view === "treasures" ? (
         <Shell variant="contained" header={<Header title="Treasures" subtitle="Artifact library — wrap, preview, provenance" />}>
-          <TreasuresView onOpenSession={(id) => { setView("sessions"); goSession(id); }} />
+          <TreasuresView onOpenSession={(id) => { setView("sessions"); goSession(id); }}
+                         onOpenTreasure={goTreasure} />
         </Shell>
       ) : (
       // Spend + Logbook share one contained Shell: identical Header (title +

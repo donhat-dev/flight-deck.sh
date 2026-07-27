@@ -1,22 +1,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { get, post } from "../api.js";
+import { get, post, subscribe } from "../api.js";
 
 /* ---- Treasures: the artifact library ------------------------------------
- * Data: GET /api/treasures (+ status/language/query filters), GET
- * /api/treasures/{id}?include_source=true, GET /api/treasures/{id}/raw (the
- * rendered artifact, only ever shown inside a bare `sandbox=""` iframe),
- * POST /api/treasures/discover (dry run, then an explicit import), PUT
- * /api/treasures/{id}/source (edit -> new version -> re-render).
+ * Data: GET /api/treasures (+ status/language/query filters), POST
+ * /api/treasures/discover (dry run, then an explicit import). Row detail
+ * lives at its own route (#/treasure/<id> -> TreasureDetail.jsx) — this view
+ * is list-only: summary strip, filters, search, discover, and the table.
  *
  * Presentational atoms deliberately mirror ManualsView (Eyebrow, StatCell,
  * Chip, relTime, Skeleton) so this view reads as a sibling, not a one-off.
  * All color flows through the zinc (neutral) / emerald (signal) / amber
- * (Vietnamese-language flag) ramps + FlightDeck tokens — no hard-coded
- * black/white except the iframe's own `bg-white` (the artifact carries its
- * own theme).
+ * (Vietnamese-language flag) ramps + FlightDeck tokens.
  */
 
-const POLL_MS = 15000;
+const SAFETY_POLL_MS = 60000; // fallback only — SSE (subscribe) drives real refresh
 const DISCOVER_MAX_FILES = 400;
 
 /* ---- small presentational atoms (SpendView / ManualsView language) ------- */
@@ -166,219 +163,22 @@ function ErrorPanel({ message, onRetry }) {
   );
 }
 
-/* ---- PUT helper — api.js only has get/post/del ---------------------------
- * Kept in the same style: relative fetch, throw on !ok, return parsed JSON.
- */
-async function putSource(id, content) {
-  const path = `/api/treasures/${encodeURIComponent(id)}/source`;
-  const r = await fetch(path, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content }),
-  });
-  if (!r.ok) throw new Error(`${path}: ${r.status}`);
-  return r.json();
-}
-
-/* ---- detail pane: Preview / Source / Edit -------------------------------- */
-function DetailPane({ row, onClose, onSaved }) {
-  const [tab, setTab] = useState("preview");
-  const [detail, setDetail] = useState(null);
-  const [detailError, setDetailError] = useState(null);
-  const [draft, setDraft] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState(null);
-  const [savedVersion, setSavedVersion] = useState(null);
-  const [previewNonce, setPreviewNonce] = useState(0);
-
-  const published = row.status === "published";
-
-  useEffect(() => {
-    let live = true;
-    setDetail(null);
-    setDetailError(null);
-    setSavedVersion(null);
-    setSaveError(null);
-    setTab("preview");
-    get(`/api/treasures/${encodeURIComponent(row.id)}?include_source=true`)
-      .then((d) => {
-        if (!live) return;
-        setDetail(d);
-        setDraft(d.source || "");
-      })
-      .catch((e) => live && setDetailError(String(e.message || e)));
-    return () => { live = false; };
-  }, [row.id]);
-
-  const version = detail?.version ?? row.version;
-
-  const save = async () => {
-    if (saving || published) return;
-    setSaving(true);
-    setSaveError(null);
-    try {
-      const updated = await putSource(row.id, draft);
-      setDetail((d) => (d ? { ...d, ...updated, source: draft } : d));
-      setSavedVersion(updated.version);
-      // Force the preview iframe to refetch /raw rather than trusting a cache.
-      setPreviewNonce((n) => n + 1);
-      onSaved?.(updated);
-    } catch (e) {
-      setSaveError(String(e.message || e));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <section className="fd-shell">
-      <div className="fd-core">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[color:var(--fd-hair-2)] px-5 py-3.5">
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-zinc-100">{row.title}</div>
-            <div className="mt-0.5 flex items-center gap-2 font-mono text-[10px] text-zinc-500">
-              <span>{row.slug}</span>
-              <span className="text-zinc-700">·</span>
-              <span>v{version}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            {["preview", "source", "edit"].map((t) => {
-              const disabled = t === "edit" && published;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => setTab(t)}
-                  title={disabled ? "Published artifacts are read-only from the dashboard — claude.ai has no update API" : undefined}
-                  className={`rounded-md px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
-                    tab === t
-                      ? "bg-emerald-500/15 text-emerald-400"
-                      : disabled
-                        ? "cursor-not-allowed text-zinc-700"
-                        : "text-zinc-400 hover:bg-zinc-500/5"
-                  }`}
-                >
-                  {t}
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-md border border-[color:var(--fd-hair-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 hover:bg-zinc-500/5"
-            >
-              Close
-            </button>
-          </div>
-        </header>
-
-        {published && (
-          <div className="border-b border-[color:var(--fd-hair-2)] bg-amber-500/5 px-5 py-2.5 text-[11px] text-amber-300/90">
-            Published
-            {row.published_url && (
-              <>
-                {" — "}
-                <a href={row.published_url} target="_blank" rel="noreferrer"
-                   className="underline decoration-dotted underline-offset-2 hover:text-amber-200">
-                  {row.published_url}
-                </a>
-              </>
-            )}
-            . Read-only from here — claude.ai has no update API.
-          </div>
-        )}
-
-        <div className="p-5">
-          {detailError && (
-            <div className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-300">
-              {detailError}
-            </div>
-          )}
-
-          {!detail && !detailError && (
-            <div className="h-40 animate-pulse rounded-lg bg-zinc-800/40" />
-          )}
-
-          {detail && tab === "preview" && (
-            <div>
-              <p className="mb-2 text-[10px] text-zinc-500">
-                Rendered in an isolated sandbox — bare <span className="font-mono">sandbox=""</span> forces
-                an opaque origin and blocks scripts.
-              </p>
-              <iframe
-                key={`${row.id}-${version}-${previewNonce}`}
-                src={`/api/treasures/${encodeURIComponent(row.id)}/raw`}
-                sandbox=""
-                className="h-[70vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-white"
-                title={row.title}
-              />
-            </div>
-          )}
-
-          {detail && tab === "source" && (
-            <pre className="max-h-[70vh] overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-4 font-mono text-[11px] leading-relaxed text-zinc-300">
-              {detail.source}
-            </pre>
-          )}
-
-          {detail && tab === "edit" && published && (
-            <p className="text-[11px] text-zinc-500">
-              Published artifacts are read-only from the dashboard — claude.ai has no update API.
-            </p>
-          )}
-
-          {detail && tab === "edit" && !published && (
-            <div className="space-y-3">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value)}
-                spellCheck={false}
-                className="h-[55vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <button
-                  type="button"
-                  onClick={save}
-                  disabled={saving}
-                  className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
-                >
-                  {saving ? "Saving…" : "Save"}
-                </button>
-                {savedVersion != null && (
-                  <span className="font-mono text-[10px] text-emerald-400">
-                    saved → v{savedVersion}, preview reloaded
-                  </span>
-                )}
-                {saveError && (
-                  <span className="font-mono text-[10px] text-rose-400">{saveError}</span>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* ---- Treasures view ------------------------------------------------------ */
-export default function TreasuresView({ onOpenSession }) {
+/* ---- Treasures view (list only — detail lives at #/treasure/<id>) -------- */
+export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
   const [allRows, setAllRows] = useState(null); // unfiltered baseline, drives the summary strip
   const [rows, setRows] = useState([]);         // current filtered/searched view
   const [error, setError] = useState(null);
   const [filter, setFilter] = useState("all");  // all | draft | published | en | vi
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(null);
+  const [live, setLive] = useState(false);
 
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverResult, setDiscoverResult] = useState(null);
   const [discoverError, setDiscoverError] = useState(null);
   const [importBusy, setImportBusy] = useState(false);
 
-  // The 15s poll timer reads the latest filter/query via a ref, same pattern
-  // App.jsx uses for its range-aware SSE callback.
+  // The safety-net poll + the SSE refetch both read the latest filter/query
+  // via a ref, same pattern App.jsx uses for its range-aware SSE callback.
   const stateRef = useRef({ filter, query });
   useEffect(() => { stateRef.current = { filter, query }; }, [filter, query]);
 
@@ -403,8 +203,14 @@ export default function TreasuresView({ onOpenSession }) {
   }, []);
 
   useEffect(() => { load(); }, [load, filter, query]);
+  // Live refresh: re-fetch when the backend pings over SSE (a parallel change
+  // is wiring the filestore into this same `summary-updated` feed). `live`
+  // reflects the real connection state so the label below is truthful.
+  useEffect(() => subscribe(load, setLive), [load]);
+  // One slow safety-net poll in case the SSE connection is down and silently
+  // not reconnecting — not the primary refresh path.
   useEffect(() => {
-    const id = setInterval(load, POLL_MS);
+    const id = setInterval(load, SAFETY_POLL_MS);
     return () => clearInterval(id);
   }, [load]);
 
@@ -438,10 +244,6 @@ export default function TreasuresView({ onOpenSession }) {
     ? discoverResult.candidates.filter((c) => !c.already_imported).length
     : 0;
 
-  const selectedRow = selectedId != null
-    ? (rows.find((r) => r.id === selectedId) || (allRows || []).find((r) => r.id === selectedId))
-    : null;
-
   if (error && !allRows) {
     return <ErrorPanel message={error} onRetry={load} />;
   }
@@ -453,7 +255,7 @@ export default function TreasuresView({ onOpenSession }) {
     <div className="space-y-4">
       {error && (
         <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-300">
-          Could not reach the API ({error}). Showing the last good data; retrying on the next poll.
+          Could not reach the API ({error}). Showing the last good data; retrying on the next update.
         </div>
       )}
 
@@ -485,7 +287,10 @@ export default function TreasuresView({ onOpenSession }) {
           />
         </div>
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-500">auto 15s</span>
+          <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+            <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-live-pulse bg-emerald-400" : "bg-zinc-600"}`} />
+            {live ? "live" : "auto 60s"}
+          </span>
           <button
             type="button"
             onClick={load}
@@ -572,11 +377,9 @@ export default function TreasuresView({ onOpenSession }) {
                   key={r.id}
                   role="link"
                   tabIndex={0}
-                  onClick={() => setSelectedId(r.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(r.id); } }}
-                  className={`cursor-pointer border-b border-[color:var(--fd-hair-2)] transition-colors last:border-b-0 hover:bg-zinc-500/5 ${
-                    selectedId === r.id ? "bg-emerald-500/[0.05]" : ""
-                  }`}
+                  onClick={() => onOpenTreasure?.(r.id)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenTreasure?.(r.id); } }}
+                  className="cursor-pointer border-b border-[color:var(--fd-hair-2)] transition-colors last:border-b-0 hover:bg-zinc-500/5"
                 >
                   <td className="px-4 py-2.5 pl-5 align-top">
                     <span className="text-[11px] font-semibold text-zinc-100">{r.title}</span>
@@ -597,10 +400,6 @@ export default function TreasuresView({ onOpenSession }) {
           </table>
         </div>
       </section>
-
-      {selectedRow && (
-        <DetailPane row={selectedRow} onClose={() => setSelectedId(null)} onSaved={() => load()} />
-      )}
 
       <div className="text-[9px] leading-[1.5] text-zinc-500">
         Artifacts wrapped via the Treasures MCP or harvested by Discover from ~/.claude/projects.

@@ -105,3 +105,97 @@ def get(conn, ident, *, include_source=False, include_html=False):
 
 def list_rows(conn, **filters):
     return store.list_rows(conn, **filters)
+
+
+VALID_STATUS = ("draft", "published", "archived")
+
+
+def _save_meta(conn, row: dict) -> dict:
+    """Stamp, upsert, and mirror to the meta.json sidecar in one place, so disk
+    and index can never drift apart."""
+    row["updated_at"] = now_iso()
+    stored = store.upsert(conn, row)
+    filestore.write_meta(Path(stored["dir_path"]), stored)
+    return stored
+
+
+def update_meta(conn, ident, *, title=None, kind=None, language=None,
+                status=None) -> dict:
+    """Change metadata without re-rendering. Only the given fields move.
+
+    Raises LookupError when the artifact is unknown and ValueError on an
+    unknown status, so each caller can map those to its own error shape.
+    """
+    if status is not None and status not in VALID_STATUS:
+        raise ValueError(f"invalid status: {status!r} "
+                         f"(expected one of {', '.join(VALID_STATUS)})")
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    for field, val in (("title", title), ("kind", kind),
+                       ("language", language), ("status", status)):
+        if val is not None:
+            row[field] = val
+    return _save_meta(conn, row)
+
+
+def link_source(conn, ident, *, origin_kind=None, origin_id=None,
+                origin_path=None, published_url=None, duplicate_of=None) -> dict:
+    """Record provenance / the published URL.
+
+    Publishing is a state transition on the same row (never a second entity):
+    supplying `published_url` while the row is still a draft also flips its
+    status to `published`.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    for field, val in (("origin_kind", origin_kind), ("origin_id", origin_id),
+                       ("origin_path", origin_path),
+                       ("duplicate_of", duplicate_of)):
+        if val is not None:
+            row[field] = val
+    if published_url is not None:
+        row["published_url"] = published_url
+        if row["status"] == "draft":
+            row["status"] = "published"
+    return _save_meta(conn, row)
+
+
+def rerender(conn, ident) -> dict:
+    """Re-render the current version IN PLACE from its stored source.
+
+    Used after the template or tokens change: the source did not change, so
+    bumping the version would add an empty entry to the history. Only the
+    rendered bytes, their checksum and `updated_at` move.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    paths = _version_paths(row)
+    source = Path(paths["source_path"]).read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory(prefix="treasures-rerender-") as workdir:
+        rendered = render.render(source, source_format=row["source_format"],
+                                 title=row["title"], language=row["language"],
+                                 kind=row["kind"], workdir=workdir)
+    Path(paths["artifact_path"]).write_text(rendered["html"], encoding="utf-8")
+    row["render_checksum"] = filestore.checksum(rendered["html"])
+    row["render_bytes"] = rendered["bytes"]
+    row["updated_at"] = now_iso()
+    stored = store.upsert(conn, row)
+    filestore.write_meta(Path(row["dir_path"]), stored)
+    return {**stored, **paths, "warnings": rendered["warnings"]}
+
+
+def rerender_all(conn, **filters) -> dict:
+    """Re-render every indexed artifact. One failure never stops the batch —
+    the caller gets the list of what could not be re-rendered."""
+    done, failed = 0, []
+    for row in store.list_rows(conn, limit=100000, **filters):
+        try:
+            rerender(conn, row["id"])
+            done += 1
+        except Exception as e:
+            failed.append({"id": row["id"], "title": row["title"],
+                           "error": f"{type(e).__name__}: {e}"[:300]})
+    return {"rerendered": done, "failed": failed}

@@ -91,3 +91,47 @@ def test_failed_render_leaves_no_orphan_dir(monkeypatch, tmp_path):
     root = filestore.root()
     assert not list(root.glob("doomed-doc-*")), "orphan artifact dir left behind"
     assert store.list_rows(conn) == []
+
+
+def test_rerender_updates_output_in_place_without_bumping_version(monkeypatch, tmp_path):
+    """A template change must refresh the rendered HTML without adding an empty
+    version to the history — the source did not change."""
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    out = service.wrap(conn, title="Doc", content="# Doc\n\nBody.\n")
+    art = Path(out["artifact_path"])
+    before_html = art.read_text(encoding="utf-8")
+    before = store.get(conn, out["id"])
+
+    again = service.rerender(conn, out["id"])
+    after = store.get(conn, out["id"])
+    assert after["version"] == before["version"] == 1      # no version bump
+    assert not (Path(out["dir_path"]) / "v2").exists()
+    assert art.read_text(encoding="utf-8") == before_html   # same template -> same bytes
+    assert after["render_checksum"] == before["render_checksum"]
+    assert again["warnings"] == []
+    # source untouched
+    assert (Path(out["dir_path"]) / "v1" / "source.md").read_text(encoding="utf-8") == "# Doc\n\nBody.\n"
+
+
+def test_rerender_all_reports_failures_and_keeps_going(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    a = service.wrap(conn, title="Good one", content="# Good\n\nBody.\n")
+    service.wrap(conn, title="Second", content="# Second\n\nBody.\n")
+
+    calls = {"n": 0}
+    real = service.render.render
+
+    def flaky(*args, **kwargs):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("pandoc failed: synthetic")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(service.render, "render", flaky)
+    out = service.rerender_all(conn)
+    assert out["rerendered"] == 1
+    assert len(out["failed"]) == 1
+    assert "synthetic" in out["failed"][0]["error"]
+    assert service.get(conn, a["id"]) is not None          # nothing was destroyed

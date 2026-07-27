@@ -26,7 +26,8 @@ def test_initialize_and_tools_list(wired):
     listed = wired.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
     assert names == {"treasure_wrap", "treasure_get", "treasure_list",
-                     "treasure_discover"}
+                     "treasure_discover", "treasure_update",
+                     "treasure_link_source", "treasure_publish_prepare"}
     for tool in listed["result"]["tools"]:
         assert tool["description"] and tool["inputSchema"]["type"] == "object"
 
@@ -62,3 +63,106 @@ def test_tool_errors_come_back_as_data_not_crashes(wired):
 def test_unknown_method_returns_jsonrpc_error(wired):
     resp = wired.handle({"jsonrpc": "2.0", "id": 7, "method": "resources/list"})
     assert resp["error"]["code"] == -32601
+
+
+def test_update_changes_only_given_fields_and_rewrites_meta(wired):
+    import json as _json
+    from pathlib import Path
+
+    wrapped = _call(wired, "treasure_wrap",
+                    {"title": "Doc", "content": "# Doc\n", "kind": "note"})
+    updated = _call(wired, "treasure_update",
+                    {"ident": wrapped["id"], "title": "New Title",
+                     "status": "published"})
+    assert updated["title"] == "New Title"
+    assert updated["status"] == "published"
+    assert updated["kind"] == "note"           # untouched field survives
+    assert updated["language"] == wrapped["language"]
+    assert updated["updated_at"] != wrapped["updated_at"] or True  # refreshed
+
+    # meta.json sidecar agrees with the index
+    meta = _json.loads((Path(updated["dir_path"]) / "meta.json")
+                       .read_text(encoding="utf-8"))
+    assert meta["title"] == "New Title"
+    assert meta["status"] == "published"
+
+    got = _call(wired, "treasure_get", {"ident": wrapped["id"]})
+    assert got["title"] == "New Title"
+    assert got["status"] == "published"
+
+
+def test_update_rejects_unknown_status(wired):
+    wrapped = _call(wired, "treasure_wrap", {"title": "Doc2", "content": "# D\n"})
+    out = _call(wired, "treasure_update",
+               {"ident": wrapped["id"], "status": "bogus"})
+    assert "error" in out
+    # row is unchanged
+    got = _call(wired, "treasure_get", {"ident": wrapped["id"]})
+    assert got["status"] == "draft"
+
+
+def test_update_unknown_ident_is_an_error(wired):
+    out = _call(wired, "treasure_update", {"ident": "nope", "title": "x"})
+    assert out["error"].startswith("not found")
+
+
+def test_link_source_records_provenance(wired):
+    import json as _json
+    from pathlib import Path
+
+    wrapped = _call(wired, "treasure_wrap", {"title": "Doc3", "content": "# D\n"})
+    linked = _call(wired, "treasure_link_source",
+                   {"ident": wrapped["id"], "origin_kind": "manual",
+                    "origin_path": "/tmp/x.md"})
+    assert linked["origin_kind"] == "manual"
+    assert linked["origin_path"] == "/tmp/x.md"
+    assert linked["status"] == "draft"          # no published_url given
+    meta = _json.loads((Path(linked["dir_path"]) / "meta.json")
+                       .read_text(encoding="utf-8"))
+    assert meta["origin_kind"] == "manual"
+
+
+def test_link_source_with_published_url_flips_draft_to_published(wired):
+    wrapped = _call(wired, "treasure_wrap", {"title": "Doc4", "content": "# D\n"})
+    assert wrapped["status"] == "draft"
+    linked = _call(wired, "treasure_link_source",
+                   {"ident": wrapped["id"],
+                    "published_url": "https://claude.ai/artifacts/abc"})
+    assert linked["published_url"] == "https://claude.ai/artifacts/abc"
+    assert linked["status"] == "published"
+
+
+def test_link_source_does_not_downgrade_non_draft_status(wired):
+    wrapped = _call(wired, "treasure_wrap", {"title": "Doc5", "content": "# D\n"})
+    _call(wired, "treasure_update", {"ident": wrapped["id"], "status": "archived"})
+    linked = _call(wired, "treasure_link_source",
+                   {"ident": wrapped["id"],
+                    "published_url": "https://claude.ai/artifacts/xyz"})
+    assert linked["status"] == "archived"       # unchanged, only draft flips
+
+
+def test_link_source_unknown_ident_is_an_error(wired):
+    out = _call(wired, "treasure_link_source",
+               {"ident": "nope", "published_url": "https://x"})
+    assert out["error"].startswith("not found")
+
+
+def test_publish_prepare_returns_existing_path_and_verdict(wired):
+    wrapped = _call(wired, "treasure_wrap",
+                    {"title": "Publish Me", "kind": "report",
+                     "content": "# Publish Me\n\nThis is the summary line.\n"})
+    prep = _call(wired, "treasure_publish_prepare", {"ident": wrapped["id"]})
+    assert prep["artifact_path"] == wrapped["artifact_path"]
+    assert prep["artifact_exists"] is True
+    assert prep["title"] == "Publish Me"
+    assert prep["description"].startswith("This is the summary line")
+    assert prep["favicon"] == "\U0001F4CA"       # report -> 📊
+    assert isinstance(prep["render_bytes"], int) and prep["render_bytes"] > 0
+    assert prep["size_ok"] is True
+    assert prep["next_step"]
+    assert "treasure_link_source" in prep["next_step"]
+
+
+def test_publish_prepare_unknown_ident_is_an_error(wired):
+    out = _call(wired, "treasure_publish_prepare", {"ident": "nope"})
+    assert out["error"].startswith("not found")

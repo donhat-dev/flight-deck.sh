@@ -11,6 +11,12 @@
   "dependencies": {
     "@fontsource-variable/outfit": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.2.7",
+    "@milkdown/core": "^7.21.3",
+    "@milkdown/preset-commonmark": "^7.21.3",
+    "@milkdown/preset-gfm": "^7.21.3",
+    "@milkdown/prose": "^7.21.3",
+    "@milkdown/react": "^7.21.3",
+    "@milkdown/utils": "^7.21.3",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-force-graph-2d": "^1.29.1",

@@ -84,3 +84,62 @@ def test_put_source_creates_a_new_version(client):
                       ).json()["source"].startswith("# Báo cáo v2")
     assert client.put("/api/treasures/nope/source",
                       json={"content": "x" * 10}).status_code == 404
+
+
+def test_patch_updates_only_given_metadata_fields(client):
+    import json as _json
+    from pathlib import Path
+
+    ident = client.get("/api/treasures?language=vi").json()["treasures"][0]["id"]
+    before = client.get(f"/api/treasures/{ident}").json()
+
+    r = client.patch(f"/api/treasures/{ident}",
+                     json={"status": "published", "kind": "note"})
+    assert r.status_code == 200
+    after = r.json()
+    assert after["status"] == "published"
+    assert after["kind"] == "note"
+    assert after["title"] == before["title"]        # untouched field survives
+
+    # meta.json sidecar was rewritten to agree with the index
+    meta = _json.loads((Path(after["dir_path"]) / "meta.json")
+                       .read_text(encoding="utf-8"))
+    assert meta["status"] == "published"
+    assert meta["kind"] == "note"
+
+
+def test_patch_rejects_unknown_status(client):
+    ident = client.get("/api/treasures?language=vi").json()["treasures"][0]["id"]
+    r = client.patch(f"/api/treasures/{ident}", json={"status": "bogus"})
+    assert r.status_code == 400
+
+
+def test_patch_unknown_ident_returns_404(client):
+    r = client.patch("/api/treasures/nope", json={"title": "x"})
+    assert r.status_code == 404
+
+
+def test_link_endpoint_records_provenance(client):
+    ident = client.get("/api/treasures?language=vi").json()["treasures"][0]["id"]
+    r = client.post(f"/api/treasures/{ident}/link",
+                    json={"origin_kind": "manual", "origin_path": "/tmp/x.md"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["origin_kind"] == "manual"
+    assert body["origin_path"] == "/tmp/x.md"
+    assert body["status"] == "draft"
+
+
+def test_link_endpoint_with_published_url_flips_draft_to_published(client):
+    ident = client.get("/api/treasures?language=vi").json()["treasures"][0]["id"]
+    r = client.post(f"/api/treasures/{ident}/link",
+                    json={"published_url": "https://claude.ai/artifacts/abc"})
+    assert r.status_code == 200
+    body = r.json()
+    assert body["published_url"] == "https://claude.ai/artifacts/abc"
+    assert body["status"] == "published"
+
+
+def test_link_endpoint_unknown_ident_returns_404(client):
+    r = client.post("/api/treasures/nope/link", json={"published_url": "https://x"})
+    assert r.status_code == 404

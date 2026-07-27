@@ -19,6 +19,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from flightdeck import db, ingest, metrics, rtk, usage_poll
+from flightdeck.treasures import filestore
 
 # Module-level SSE fan-out event: set by the ingest paths / poll loops, awaited
 # by the /api/stream generator. Module-level on purpose (1-worker assumption).
@@ -26,6 +27,11 @@ _updated = asyncio.Event()
 
 _RANGES = ("today", "7d", "30d", "all")
 DEBOUNCE_SECONDS = 2.0
+# The Treasures filestore watch debounces separately (and much shorter): a
+# `wrap`/`update`/`link` writes several files in a burst (source, artifact.html,
+# meta.json, ...) and this only needs to coalesce that into ~one SSE ping, not
+# drive a re-ingest.
+TREASURES_DEBOUNCE_SECONDS = 1.0
 
 
 def since(range_key: str):
@@ -71,6 +77,11 @@ class Runtime:
         # so a flush ingests only what changed (delta) instead of re-globbing.
         self.pending_paths: set = set()
         self.pending_lock = threading.Lock()
+        # Debounce state for the Treasures filestore watch (separate from the
+        # transcript watch above — it only ever fires an SSE ping, never an
+        # ingest, so it needs none of the pending_paths delta bookkeeping).
+        self.treasures_debounce_lock = threading.Lock()
+        self.treasures_debounce_timer: dict = {"timer": None}
 
     def read_conn(self):
         # Fresh short-lived connection, owned by exactly one thread; caller
@@ -200,6 +211,48 @@ async def lifespan(app: FastAPI):
             observer = None
     app.state.observer = observer
 
+    # Second, independent watchdog watch: the Treasures filestore root (NOT
+    # the transcript tree — a wrap/update/link there never re-ingests). It
+    # only debounces a burst of writes (a wrapped artifact touches source,
+    # artifact.html, and meta.json together) down to roughly one fire, then
+    # sets the SAME `_updated` event the /api/stream SSE endpoint already
+    # awaits. `summary-updated` is a generic "something changed" ping — the
+    # Treasures dashboard view consumes it too, alongside the usage-ledger
+    # refresh it was originally built for, so it just refetches its list.
+    treasures_observer = None
+    try:
+        from watchdog.observers import Observer as _Observer
+        from watchdog.events import FileSystemEventHandler as _Handler
+
+        froot = filestore.root()
+        froot.mkdir(parents=True, exist_ok=True)
+
+        def _treasures_ping():
+            loop.call_soon_threadsafe(_updated.set)
+
+        def _schedule_treasures_ping():
+            with rt.treasures_debounce_lock:
+                existing = rt.treasures_debounce_timer["timer"]
+                if existing is not None:
+                    existing.cancel()
+                timer = threading.Timer(TREASURES_DEBOUNCE_SECONDS, _treasures_ping)
+                timer.daemon = True
+                rt.treasures_debounce_timer["timer"] = timer
+                timer.start()
+
+        class TreasuresHandler(_Handler):
+            def on_any_event(self, event):
+                _schedule_treasures_ping()
+
+        treasures_observer = _Observer()
+        treasures_observer.schedule(TreasuresHandler(), str(froot), recursive=True)
+        treasures_observer.daemon = True
+        treasures_observer.start()
+    except Exception as e:
+        treasures_observer = None
+        print(f"[treasures] filestore watch failed to start: {e}")
+    app.state.treasures_observer = treasures_observer
+
     # In-container /usage poll loop. Enabled when TOKEN_AUDIT_POLL_INTERVAL>0
     # AND the claude CLI is reachable (creds mounted). Polls once at startup
     # then every N seconds, writing the RW local report. If claude is missing
@@ -248,6 +301,13 @@ async def lifespan(app: FastAPI):
             existing = rt.debounce_timer["timer"]
             if existing is not None:
                 existing.cancel()
+        with rt.treasures_debounce_lock:
+            existing = rt.treasures_debounce_timer["timer"]
+            if existing is not None:
+                existing.cancel()
         if observer is not None:
             observer.stop()
             observer.join(timeout=2)
+        if treasures_observer is not None:
+            treasures_observer.stop()
+            treasures_observer.join(timeout=2)
