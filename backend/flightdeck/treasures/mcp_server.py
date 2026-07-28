@@ -74,11 +74,12 @@ def _conn():
     return _state["conn"]
 
 
-def t_wrap(title, content, source_format="markdown", kind="report",
-           language="en", origin_kind=None, origin_id=None, origin_path=None,
-           artifact_id=None, font=None, custom_head=None):
+def t_wrap(title=None, content=None, source_path=None, source_format=None,
+           kind="report", language="en", origin_kind=None, origin_id=None,
+           origin_path=None, artifact_id=None, font=None, custom_head=None):
     try:
         return service.wrap(_conn(), title=title, content=content,
+                            source_path=source_path,
                             source_format=source_format, kind=kind,
                             language=language, origin_kind=origin_kind,
                             origin_id=origin_id, origin_path=origin_path,
@@ -87,6 +88,27 @@ def t_wrap(title, content, source_format="markdown", kind="report",
     except ValueError as e:
         # Covers an invalid font AND lint.ComponentError (a ValueError
         # subclass) — an unknown component name refuses the wrap outright.
+        return {"error": str(e)}
+    except (OSError, PermissionError) as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def t_refresh(ident):
+    """Re-read the artifact's own origin file into a new version."""
+    try:
+        return service.refresh(_conn(), ident)
+    except LookupError as e:
+        return {"error": str(e)}
+    except ValueError as e:
+        return {"error": str(e)}
+    except (OSError, PermissionError) as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
+def t_stale(ident):
+    try:
+        return service.stale(_conn(), ident)
+    except LookupError as e:
         return {"error": str(e)}
 
 
@@ -104,11 +126,11 @@ def t_list(status=None, language=None, kind=None, origin_id=None, query=None,
     return {"treasures": rows, "count": len(rows)}
 
 
-def t_discover(do_import=False, max_files=400, max_age_days=None):
+def t_discover(do_import=False, max_files=400, max_age_days=None, roots=None):
     from flightdeck.treasures import discover
     return discover.run(_conn(), _state["cfg"]["projects_dir"],
                         do_import=do_import, max_files=max_files,
-                        max_age_days=max_age_days)
+                        max_age_days=max_age_days, roots=roots)
 
 
 def t_update(ident, title=None, kind=None, language=None, status=None,
@@ -208,9 +230,24 @@ TOOLS = {
         "Wrap markdown (or an HTML fragment) into a self-contained, "
         "publish-ready HTML artifact, store it, and index it. Returns the "
         "artifact row plus artifact_path and any warnings. Pass artifact_id to "
-        "add a version to an existing artifact.",
-        {"title": {"type": "string"},
-         "content": {"type": "string"},
+        "add a version to an existing artifact.\n"
+        "PREFER source_path when the document is already a file: this server "
+        "reads it, so the stored checksum is of the real bytes and no drift is "
+        "possible. Passing content instead means the checksum only ever proves "
+        "what arrived, not that it was right. With source_path the title, "
+        "source_format and origin_path are all derived, and treasure_refresh "
+        "then works with no arguments.",
+        {"title": {"type": "string",
+                   "description": "required with content=; derived from the "
+                                  "first H1 or the filename with source_path="},
+         "content": {"type": "string",
+                     "description": "the document text; mutually exclusive "
+                                    "with source_path"},
+         "source_path": {"type": "string",
+                         "description": "path this server reads instead. Must "
+                                        "be inside the allowed source roots "
+                                        "(workspace, ~/.claude/projects, "
+                                        "filestore) or it is refused."},
          "source_format": {"type": "string", "enum": ["markdown", "html"]},
          "kind": {"type": "string"},
          "language": {"type": "string", "enum": ["en", "vi"]},
@@ -227,7 +264,9 @@ TOOLS = {
                          "description": "Raw HTML spliced in right before "
                                         "</head> — extra <meta>/<style>/<link> "
                                         "tags. Not escaped; caller-trusted."}},
-        ["title", "content"]),
+        # Nothing is unconditionally required: content= needs title, while
+        # source_path= derives it. service.wrap enforces the pairing.
+        []),
     "treasure_get": (
         t_get,
         "Read one artifact by id or slug, optionally with its markdown source "
@@ -249,14 +288,38 @@ TOOLS = {
         []),
     "treasure_discover": (
         t_discover,
-        "Scan ~/.claude/projects for markdown/HTML documents the agent wrote to "
-        "files but that are not in the library yet. Dry run by default; pass "
-        "do_import=true to wrap and index the new ones. Reports its bounds and "
-        "what it skipped.",
+        "Find documents that are not in the library yet. By default it mines "
+        "~/.claude/projects transcripts. Pass roots=[...] to ALSO walk real "
+        ".md/.html files in those directories — the only way to pick up a "
+        "document written straight to the workspace, which the transcript scan "
+        "cannot see. Dry run by default; pass do_import=true to wrap and index "
+        "the new ones. Reports its bounds, what it skipped, and any root it "
+        "refused as outside the allowed source roots.",
         {"do_import": {"type": "boolean"},
          "max_files": {"type": "integer"},
-         "max_age_days": {"type": "integer"}},
+         "max_age_days": {"type": "integer"},
+         "roots": {"type": "array", "items": {"type": "string"},
+                   "description": "extra directories to walk for real document "
+                                  "files, e.g. a workspace subfolder"}},
         []),
+    "treasure_refresh": (
+        t_refresh,
+        "Re-read an artifact's own origin file and store it as a NEW version — "
+        "the 'the document moved on, catch up' verb. Needs no path: origin_path "
+        "was recorded at wrap time. Use this while a document is still being "
+        "edited; use treasure_rerender instead when only the template changed. "
+        "Only artifacts wrapped from a real file qualify (a transcript origin is "
+        "provenance, not a re-readable source).",
+        {"ident": {"type": "string"}},
+        ["ident"]),
+    "treasure_stale": (
+        t_stale,
+        "Has the origin document changed since the stored source was written? "
+        "Compares the stored source_checksum against a fresh hash of "
+        "origin_path. Answers 'refreshable: false' for a transcript origin, "
+        "which cannot be re-read.",
+        {"ident": {"type": "string"}},
+        ["ident"]),
     "treasure_update": (
         t_update,
         "Change artifact metadata (title/kind/language/status/font/"

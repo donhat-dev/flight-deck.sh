@@ -26,6 +26,57 @@ def root() -> Path:
                 or Path.home() / ".flightdeck" / "treasures").expanduser()
 
 
+def read_roots() -> list[Path]:
+    """Directories the server may read a SOURCE document from.
+
+    `treasure_wrap(source_path=…)` and `treasure_discover(roots=…)` let an agent
+    name a path that THIS process then reads — which is a different trust
+    boundary from passing `content`, where the agent had to read the file itself
+    and therefore passed its own permission gate. Without a boundary an agent
+    could aim the server at `~/.ssh/id_rsa` and the bytes would land in an
+    artifact that is then publishable.
+
+    Default roots are the workspace, the Claude transcript tree, and the
+    filestore. Override with TREASURES_READ_ROOTS (os.pathsep-separated).
+    """
+    env = os.environ.get("TREASURES_READ_ROOTS")
+    if env:
+        raw = [p for p in env.split(os.pathsep) if p.strip()]
+    else:
+        raw = [os.environ.get("FLIGHTDECK_WORKSPACE") or str(Path.cwd()),
+               "~/.claude/projects",
+               str(root())]
+    out = []
+    for p in raw:
+        try:
+            out.append(Path(p).expanduser().resolve())
+        except OSError:
+            continue
+    return out
+
+
+def read_source(path: str) -> str:
+    """Read a source document, refusing anything outside `read_roots()`.
+
+    Fail-closed: an unreadable or out-of-bounds path raises rather than
+    returning empty content, so a wrap can never silently index nothing.
+    """
+    target = Path(path).expanduser()
+    try:
+        resolved = target.resolve(strict=True)
+    except OSError as e:
+        raise FileNotFoundError(f"cannot read source: {path}") from e
+    if resolved.is_dir():
+        raise IsADirectoryError(f"source is a directory: {path}")
+    roots = read_roots()
+    if not any(resolved == r or r in resolved.parents for r in roots):
+        raise PermissionError(
+            f"refusing to read {resolved}: outside the allowed source roots "
+            f"({', '.join(str(r) for r in roots)}). Set TREASURES_READ_ROOTS to "
+            f"widen it deliberately.")
+    return resolved.read_text(encoding="utf-8")
+
+
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
 

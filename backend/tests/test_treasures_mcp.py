@@ -56,6 +56,7 @@ def test_initialize_and_tools_list(wired):
     names = {t["name"] for t in listed["result"]["tools"]}
     assert names == {"treasure_wrap", "treasure_get", "treasure_list", "treasure_delete",
                      "treasure_discover", "treasure_update", "treasure_rerender",
+                     "treasure_refresh", "treasure_stale",
                      "treasure_link_source", "treasure_publish_prepare"}
     for tool in listed["result"]["tools"]:
         assert tool["description"] and tool["inputSchema"]["type"] == "object"

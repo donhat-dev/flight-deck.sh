@@ -14,6 +14,7 @@ import json
 import os
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from flightdeck.treasures import filestore, service, store
@@ -44,6 +45,89 @@ def _title_of(text: str, file_path: str, source_format: str) -> str:
         if m:
             return re.sub(r"<[^>]+>", "", m.group(1) or m.group(2) or "").strip()
     return Path(file_path).stem.replace("-", " ").replace("_", " ").strip() or "untitled"
+
+
+DOC_SUFFIXES = (".md", ".html", ".htm")
+
+
+def scan_docs(roots, *, max_files: int = MAX_FILES,
+              max_age_days: int | None = None,
+              min_bytes: int = MIN_BYTES) -> dict:
+    """Find real document FILES under `roots`, newest first.
+
+    Complements `scan`, which mines documents out of transcripts and so can only
+    ever see `~/.claude/projects`. A document written straight to the workspace
+    (`Subscription_Service/18-….md`) is invisible to that scanner, which is why
+    this one exists.
+
+    Every root goes through `filestore.read_source`, so a root outside the
+    allowed set is refused rather than silently skipped.
+    """
+    store_root = filestore.root().resolve()
+    cutoff = (time.time() - max_age_days * 86400) if max_age_days else None
+    by_checksum: dict[str, dict] = {}
+    skipped = {"too_small": 0, "in_filestore": 0, "unreadable": 0,
+               "files_dropped_by_cap": 0}
+    refused_roots = []
+
+    files: list[Path] = []
+    for raw in roots:
+        base = Path(raw).expanduser()
+        if not base.is_dir():
+            refused_roots.append(f"{raw}: not a directory")
+            continue
+        try:
+            resolved = base.resolve(strict=True)
+        except OSError as e:
+            refused_roots.append(f"{raw}: {e}")
+            continue
+        allowed = filestore.read_roots()
+        if not any(resolved == a or a in resolved.parents for a in allowed):
+            refused_roots.append(
+                f"{resolved}: outside the allowed source roots")
+            continue
+        for suffix in DOC_SUFFIXES:
+            files += [p for p in resolved.glob(f"**/*{suffix}") if p.is_file()]
+
+    files = [f for f in files if store_root not in f.resolve().parents]
+    files.sort(key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True)
+    if cutoff:
+        files = [f for f in files if f.stat().st_mtime >= cutoff]
+    skipped["files_dropped_by_cap"] = max(0, len(files) - max_files)
+    files = files[:max_files]
+
+    for path in files:
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            skipped["unreadable"] += 1
+            continue
+        if len(content.encode("utf-8")) < min_bytes:
+            skipped["too_small"] += 1
+            continue
+        source_format = "markdown" if path.suffix.lower() == ".md" else "html"
+        checksum = filestore.checksum(content)
+        by_checksum.setdefault(checksum, {
+            "checksum": checksum,
+            "content": content,
+            "source_format": source_format,
+            "title": _title_of(content, str(path), source_format),
+            "language": _language_of(content),
+            "origin_kind": "doc_file",
+            "origin_id": None,
+            "origin_path": str(path.resolve()),
+            "authored_at": datetime.fromtimestamp(
+                path.stat().st_mtime, timezone.utc).isoformat(timespec="seconds"),
+            "bytes": len(content.encode("utf-8")),
+        })
+
+    return {
+        "candidates": list(by_checksum.values()),
+        "skipped": skipped,
+        "refused_roots": refused_roots,
+        "bounds": {"roots": [str(r) for r in roots], "max_files": max_files,
+                   "max_age_days": max_age_days, "min_bytes": min_bytes},
+    }
 
 
 def _candidate(block_input, obj, jsonl_path, store_root):
@@ -151,10 +235,26 @@ def scan(projects_dir: str, *, max_files: int = MAX_FILES,
     }
 
 
-def run(conn, projects_dir: str, *, do_import: bool = False, **bounds) -> dict:
+def run(conn, projects_dir: str, *, do_import: bool = False,
+        roots=None, **bounds) -> dict:
     """Scan, mark which candidates the store already holds (by source checksum),
-    and optionally wrap+index the new ones."""
+    and optionally wrap+index the new ones.
+
+    Without `roots` this mines the transcript tree, as before. With `roots` it
+    ALSO walks those directories for real .md/.html files, which is the only way
+    a document written straight to the workspace can be found — the transcript
+    scanner cannot see outside `~/.claude/projects` by construction.
+    """
     result = scan(projects_dir, **bounds)
+    if roots:
+        docs = scan_docs(roots, **bounds)
+        seen = {c["checksum"] for c in result["candidates"]}
+        result["candidates"] += [c for c in docs["candidates"]
+                                if c["checksum"] not in seen]
+        result["skipped"] = {**result["skipped"],
+                             **{f"docs_{k}": v for k, v in docs["skipped"].items()}}
+        result["refused_roots"] = docs["refused_roots"]
+        result["bounds"]["roots"] = docs["bounds"]["roots"]
     known = {r["source_checksum"] for r in store.list_rows(conn, limit=100000)
              if r["source_checksum"]}
     imported = 0

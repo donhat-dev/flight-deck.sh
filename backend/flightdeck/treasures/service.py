@@ -8,6 +8,7 @@ The lint and validate stages come from `lint.py` and live HERE rather than in
 the callers, so neither the MCP tool nor the dashboard endpoint can bypass them
 (docs/treasures-components.md §3).
 """
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -66,15 +67,51 @@ def _render_checked(content, *, source_format, title, language, kind, status,
     return content, rendered
 
 
-def wrap(conn, *, title, content, source_format="markdown", kind="report",
+def _title_from(text: str, source_path: str) -> str:
+    """First markdown H1, else the filename stem — so `source_path` alone is
+    enough to wrap a document."""
+    for line in text.splitlines():
+        m = re.match(r"#\s+(.+?)\s*$", line)
+        if m:
+            return m.group(1).strip()
+    return Path(source_path).stem.replace("-", " ").replace("_", " ").strip()
+
+
+def wrap(conn, *, title=None, content=None, source_path=None,
+         source_format=None, kind="report",
          language="en", origin_kind=None, origin_id=None, origin_path=None,
          authored_at=None, artifact_id=None, font=None, custom_head=None) -> dict:
-    """Render `content` into a new artifact version and index it.
+    """Render a document into a new artifact version and index it.
+
+    Give EITHER `content` (the text) or `source_path` (a file this process
+    reads). `source_path` is the better path when the document already exists on
+    disk: passing text through the caller means the stored `source_checksum` is
+    the hash of whatever arrived, so it can never detect that the text was
+    already wrong — verification has to happen on the side that reads the file.
+
+    With `source_path` the title, source_format and origin_path are all derived
+    unless given, so `refresh` later needs no arguments at all.
 
     Pass `artifact_id` to add a version to an existing artifact; omit it to
     create a new one. `font`/`custom_head` default to the artifact's current
     value (or the house default) when omitted, same as `status` below.
     """
+    if (content is None) == (source_path is None):
+        raise ValueError("pass exactly one of content= or source_path=")
+    if source_path is not None:
+        # Fail-closed on an out-of-bounds path; see filestore.read_roots().
+        content = filestore.read_source(source_path)
+        if source_format is None:
+            source_format = ("html" if str(source_path).lower()
+                             .endswith((".html", ".htm")) else "markdown")
+        title = title or _title_from(content, source_path)
+        origin_kind = origin_kind or "doc_file"
+        # Recording the path is what makes `refresh` argument-free later.
+        origin_path = origin_path or str(Path(source_path).expanduser().resolve())
+    source_format = source_format or "markdown"
+    if not title:
+        raise ValueError("title is required when passing content=")
+
     existing = store.get(conn, artifact_id) if artifact_id else None
     if existing:
         art_id = existing["id"]
@@ -169,7 +206,14 @@ def get(conn, ident, *, include_source=False, include_html=False):
 
 
 def list_rows(conn, **filters):
-    return store.list_rows(conn, **filters)
+    """Rows with their file paths attached.
+
+    `_version_paths` is cheap (string joins, no disk access) and without it a
+    caller that lists and then wants to open something has to spend a
+    `get` per row just to learn where the files are.
+    """
+    return [{**row, **_version_paths(row)}
+            for row in store.list_rows(conn, **filters)]
 
 
 VALID_STATUS = ("draft", "published", "archived")
@@ -272,6 +316,79 @@ def delete(conn, ident) -> dict:
     store.delete(conn, row["id"])
     return {"deleted": row["id"], "title": row["title"],
             "dir_path": str(target), "removed_files": removed_files}
+
+
+REFRESHABLE_SUFFIXES = (".md", ".html", ".htm")
+
+
+def _refreshable(row: dict) -> tuple[bool, str]:
+    """Can this artifact's origin be re-read as a document?
+
+    Decided by the PATH, not by `origin_kind`. Measured on the live library: an
+    agent had wrapped a real `Subscription_Service/18-….md` while labelling it
+    `origin_kind="claude_session"` (true — it came from a session — but the path
+    is a document). Gating on the label refused a genuinely refreshable artifact,
+    while gating on the path handles every case correctly:
+      - the 91 `.jsonl` transcripts are not documents and grow every turn
+      - a URL origin is not a local file
+      - a real .md/.html is refreshable whatever the label says
+    """
+    path = row.get("origin_path")
+    if not path:
+        return False, "no origin_path recorded"
+    if not str(path).lower().endswith(REFRESHABLE_SUFFIXES):
+        return False, (f"origin_path is not a document file "
+                       f"({'/'.join(REFRESHABLE_SUFFIXES)}): {path}")
+    return True, ""
+
+
+def refresh(conn, ident) -> dict:
+    """Re-read the artifact's own `origin_path` and store it as a NEW version.
+
+    The complement to `rerender`, which re-runs the pipeline over the source
+    already stored — useful after a template change, useless while the document
+    itself is still being edited. This is the "the file moved on, catch up" verb,
+    and it needs no path argument because `origin_path` was recorded at wrap
+    time.
+
+    Only an origin that is a real document file qualifies — see `_refreshable`.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    ok, why = _refreshable(row)
+    if not ok:
+        raise ValueError(
+            f"{ident} cannot be refreshed: {why}. Wrap it again with "
+            f"source_path= to point it at a document.")
+    return wrap(conn, source_path=row["origin_path"], artifact_id=row["id"],
+                kind=row["kind"], language=row["language"])
+
+
+def stale(conn, ident) -> dict:
+    """Has the origin document changed since the stored source was written?
+
+    Answerable only for a refreshable origin, for the reason in `refresh`.
+    Returns the verdict plus both checksums so the caller can see why.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    ok, why = _refreshable(row)
+    if not ok:
+        return {"id": row["id"], "refreshable": False, "reason": why,
+                "stale": None}
+    origin_path = row["origin_path"]
+    try:
+        current = filestore.checksum(filestore.read_source(origin_path))
+    except (OSError, PermissionError) as e:
+        return {"id": row["id"], "refreshable": True, "stale": None,
+                "reason": f"origin unreadable: {e}", "origin_path": origin_path}
+    return {"id": row["id"], "refreshable": True,
+            "stale": current != row["source_checksum"],
+            "origin_path": origin_path,
+            "stored_checksum": row["source_checksum"],
+            "origin_checksum": current}
 
 
 def rerender(conn, ident) -> dict:
