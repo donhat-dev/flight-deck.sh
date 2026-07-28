@@ -221,6 +221,7 @@ __marimo__/
 .venv/
 node_modules/
 audit.db*
+backend/audit.local.db*
 *.pyc
 __pycache__/
 .pytest_cache/

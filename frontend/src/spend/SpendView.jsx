@@ -4,7 +4,7 @@ import {
   ComposedChart, Line, ReferenceLine,
 } from "recharts";
 import Ring from "../ui/Ring.jsx";
-import { usd, compact, pct, shortModel } from "../lib/format.js";
+import { usd, compact, pct, shortModel } from "../format.js";
 
 /* ---- KPI loading skeleton ---------------------------------------------- */
 function KpiSkeleton() {
@@ -507,7 +507,7 @@ export default function SpendView({ summary, daily, byModel }) {
                 <div key={i} className="grid grid-cols-[8px_1fr_auto] items-center gap-2 text-[10px] text-zinc-400">
                   <span className="h-[7px] w-[7px] rounded-sm" style={{ background: s.color }} />
                   <span className="truncate">{s.name}</span>
-                  <strong className="font-mono text-[10px] font-medium text-zinc-100">{pct(s.pct)}</strong>
+                  <strong className="font-mono text-[10px] font-medium text-zinc-100">{pct(s.pct / 100)}</strong>
                 </div>
               ))}
             </div>

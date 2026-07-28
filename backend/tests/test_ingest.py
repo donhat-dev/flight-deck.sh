@@ -51,7 +51,9 @@ def test_partial_line_recovered(tmp_path):
     conn = db.connect(str(tmp_path / "t.db"))
     assert ingest.ingest_all(conn, str(tmp_path)) == 1
     assert conn.execute("SELECT COUNT(*) c FROM messages").fetchone()["c"] == 1
-    complete_bytes = len((_line("u1") + "\n").encode())
+    # Assert the real byte offset on disk so this remains valid for both LF
+    # and CRLF platforms.
+    complete_bytes = f.read_bytes().find(b"\n") + 1
     assert conn.execute(
         "SELECT bytes_ingested b FROM files WHERE path=?", (str(f),)
     ).fetchone()["b"] == complete_bytes

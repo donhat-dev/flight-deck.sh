@@ -32,7 +32,12 @@ def _run(args):
     try:
         out = subprocess.run(
             [*_cmd(), "claude", *args, "--json"],
-            capture_output=True, text=True, timeout=90)
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=90,
+        )
     except Exception:
         return None
     if out.returncode != 0:

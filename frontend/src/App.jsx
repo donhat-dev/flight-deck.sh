@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import React, { Suspense, lazy, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { get, post, subscribe } from "./api.js";
 import Ring from "./ui/Ring.jsx";
-import { usd, compact, pct, day, hm, shortModel } from "./lib/format.js";
+import { usd, compact, pct, day, hm, shortModel } from "./format.js";
 import SpendView from "./spend/SpendView.jsx";
 import GraphView from "./GraphView.jsx";
 import Hub from "./hub/Hub.jsx";
@@ -22,6 +22,8 @@ import TreasuresView from "./treasures/TreasuresView.jsx";
 // dependency only ever needed on the single #/treasure/<id> route — keeping
 // it out of the main bundle instead of growing every other view's load.
 const TreasureDetail = React.lazy(() => import("./treasures/TreasureDetail.jsx"));
+
+const ComponentLab = lazy(() => import("./ui/ComponentLab.jsx"));
 
 /* ---- hash routing ------------------------------------------------------ */
 // Hash routing keeps deep links working under the static file mount without a
@@ -147,6 +149,7 @@ const NAV = [
 // usage-analytics views above. Comms = MCP servers, Manuals = skills,
 // Hangar = Docker containers.
 const SYS_NAV = [
+  { k: "components", label: "Components", icon: "▦" },
   { k: "comms", label: "Comms", icon: "⌬" },
   { k: "manuals", label: "Manuals", icon: "⎘" },
   { k: "hangar", label: "Hangar", icon: "⌂" },
@@ -707,6 +710,27 @@ export default function App() {
         <Shell variant="contained" header={<Header title="Treasures" subtitle="Artifact library — wrap, preview, provenance" />}>
           <TreasuresView onOpenSession={(id) => { setView("sessions"); goSession(id); }}
                          onOpenTreasure={goTreasure} />
+        </Shell>
+      ) : view === "components" ? (
+        <Shell
+          variant="contained"
+          contentClassName="p-0"
+          header={<Header title="Components" subtitle="Token-driven interface kit — states, patterns, and accessibility" />}
+        >
+          <Suspense
+            fallback={
+              <div className="grid min-h-[55vh] place-items-center px-6 text-center">
+                <div>
+                  <div className="mx-auto h-5 w-5 animate-spin rounded-full border-2 border-zinc-700 border-r-emerald-400" />
+                  <p className="mt-4 font-mono text-[11px] uppercase tracking-[0.16em] text-zinc-500">
+                    Loading interface kit
+                  </p>
+                </div>
+              </div>
+            }
+          >
+            <ComponentLab />
+          </Suspense>
         </Shell>
       ) : (
       // Spend + Logbook share one contained Shell: identical Header (title +
