@@ -76,12 +76,16 @@ def _conn():
 
 def t_wrap(title, content, source_format="markdown", kind="report",
            language="en", origin_kind=None, origin_id=None, origin_path=None,
-           artifact_id=None):
-    return service.wrap(_conn(), title=title, content=content,
-                        source_format=source_format, kind=kind,
-                        language=language, origin_kind=origin_kind,
-                        origin_id=origin_id, origin_path=origin_path,
-                        artifact_id=artifact_id)
+           artifact_id=None, font=None, custom_head=None):
+    try:
+        return service.wrap(_conn(), title=title, content=content,
+                            source_format=source_format, kind=kind,
+                            language=language, origin_kind=origin_kind,
+                            origin_id=origin_id, origin_path=origin_path,
+                            artifact_id=artifact_id, font=font,
+                            custom_head=custom_head)
+    except ValueError as e:
+        return {"error": str(e)}
 
 
 def t_get(ident, include_source=False, include_html=False):
@@ -105,11 +109,13 @@ def t_discover(do_import=False, max_files=400, max_age_days=None):
                         max_age_days=max_age_days)
 
 
-def t_update(ident, title=None, kind=None, language=None, status=None):
+def t_update(ident, title=None, kind=None, language=None, status=None,
+             font=None, custom_head=None):
     """Change metadata without re-rendering (shared logic in service)."""
     try:
         return service.update_meta(_conn(), ident, title=title, kind=kind,
-                                   language=language, status=status)
+                                   language=language, status=status,
+                                   font=font, custom_head=custom_head)
     except (LookupError, ValueError) as e:
         return {"error": str(e)}
 
@@ -166,6 +172,16 @@ def t_publish_prepare(ident):
     }
 
 
+def t_rerender(ident):
+    """Re-render the current version in place — no new version, no content
+    change. Use after treasure_update changes font/kind/language/status/
+    custom_head, since update_meta alone never touches the HTML on disk."""
+    try:
+        return service.rerender(_conn(), ident)
+    except LookupError as e:
+        return {"error": str(e)}
+
+
 def t_delete(ident, confirm=False):
     """Permanently delete an artifact (files + index row).
 
@@ -200,7 +216,15 @@ TOOLS = {
          "origin_id": {"type": "string",
                        "description": "Claude session id, when known"},
          "origin_path": {"type": "string"},
-         "artifact_id": {"type": "string"}},
+         "artifact_id": {"type": "string"},
+         "font": {"type": "string",
+                  "enum": ["default", "space-grotesk", "jetbrains-mono"],
+                  "description": "Body font. Omit to keep the artifact's "
+                                 "current font, or 'space-grotesk' for a new one."},
+         "custom_head": {"type": "string",
+                         "description": "Raw HTML spliced in right before "
+                                        "</head> — extra <meta>/<style>/<link> "
+                                        "tags. Not escaped; caller-trusted."}},
         ["title", "content"]),
     "treasure_get": (
         t_get,
@@ -233,15 +257,28 @@ TOOLS = {
         []),
     "treasure_update": (
         t_update,
-        "Change artifact metadata (title/kind/language/status) without "
-        "re-rendering. Only the given fields are touched. Rejects an "
-        "unknown status rather than storing it.",
+        "Change artifact metadata (title/kind/language/status/font/"
+        "custom_head) without re-rendering. Only the given fields are "
+        "touched. Rejects an unknown status/font rather than storing it. "
+        "font/custom_head only reach the HTML on disk after a follow-up "
+        "treasure_rerender (or treasure_wrap with the same artifact_id).",
         {"ident": {"type": "string"},
          "title": {"type": "string"},
          "kind": {"type": "string"},
          "language": {"type": "string", "enum": ["en", "vi"]},
          "status": {"type": "string",
-                    "enum": ["draft", "published", "archived"]}},
+                    "enum": ["draft", "published", "archived"]},
+         "font": {"type": "string",
+                  "enum": ["default", "space-grotesk", "jetbrains-mono"]},
+         "custom_head": {"type": "string"}},
+        ["ident"]),
+    "treasure_rerender": (
+        t_rerender,
+        "Re-render the current version in place from its stored source — "
+        "no new version, no content change. Use this after treasure_update "
+        "changes font/kind/language/status/custom_head to bake it into the "
+        "artifact.html on disk.",
+        {"ident": {"type": "string"}},
         ["ident"]),
     "treasure_link_source": (
         t_link_source,
@@ -302,6 +339,16 @@ def handle(req: dict):
             out = entry[0](**args) if entry else {"error": f"unknown tool {name}"}
         except Exception as e:                      # surface as data, never crash
             out = {"error": f"{type(e).__name__}: {e}"}
+        finally:
+            # _conn() is PostgreSQL's WRITE connection (not autocommit) kept
+            # open for the server's whole lifetime — a read-only tool call
+            # (treasure_get/list) never commits on its own, so without this
+            # the session sits "idle in transaction" indefinitely, holding a
+            # lock that can block an unrelated ALTER TABLE elsewhere (found
+            # the hard way: a stray treasure_get once blocked this exact
+            # migration for 14+ hours). Commit after every call, read or write.
+            if _state["conn"] is not None:
+                _state["conn"].commit()
         return {"jsonrpc": "2.0", "id": mid, "result": {
             "content": [{"type": "text",
                          "text": json.dumps(out, ensure_ascii=False, default=str)}]}}

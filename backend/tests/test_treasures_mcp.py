@@ -20,13 +20,42 @@ def _call(server, name, args):
     return json.loads(resp["result"]["content"][0]["text"])
 
 
+def test_handle_commits_after_every_call_even_on_error(wired):
+    """Regression: a read-only tool call (treasure_get/list) on the server's
+    long-lived WRITE connection never commits on its own — found the hard way
+    when a single treasure_get sat 'idle in transaction' for 14+ hours,
+    blocking an unrelated ALTER TABLE. handle() must commit after every call,
+    success or error, or that connection outlives any single request."""
+    calls = {"n": 0}
+    real_conn = wired._state["conn"]
+
+    class Spy:
+        def __getattr__(self, name):
+            return getattr(real_conn, name)
+
+        def commit(self):
+            calls["n"] += 1
+            real_conn.commit()
+
+    wired._state["conn"] = Spy()
+    try:
+        _call(wired, "treasure_list", {})
+        assert calls["n"] == 1
+
+        wired.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                      "params": {"name": "no_such_tool", "arguments": {}}})
+        assert calls["n"] == 2       # committed even on the unknown-tool error path
+    finally:
+        wired._state["conn"] = real_conn
+
+
 def test_initialize_and_tools_list(wired):
     init = wired.handle({"jsonrpc": "2.0", "id": 0, "method": "initialize"})
     assert init["result"]["serverInfo"]["name"] == "treasures"
     listed = wired.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     names = {t["name"] for t in listed["result"]["tools"]}
     assert names == {"treasure_wrap", "treasure_get", "treasure_list", "treasure_delete",
-                     "treasure_discover", "treasure_update",
+                     "treasure_discover", "treasure_update", "treasure_rerender",
                      "treasure_link_source", "treasure_publish_prepare"}
     for tool in listed["result"]["tools"]:
         assert tool["description"] and tool["inputSchema"]["type"] == "object"
