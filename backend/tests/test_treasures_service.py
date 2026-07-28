@@ -1,5 +1,6 @@
 import pytest
 import json
+import re
 from pathlib import Path
 
 from flightdeck import db
@@ -12,6 +13,17 @@ def _conn(tmp_path):
     conn = db.connect(str(tmp_path / "t.db"))
     store.init(conn)
     return conn
+
+
+def _body_class(html: str) -> str:
+    """The actual class on <body>, never the tokens.css selector text — every
+    font's `body.font-*{...}` rule is embedded in every render regardless of
+    which one is selected, so a plain substring check on the whole HTML
+    passes no matter what <body> actually got (this hid the `for font in
+    ...:` loop-variable-clobber bug for a full round)."""
+    m = re.search(r'<body class="([^"]*)"', html)
+    assert m, "no <body class=...> tag found"
+    return m.group(1)
 
 
 def test_wrap_writes_files_and_indexes_row(monkeypatch, tmp_path):
@@ -60,7 +72,8 @@ def test_wrap_defaults_font_and_inherits_it_across_versions(monkeypatch, tmp_pat
     conn = _conn(tmp_path)
     first = service.wrap(conn, title="Doc", content="# One\n")
     assert first["font"] == "space-grotesk"           # house default, unset
-    assert 'font-space-grotesk' in Path(first["artifact_path"]).read_text(encoding="utf-8")
+    assert _body_class(Path(first["artifact_path"]).read_text(encoding="utf-8")) \
+        == "kind-report font-space-grotesk"
 
     picked = service.wrap(conn, title="Doc", content="# Two\n",
                           artifact_id=first["id"], font="jetbrains-mono")
@@ -70,7 +83,8 @@ def test_wrap_defaults_font_and_inherits_it_across_versions(monkeypatch, tmp_pat
     again = service.wrap(conn, title="Doc", content="# Three\n",
                          artifact_id=first["id"])
     assert again["font"] == "jetbrains-mono"
-    assert 'font-jetbrains-mono' in Path(again["artifact_path"]).read_text(encoding="utf-8")
+    assert _body_class(Path(again["artifact_path"]).read_text(encoding="utf-8")) \
+        == "kind-report font-jetbrains-mono"
 
 
 def test_wrap_rejects_unknown_font(monkeypatch, tmp_path):
@@ -111,7 +125,8 @@ def test_update_meta_font_change_needs_rerender_to_reach_disk(monkeypatch, tmp_p
     assert Path(out["artifact_path"]).read_text(encoding="utf-8") == before_html
 
     service.rerender(conn, out["id"])
-    assert 'font-jetbrains-mono' in Path(out["artifact_path"]).read_text(encoding="utf-8")
+    assert _body_class(Path(out["artifact_path"]).read_text(encoding="utf-8")) \
+        == "kind-report font-jetbrains-mono"
 
 
 def test_get_can_include_source_and_html(monkeypatch, tmp_path):

@@ -103,10 +103,19 @@ def test_yaml_frontmatter_does_not_break_the_render(tmp_path):
 
 
 def test_font_selects_the_body_class(tmp_path):
+    """Regression: tokens.css's own CSS text (`body.font-default{...}` etc.)
+    is embedded in every render regardless of which font is picked, so
+    `'font-{font}' in html` passes even when the <body> tag itself got a
+    completely different (or broken) class — that false-positive is exactly
+    what hid a real bug (a `for font in ...:` loop clobbering this same
+    `font` parameter before it reached pandoc). Anchor on the <body> tag
+    itself, and also assert no stray filesystem path leaked into it."""
     for font in ("default", "space-grotesk", "jetbrains-mono"):
         out = render.render("# T\n", source_format="markdown", title="T",
                             language="en", font=font, workdir=str(tmp_path))
-        assert f'font-{font}' in out["html"]
+        m = re.search(r'<body class="([^"]*)"', out["html"])
+        assert m, "no <body class=...> tag found"
+        assert m.group(1) == f"kind-report font-{font}"
 
 
 def test_custom_head_is_spliced_before_head_close_tag(tmp_path):

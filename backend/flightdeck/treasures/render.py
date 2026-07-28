@@ -108,8 +108,8 @@ def render(source_text: str, *, source_format: str, title: str,
     shutil.copy2(TOKENS_CSS, work / "tokens.css")
     dest_fonts = work / "fonts"
     dest_fonts.mkdir(exist_ok=True)
-    for font in FONTS_DIR.glob("*.woff2"):
-        shutil.copy2(font, dest_fonts / font.name)
+    for font_file in FONTS_DIR.glob("*.woff2"):
+        shutil.copy2(font_file, dest_fonts / font_file.name)
 
     ext = "md" if source_format == "markdown" else "html"
     src = work / f"source.{ext}"
