@@ -32,8 +32,10 @@ import re
 
 # One entry per component in docs/treasures-components.md §2. Adding a
 # component means: an entry here, a rule block in tokens.css, a line in the
-# skill. `hero`/`card` are block-level, `badge` is inline.
-BLOCK_COMPONENTS = ("hero", "card")
+# skill. `grid` is the only one that nests (it holds cards); verified that
+# CommonMark and pandoc both handle the nesting, and the depth counter below
+# pads the inner and outer tags independently.
+BLOCK_COMPONENTS = ("hero", "card", "grid", "stats")
 INLINE_COMPONENTS = ("badge",)
 COMPONENTS = BLOCK_COMPONENTS + INLINE_COMPONENTS
 

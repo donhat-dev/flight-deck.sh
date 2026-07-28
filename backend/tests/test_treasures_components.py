@@ -25,6 +25,20 @@ def _render(md, **kw):
                              language="en", workdir=wd, **kw)
 
 
+def _body(html):
+    """Just the rendered document. Counting component markup across the whole
+    file would also hit tokens.css's own `[data-component=...]` selectors, which
+    ship in every artifact."""
+    return html[html.index("<main"):html.index("</main>")]
+
+
+def _css():
+    """tokens.css with comments stripped, so a selector assertion cannot pick up
+    the comment block sitting above the rule."""
+    css = render.TOKENS_CSS.read_text(encoding="utf-8")
+    return re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+
+
 HERO = """<div data-component="hero">
 
 CRM-11198 · eyebrow
@@ -97,16 +111,109 @@ def test_inner_markdown_is_parsed_not_passed_through():
 
 
 def test_tokens_css_declares_every_component_and_never_matches_on_div():
-    css = render.TOKENS_CSS.read_text(encoding="utf-8")
+    css = _css()
     for name in lint.COMPONENTS:
         assert f'[data-component="{name}"]' in css, f"{name} has no CSS"
     assert "div[data-component" not in css
 
 
+def test_grid_nests_cards_through_the_whole_pipeline():
+    """`grid` is the only nesting component. CommonMark and pandoc both handle
+    the nesting, and the lint must not mangle either level's blank lines."""
+    md = ('<div data-component="grid">\n\n'
+          '<div data-component="card" data-tone="good">\n\n### A\n\nBody A.\n\n</div>\n\n'
+          '<div data-component="card">\n\n### B\n\nBody B.\n\n</div>\n\n'
+          '</div>\n')
+    fixed, notes = lint.lint(md)
+    assert fixed == md and notes == []
+    html = _render(md)["html"]
+    body = _body(html)
+    assert '<div data-component="grid">' in body
+    assert body.count('data-component="card"') == 2
+    assert lint.validate(md, html) == []
+
+
+def test_stats_shape_yields_strong_numbers_in_a_list():
+    md = ('<div data-component="stats">\n\n'
+          '- **7** manday estimate\n- **353** modules installed\n\n</div>\n')
+    html = _body(_render(md)["html"])
+    assert '<li><strong>7</strong> manday estimate</li>' in html
+    assert '<li><strong>353</strong> modules installed</li>' in html
+
+
+def test_every_component_and_tone_has_css():
+    css = _css()
+    for name in lint.COMPONENTS:
+        assert f'[data-component="{name}"]' in css, f"{name} has no CSS"
+    for tone in ("good", "mid", "weak", "assume", "deferred"):
+        assert f'[data-tone="{tone}"]' in css, f"card tone {tone} has no CSS"
+
+
+# --- adopted shell styles ---------------------------------------------------
+def test_the_aurora_scrolls_away_instead_of_following_the_reader():
+    """REGRESSION: the wash belongs to the opening screen. `position: fixed`
+    would tint every table in a 60-screen document on the way down."""
+    css = _css()
+    block = re.search(r"body::before\s*\{(.*?)\}", css, re.S).group(1)
+    assert "position: absolute" in block
+    assert "position: fixed" not in block
+
+
+def test_the_aurora_never_makes_the_page_scrollable():
+    """REGRESSION, measured in a browser twice: a bleed past the viewport is the
+    nicer way to hide the blur's outer edge, but nothing can clip it. `overflow`
+    on the root propagates to the viewport, and `overflow` on body propagates too
+    whenever html is `visible` — so the declaration lands on the viewport and
+    body itself never clips. Both placements left the page horizontally
+    scrollable by exactly the bleed width. The wash must therefore be bounded to
+    the viewport with no negative offsets at all."""
+    css = _css()
+    block = re.search(r"body::before\s*\{(.*?)\}", css, re.S).group(1)
+    assert "inset: 0 0 auto 0" in block
+    assert "height: 100vh" in block
+    offsets = re.findall(r"\b(?:inset|top|right|bottom|left)\s*:([^;]+);", block)
+    assert offsets and not any("-" in v for v in offsets), \
+        f"a negative offset would reintroduce the bleed: {offsets}"
+    for sel in (r"\nhtml\s*\{", r"\nbody\s*\{"):
+        b = re.search(sel + r"(.*?)\}", css, re.S).group(1)
+        assert "overflow" not in b, "overflow here propagates to the viewport; it cannot clip the wash"
+
+
+def test_scroll_progress_is_pure_css_and_needs_no_markup():
+    """It hangs off html::before, so a generated document authors no furniture,
+    and it is driven by a scroll timeline rather than JS (artifacts run none)."""
+    css = _css()
+    assert "html::before" in css
+    assert "animation-timeline: scroll(root)" in css
+    assert "@keyframes fd-scroll-progress" in css
+    # invisible, not wrong-length, where scroll timelines are unsupported
+    block = re.search(r"html::before\s*\{(.*?)\}", css, re.S).group(1)
+    assert "transform: scaleX(0)" in block
+
+
+def test_the_one_allowed_shadow_is_on_the_table_only():
+    """§3 is borders-over-shadows with exactly one accent-tinted exception."""
+    css = _css()
+    shadows = re.findall(r"([^{}]+)\{[^{}]*box-shadow:\s*([^;]+);", css)
+    real = [(s.strip(), v) for s, v in shadows if "none" not in v]
+    assert len(real) == 1, f"expected one shadow, found {real}"
+    assert real[0][0] == "table"
+    assert "rgba(22, 104, 227, .18)" in real[0][1]
+
+
+def test_section_deck_and_step_chips_need_no_new_syntax():
+    """Both attach to shapes markdown already emits: `h2` then `p`, and `ol`."""
+    css = _css()
+    assert ".doc > h2 + p" in css
+    assert ".doc > ol > li::before" in css
+    html = _render("## Section\n\nDeck line.\n\n1. one\n2. two\n")["html"]
+    assert "<h2" in html and "<ol" in html
+
+
 def test_playfair_is_confined_to_the_hero_accent():
     """canon §1: Playfair Display is allowed on a hero accent line and nowhere
     else, so every rule naming it must be scoped to the hero."""
-    css = render.TOKENS_CSS.read_text(encoding="utf-8")
+    css = _css()
     for block in re.findall(r"([^{}]+)\{([^{}]*)\}", css):
         sel, body = block[0].strip(), block[1]
         if "Playfair" in body and "@font-face" not in sel:
@@ -195,7 +302,7 @@ def test_banned_bracketed_span_is_not_the_recommended_form():
     span form is what the CSS actually targets."""
     html = _render("A [PASS]{.badge} b.\n")["html"]
     assert '<span class="badge">PASS</span>' in html
-    css = render.TOKENS_CSS.read_text(encoding="utf-8")
+    css = _css()
     assert ".badge" not in css.replace('[data-component="badge"]', "")
 
 

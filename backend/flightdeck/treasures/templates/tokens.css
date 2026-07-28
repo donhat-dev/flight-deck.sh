@@ -103,10 +103,14 @@
 /* The paper colour lives on <html>, not <body>, so body's own pseudo-elements
    can paint the ambient background between the page colour and the content. A
    `z-index:-1` pseudo of <body> would otherwise sit BEHIND body's background
-   and never be visible. */
+   and never be visible.
+*/
 html { background: var(--paper); }
 
 body {
+  /* Containing block for the aurora, so it anchors to the document top rather
+     than to the viewport. No `overflow` here on purpose — see body::before. */
+  position: relative;
   margin: 0;
   background: transparent;
   color: var(--ink);
@@ -128,30 +132,37 @@ body {
  * the other holds the noise. Blob sizes, offsets, colours and the 90px blur are
  * the canonical values.
  *
- * `fixed` rather than `absolute`: at shell level the wash should stay put while
- * a long document scrolls, and it also keeps the blur bleed off-screen without
- * ever adding a scrollbar.
+ * ABSOLUTE, not fixed: the wash belongs to the opening screen and scrolls away,
+ * leaving plain paper behind it — the same behaviour as the canonical artifact,
+ * whose blobs are absolute inside the hero. A fixed wash would follow the
+ * reader down a 60-screen document and tint every table on the way. The grain
+ * below stays fixed, exactly as the canonical one does.
  */
 body::before {
   content: "";
-  position: fixed;
-  /* Bleeds past the viewport so the blur's soft edge never shows as a seam. */
-  inset: -25vh -20vw;
+  position: absolute;
+  /* Exactly the opening screen, with NO bleed past it. A bleed would be the
+     nicer way to hide the blur's outer edge, but it makes the page scrollable by
+     that amount and there is no reliable way to clip it: `overflow` on the root
+     propagates to the viewport, and `overflow` on body propagates too whenever
+     html is `visible` — so the declaration lands on the viewport and body itself
+     never clips. Both placements were measured and both left the page scrollable
+     by exactly the bleed width. No bleed is needed anyway: each blob's gradient
+     is already transparent well inside these bounds. */
+  inset: 0 0 auto 0;
+  height: 100vh;
   z-index: -1;
   pointer-events: none;
   opacity: .5;
   filter: blur(90px);
-  /* Positions are in vw/vh, NOT %, because the negative inset above makes this
-     box bigger than the viewport — a % would resolve against the box and push
-     the blob off-screen. The 25vh top bleed is why the vertical values are
-     offset: viewport y=0 sits at 25vh here.
-     The third blob is centred just past the viewport bottom (as the canonical
-     one is, at bottom:-260px), so only its upper arc shows and no circular
-     seam reads on a short document. */
+  /* The box is exactly the viewport, so these read directly as screen
+     coordinates. The third blob sits just past the bottom edge — as the
+     canonical one does at bottom:-260px — so only its upper arc shows and no
+     circular seam reads on a short document. */
   background:
-    radial-gradient(560px 560px at 22vw 18vh, #7fb2ff 0%, transparent 65%),
-    radial-gradient(620px 620px at 82vw 30vh, #7fe6c3 0%, transparent 63%),
-    radial-gradient(420px 420px at 48vw 130vh, #bcd6ff 0%, transparent 60%);
+    radial-gradient(560px 560px at 20vw 14vh, #7fb2ff 0%, transparent 65%),
+    radial-gradient(620px 620px at 80vw 26vh, #7fe6c3 0%, transparent 63%),
+    radial-gradient(420px 420px at 48vw 104vh, #bcd6ff 0%, transparent 60%);
 }
 /* Film grain. The noise is an inline SVG data URI, so the artifact stays
    self-contained — w3.org in the xmlns is a namespace, never a fetch (see
@@ -164,6 +175,31 @@ body::after {
   pointer-events: none;
   opacity: .05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+}
+
+/* Scroll progress (canon §4 permits it). Pure CSS via a scroll-driven
+   animation — no JS, and no markup either: the canonical artifact spends a
+   `<div class="progress">` on this, but html's ::before slot is free (html only
+   carries the page colour), and a generated document must not have to author
+   furniture. Where scroll-driven animations are unsupported the bar simply
+   stays at scaleX(0), i.e. invisible — never a wrong-length bar. */
+html::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 3px;
+  z-index: 70;
+  background: linear-gradient(90deg, var(--azure), var(--green));
+  transform: scaleX(0);
+  transform-origin: 0 50%;
+  animation: fd-scroll-progress linear both;
+  animation-timeline: scroll(root);
+}
+@keyframes fd-scroll-progress {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
 }
 /* font selection (treasure_wrap `font`): the class always wins over the base
    body rule above (higher specificity, same as any body.foo override), so
@@ -247,12 +283,54 @@ h2 {
 h3 { font-size: 19.5px; margin: 2.2rem 0 .7rem; }
 h4 { font-size: 17px; margin: 1.8rem 0 .5rem; color: var(--ink-2); }
 h2 + h3 { margin-top: 1.2rem; }
+/* Section deck: the paragraph that opens a section reads as a lede rather than
+   body copy (the canonical artifact's `.sect-sub`). Markdown already produces
+   exactly this shape — h2 followed by p — so it needs no new syntax. */
+.doc > h2 + p {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ink-2);
+  max-width: 78ch;
+  margin-bottom: 1.6rem;
+}
 
 /* --- flow ---------------------------------------------------------------- */
 p, ul, ol, blockquote, pre, table, figure { margin: 0 0 1.15rem; }
 ul, ol { padding-left: 1.4rem; }
 li { margin: .3rem 0; }
 li > ul, li > ol { margin: .3rem 0; }
+
+/* Numbered steps: an ordered list IS a sequence of steps, so it gets the
+   canonical step treatment — a circular azure counter chip instead of a bare
+   digit — with no new syntax. Scoped to `.doc >` so a nested list inside a
+   card/table keeps plain decimals and the chips never stack up in odd places. */
+.doc > ol {
+  list-style: none;
+  counter-reset: fd-step;
+  padding-left: 0;
+}
+.doc > ol > li {
+  counter-increment: fd-step;
+  position: relative;
+  padding-left: 44px;
+  margin: .9rem 0;
+}
+.doc > ol > li::before {
+  content: counter(fd-step);
+  position: absolute;
+  left: 0;
+  top: 1px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13.5px;
+  font-weight: 700;
+  background: #e3edf9;
+  color: var(--azure-deep);
+}
 strong { font-weight: 700; }
 hr { height: 1px; border: 0; background: var(--line); margin: 2.5rem 0; }
 
@@ -299,6 +377,9 @@ table {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
+  /* §3: borders over shadows, with exactly ONE shadow allowed page-wide — this
+     accent-tinted lift on the matrix container. */
+  box-shadow: 0 20px 50px -30px rgba(22, 104, 227, .18);
 }
 th, td {
   padding: .55rem .7rem;
@@ -401,6 +482,72 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; }
 [data-component="card"][data-tone="good"] { background: linear-gradient(150deg, var(--good-bg) 0%, var(--card) 55%); border-color: var(--good-line); }
 [data-component="card"][data-tone="mid"]  { background: linear-gradient(150deg, var(--mid-bg) 0%, var(--card) 55%);  border-color: var(--mid-line); }
 [data-component="card"][data-tone="weak"] { background: linear-gradient(150deg, var(--weak-bg) 0%, var(--card) 55%); border-color: var(--weak-line); }
+/* Two epistemic tones, because ARTIFACT_DESIGN.md §3a requires an artifact to
+   mark what is assumed and what is out of scope. Lifted from the canonical
+   `.assume` and `.deferred` boxes so the same claim looks the same everywhere. */
+[data-component="card"][data-tone="assume"] {
+  background: linear-gradient(150deg, #fbf4e2 0%, var(--card) 72%);
+  border-color: var(--line);
+  border-left: 3px solid var(--mid-line);
+  font-size: 14.5px;
+}
+[data-component="card"][data-tone="deferred"] {
+  background: #f4f8fe;
+  border: 1px dashed #bcd3f2;
+  font-size: 14.5px;
+}
+
+/* --- grid: the one container, so cards can sit side by side ---------------
+ * Unlocks what the canonical artifact spends four separate classes on
+ * (`cards`, `tldr`, `ctx`, `phase`) — every one of them is just a row of
+ * panels. `auto-fit` means the author controls the count by how many cards
+ * they write, with no column syntax to get wrong, and it collapses to one
+ * column on a narrow screen without a media query.
+ * Verified: nesting a card inside a grid survives both CommonMark and pandoc.
+ */
+[data-component="grid"] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+  margin: 0 0 1.15rem;
+  max-width: none;
+}
+[data-component="grid"] > * { margin: 0; max-width: none; }
+
+/* --- stats: the gradient number trio -------------------------------------
+ * Markdown shape: a list whose every item opens with the number in bold.
+ * `**7** manday estimate` -> <li><strong>7</strong> manday estimate</li>.
+ * The label is a bare text node, so it cannot be selected directly; the li
+ * carries the label style and <strong> overrides its own size instead.
+ * Static only — the canonical count-up needs JS, which artifacts do not run.
+ */
+[data-component="stats"] { margin: 0 0 1.15rem; max-width: none; }
+[data-component="stats"] ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-width: none;
+}
+[data-component="stats"] li {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--ink-2);
+}
+[data-component="stats"] strong {
+  display: block;
+  font-size: clamp(34px, 4.4vw, 54px);
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 6px;
+  background: linear-gradient(100deg, var(--azure), var(--green));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
 
 /* --- badge (inline) ------------------------------------------------------- */
 [data-component="badge"] {

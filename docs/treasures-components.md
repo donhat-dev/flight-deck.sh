@@ -61,12 +61,12 @@ pandoc rewrites a div whose first child is a heading into
 
 ---
 
-## 2. Component inventory, v1
+## 2. Component inventory
 
-Three components, exactly the ones with a markdown-expressible shape. The rest
-of `ARTIFACT_STYLE.md` §5 (stats trio, rating matrix, profile cards, TL;DR
-trio) stays **out of scope**: they need multi-part structure that markdown
-cannot carry without inventing a second syntax.
+Five components, exactly the ones with a markdown-expressible shape. The rest of
+`ARTIFACT_STYLE.md` §5 (rating matrix, profile cards, role boxes, the estimate
+grid) stays **out of scope**: they are bespoke per report, not house furniture,
+and shipping their CSS would be dead weight in every artifact.
 
 ### `hero`
 
@@ -90,10 +90,58 @@ cannot carry without inventing a second syntax.
 |---|---|
 | Contains | inline text only |
 | Variants | `data-tone="good" \| "mid" \| "weak"` |
-| Style | full pill, uppercase, tone-coloured background + border |
+| Style | full pill, tone-coloured background + border |
+
+### `grid`
+
+| | |
+|---|---|
+| Contains | two or more `card`s — the only component that nests |
+| Style | `repeat(auto-fit, minmax(260px, 1fr))`, so the author sets the count by how many cards they write and it collapses to one column on a narrow screen |
+| Why | it replaces four separate classes in the canonical artifact (`cards`, `tldr`, `ctx`, `phase`) — every one of them is just a row of panels |
+
+Nesting was verified end to end: CommonMark and pandoc both handle it, and the
+lint's depth counter pads the inner and outer tags independently.
+
+### `stats`
+
+| | |
+|---|---|
+| Contains | a list whose every item opens with the number in bold — `- **7** manday estimate` |
+| Style | gradient azure→green numerals at `clamp(34px, 4.4vw, 54px)` above a muted label |
+| Limit | static only. The canonical count-up needs JS, which artifacts do not run. |
+
+The label is a bare text node and cannot be selected, so the `li` carries the
+label style and `strong` overrides its own size.
+
+### Epistemic card tones
+
+`data-tone="assume"` (amber, left accent bar) and `data-tone="deferred"` (dashed,
+pale blue) exist because `ARTIFACT_DESIGN.md` §3a requires an artifact to mark
+what is assumed and what is out of scope. Lifted from the canonical `.assume` /
+`.deferred` boxes so the same kind of claim looks the same everywhere.
 
 Adding a component means: one entry here, one rule block in `tokens.css`, one
 name in the lint allowlist. Nothing else.
+
+## 2a. Shell styles adopted from the canonical artifact
+
+These need no syntax at all — they attach to shapes markdown already emits, or
+to the page shell, so every document gets them for free.
+
+| Style | How it attaches | Note |
+|---|---|---|
+| Ambient aurora (3 blurred blobs) | `body::before` | **absolute, not fixed** — it belongs to the opening screen and scrolls away, as the canonical blobs do inside their hero. A fixed wash would tint every table in a long document. `overflow-x: clip` on `html` contains the bleed; `clip` rather than `hidden`, which would make html a scroll container and silently kill the sticky nav. |
+| Film grain | `body::after` | stays `fixed`, matching the canonical `.grain` |
+| Scroll progress bar | `html::before` | pure CSS via `animation-timeline: scroll(root)`; no JS and no markup, since html's pseudo slot was free. Unsupported browsers keep it at `scaleX(0)` — invisible rather than wrong. |
+| Accent-tinted table shadow | `table` | the ONE shadow §3 permits page-wide |
+| Section deck | `.doc > h2 + p` | markdown already produces "h2 then p" |
+| Numbered step chips | `.doc > ol > li::before` | an ordered list IS a step sequence; scoped to `.doc >` so nested lists keep plain decimals |
+
+Rejected from the canonical: the hero word-line reveal (`.wline`) needs per-line
+`<span>`s plus a JS class toggle, and the stat count-up needs JS. Artifacts run
+no scripts — the dashboard preview is sandboxed and claude.ai's CSP is strict —
+so both would be dead code.
 
 ---
 

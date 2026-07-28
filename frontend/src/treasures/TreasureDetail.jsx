@@ -330,6 +330,7 @@ const ARTIFACT_SKIN_CSS = `
   border: 1px solid #d9e2ec;
   border-collapse: collapse;
   border-radius: 14px;
+  box-shadow: 0 20px 50px -30px rgba(22, 104, 227, .18);
 }
 .treasure-artifact-skin th, .treasure-artifact-skin td {
   padding: .55rem .7rem;
@@ -344,6 +345,22 @@ const ARTIFACT_SKIN_CSS = `
 .treasure-artifact-skin video { max-width: 100%; height: auto; }
 .treasure-artifact-skin figure { margin-inline: 0; }
 .treasure-artifact-skin figcaption { margin-top: .4rem; font-size: 13px; color: #334860; }
+
+/* Styles the artifact applies with no syntax at all, mirrored so the editor
+   shows them too — Milkdown emits real h2/p/ol nodes, so these all land. */
+.treasure-artifact-skin .ProseMirror > h2 + p {
+  font-size: 17px; font-weight: 500; color: #334860; max-width: 78ch; margin-bottom: 1.6rem;
+}
+.treasure-artifact-skin .ProseMirror > ol { list-style: none; counter-reset: fd-step; padding-left: 0; }
+.treasure-artifact-skin .ProseMirror > ol > li {
+  counter-increment: fd-step; position: relative; padding-left: 44px; margin: .9rem 0;
+}
+.treasure-artifact-skin .ProseMirror > ol > li::before {
+  content: counter(fd-step); position: absolute; left: 0; top: 1px;
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13.5px; font-weight: 700; background: #e3edf9; color: #0d4fb8;
+}
 
 /* --- components (docs/treasures-components.md) ---------------------------
  * Milkdown keeps a component's tags as non-editable inline html chips rather
