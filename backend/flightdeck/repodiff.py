@@ -65,8 +65,15 @@ def _repo_dir(name):
     if not os.path.isdir(real):
         return None
     try:
-        out = subprocess.run(["git", "-C", real, "rev-parse", "--is-inside-work-tree"],
-                             capture_output=True, text=True, timeout=10, env=_GIT_ENV)
+        out = subprocess.run(
+            ["git", "-C", real, "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+            env=_GIT_ENV,
+        )
     except Exception:
         return None
     return real if out.returncode == 0 and out.stdout.strip() == "true" else None
@@ -85,8 +92,15 @@ def git(repo_real, args, timeout=60):
         args = ["pull", "--ff-only"] + args[1:]
     if sub == "fetch":
         args = ["fetch", "--prune"] + args[1:]
-    proc = subprocess.run(["git", "-C", repo_real] + args,
-                          capture_output=True, text=True, timeout=timeout, env=_GIT_ENV)
+    proc = subprocess.run(
+        ["git", "-C", repo_real] + args,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=timeout,
+        env=_GIT_ENV,
+    )
     if proc.returncode != 0:
         raise GitError(proc.stderr.strip() or proc.stdout.strip() or "git failed")
     return proc.stdout

@@ -161,7 +161,116 @@
     .nav-icon { width: 18px; text-align: center; color: var(--faint); font-size: 15px; }
     .nav-count { font: 9px "IBM Plex Mono", ui-monospace, monospace; color: var(--faint); }
 
-    .side-spacer { flex: 1; }
+    .side-spacer {
+      flex: 1;
+      min-height: 72px;
+      display: flex;
+      align-items: flex-end;
+      padding: 18px 8px 20px;
+      overflow: hidden;
+    }
+
+    .pixel-airspace {
+      width: 100%;
+      height: clamp(72px, 17vh, 138px);
+      position: relative;
+      color: var(--ink);
+      opacity: .4;
+      isolation: isolate;
+    }
+
+    .pixel-airspace::before,
+    .pixel-airspace::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      opacity: .3;
+      pointer-events: none;
+    }
+
+    .pixel-airspace::before {
+      top: 20px;
+      left: 0;
+      border-top: 1px solid currentColor;
+      border-left: 1px solid currentColor;
+    }
+
+    .pixel-airspace::after {
+      right: 0;
+      bottom: 0;
+      border-right: 1px solid currentColor;
+      border-bottom: 1px solid currentColor;
+    }
+
+    .pixel-airspace__meta {
+      position: absolute;
+      inset: 0 0 auto;
+      display: flex;
+      justify-content: space-between;
+      font: 7px/1 "IBM Plex Mono", ui-monospace, monospace;
+      letter-spacing: .13em;
+      text-transform: uppercase;
+      opacity: .68;
+    }
+
+    .pixel-airspace svg {
+      position: absolute;
+      inset: 18px 0 0;
+      width: 100%;
+      height: calc(100% - 18px);
+      overflow: visible;
+      image-rendering: pixelated;
+    }
+
+    .pixel-craft,
+    .pixel-trail {
+      transform-box: fill-box;
+      transform-origin: center;
+      animation: pixel-patrol 7.2s steps(9, end) infinite;
+      will-change: transform;
+    }
+
+    .pixel-trail {
+      animation-name: pixel-wake;
+      opacity: .28;
+    }
+
+    .pixel-scan {
+      opacity: .12;
+      animation: pixel-scan 4.8s steps(8, end) infinite;
+      will-change: transform, opacity;
+    }
+
+    .pixel-beacon {
+      animation: pixel-beacon 1.8s steps(2, end) infinite;
+      will-change: opacity;
+    }
+
+    .pixel-beacon.delay { animation-delay: -.9s; }
+
+    @keyframes pixel-patrol {
+      0%, 100% { transform: translate3d(-14px, 7px, 0); }
+      48% { transform: translate3d(18px, -6px, 0); }
+      72% { transform: translate3d(8px, 2px, 0); }
+    }
+
+    @keyframes pixel-wake {
+      0%, 100% { transform: translate3d(-18px, 7px, 0); opacity: .12; }
+      48% { transform: translate3d(12px, -6px, 0); opacity: .34; }
+      72% { transform: translate3d(2px, 2px, 0); opacity: .22; }
+    }
+
+    @keyframes pixel-scan {
+      0% { transform: translate3d(0, -26px, 0); opacity: 0; }
+      14%, 80% { opacity: .13; }
+      100% { transform: translate3d(0, 82px, 0); opacity: 0; }
+    }
+
+    @keyframes pixel-beacon {
+      0%, 46% { opacity: .12; }
+      47%, 100% { opacity: .78; }
+    }
 
     .quota-card {
       padding: 13px;
@@ -376,6 +485,7 @@
     .night .range.active { color: #fff; }
     .night .budget-label { background: var(--raise); }
     .night .bar { background: #9e3e2d; }
+    .night .pixel-airspace { opacity: .34; }
 
     @media (max-width: 1260px) {
       .app { grid-template-columns: 196px minmax(0, 1fr); }
@@ -387,6 +497,14 @@
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
+      .pixel-craft, .pixel-trail, .pixel-scan, .pixel-beacon {
+        animation: none !important;
+        will-change: auto;
+      }
+      .pixel-craft { transform: translate3d(4px, 0, 0); }
+      .pixel-trail { transform: translate3d(-2px, 0, 0); opacity: .22; }
+      .pixel-scan { transform: translate3d(0, 28px, 0); opacity: .1; }
+      .pixel-beacon { opacity: .48; }
     }
   </style>
 </head>
@@ -409,7 +527,54 @@
         <button class="nav-item"><span class="nav-icon">⬡</span><span>Hub</span><span class="nav-count">6</span></button>
       </nav>
 
-      <div class="side-spacer"></div>
+      <div class="side-spacer">
+        <div class="pixel-airspace" aria-hidden="true">
+          <div class="pixel-airspace__meta"><span>Signal drift</span><span>Local</span></div>
+          <svg viewBox="0 0 48 36" preserveAspectRatio="xMidYMid meet" shape-rendering="crispEdges">
+            <g fill="currentColor" opacity=".18">
+              <rect x="3" y="7" width="1" height="1"/>
+              <rect x="8" y="18" width="1" height="1"/>
+              <rect x="13" y="4" width="1" height="1"/>
+              <rect x="20" y="25" width="1" height="1"/>
+              <rect x="28" y="6" width="1" height="1"/>
+              <rect x="34" y="22" width="1" height="1"/>
+              <rect x="40" y="11" width="1" height="1"/>
+              <rect x="44" y="28" width="1" height="1"/>
+              <rect x="4" y="32" width="40" height="1"/>
+              <rect x="4" y="29" width="7" height="1"/>
+              <rect x="37" y="29" width="7" height="1"/>
+            </g>
+            <g class="pixel-scan" fill="currentColor">
+              <rect x="2" y="4" width="44" height="1"/>
+              <rect x="6" y="6" width="1" height="1" opacity=".55"/>
+              <rect x="41" y="6" width="1" height="1" opacity=".55"/>
+            </g>
+            <g class="pixel-trail" fill="currentColor">
+              <rect x="6" y="17" width="2" height="1"/>
+              <rect x="10" y="17" width="3" height="1"/>
+              <rect x="14" y="17" width="1" height="1"/>
+            </g>
+            <g class="pixel-craft" fill="currentColor">
+              <rect x="23" y="8" width="2" height="12"/>
+              <rect x="21" y="11" width="6" height="6"/>
+              <rect x="16" y="14" width="16" height="2"/>
+              <rect x="19" y="16" width="10" height="2"/>
+              <rect x="21" y="20" width="6" height="2"/>
+              <rect x="22" y="22" width="4" height="1"/>
+            </g>
+            <g fill="currentColor">
+              <g class="pixel-beacon">
+                <rect x="5" y="24" width="1" height="3"/>
+                <rect x="4" y="25" width="3" height="1"/>
+              </g>
+              <g class="pixel-beacon delay">
+                <rect x="42" y="16" width="1" height="3"/>
+                <rect x="41" y="17" width="3" height="1"/>
+              </g>
+            </g>
+          </svg>
+        </div>
+      </div>
       <section class="quota-card" aria-label="Quota status">
         <div class="quota-head"><span>Quota</span><span class="mono" style="font-size:10px;color:var(--faint)">↻</span></div>
         <div class="quota-row">

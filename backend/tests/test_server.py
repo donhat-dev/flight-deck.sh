@@ -10,8 +10,8 @@ def test_summary_endpoint(tmp_path, monkeypatch):
     proj.mkdir()
     cfg.write_text(
         f'subscription_monthly_usd = 200.0\n'
-        f'projects_dir = "{proj}"\n'
-        f'db_path = "{db_path}"\n')
+        f'projects_dir = "{proj.as_posix()}"\n'
+        f'db_path = "{db_path.as_posix()}"\n')
     monkeypatch.setenv("TOKEN_AUDIT_CONFIG", str(cfg))
 
     from flightdeck import server
@@ -32,8 +32,8 @@ def test_daily_endpoint_uses_per_request_connection(tmp_path, monkeypatch):
     proj.mkdir()
     cfg.write_text(
         f'subscription_monthly_usd = 200.0\n'
-        f'projects_dir = "{proj}"\n'
-        f'db_path = "{db_path}"\n')
+        f'projects_dir = "{proj.as_posix()}"\n'
+        f'db_path = "{db_path.as_posix()}"\n')
     monkeypatch.setenv("TOKEN_AUDIT_CONFIG", str(cfg))
 
     # Seed a row directly so /api/daily has data to aggregate.

@@ -29,8 +29,14 @@ def rtk_savings_usd(rate_per_mtok: float = 5.0) -> float:
     if not shutil.which("rtk"):
         return 0.0
     try:
-        out = subprocess.run(["rtk", "gain"], capture_output=True, text=True,
-                             timeout=10)
+        out = subprocess.run(
+            ["rtk", "gain"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=10,
+        )
         if out.returncode != 0:
             return 0.0
         return parse_gain(out.stdout)["tokens_saved"] * rate_per_mtok / 1_000_000

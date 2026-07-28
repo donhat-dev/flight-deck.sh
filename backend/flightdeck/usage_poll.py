@@ -98,7 +98,14 @@ def poll(claude_bin=None, timeout=60):
     cmd = [claude_bin or os.environ.get("TOKEN_AUDIT_CLAUDE_BIN", "claude"),
            "-p", "/usage"]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
     except Exception:
         return None
     if r.returncode != 0 or not r.stdout.strip():

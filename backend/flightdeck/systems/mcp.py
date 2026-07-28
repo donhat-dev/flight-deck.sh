@@ -268,8 +268,13 @@ def _probe_health() -> dict:
     with _health_lock:
         try:
             proc = subprocess.run(
-                [binary, "mcp", "list"], capture_output=True, text=True,
-                timeout=_HEALTH_TIMEOUT)
+                [binary, "mcp", "list"],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=_HEALTH_TIMEOUT,
+            )
             text = proc.stdout or proc.stderr or ""
             parsed = _parse_mcp_list(text)
             _health_cache.update(
