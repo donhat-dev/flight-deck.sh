@@ -192,12 +192,18 @@ def _version_paths(row: dict) -> dict:
             "artifact_path": str(vdir / "artifact.html")}
 
 
-def get(conn, ident, *, include_source=False, include_html=False):
+def get(conn, ident, *, include_source=False, include_html=False,
+        include_stale=False):
     row = store.get(conn, ident)
     if row is None:
         return None
     paths = _version_paths(row)
-    out = {**row, **paths}
+    out = {**row, **paths, "tags": store.tags_of(conn, row["id"])}
+    if include_stale:
+        # Derived state, never a column: a stored flag would go wrong the moment
+        # the origin changed while this process was down. Only a refreshable
+        # origin is hashed, so this costs one file read for 3 of 97 artifacts.
+        out["origin_stale"] = stale(conn, ident)
     if include_source:
         out["source"] = Path(paths["source_path"]).read_text(encoding="utf-8")
     if include_html:
@@ -206,14 +212,37 @@ def get(conn, ident, *, include_source=False, include_html=False):
 
 
 def list_rows(conn, **filters):
-    """Rows with their file paths attached.
+    """Rows with their file paths and tags attached.
 
     `_version_paths` is cheap (string joins, no disk access) and without it a
     caller that lists and then wants to open something has to spend a
-    `get` per row just to learn where the files are.
+    `get` per row just to learn where the files are. Tags come from ONE extra
+    query for the whole page, never one per row.
     """
-    return [{**row, **_version_paths(row)}
-            for row in store.list_rows(conn, **filters)]
+    rows = store.list_rows(conn, **filters)
+    tags = store.tags_for(conn, [r["id"] for r in rows])
+    return [{**row, **_version_paths(row), "tags": tags.get(row["id"], [])}
+            for row in rows]
+
+
+def set_tags(conn, ident, tags):
+    """Replace an artifact's tags. Raises LookupError when it is unknown."""
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    return {"id": row["id"], "tags": store.set_tags(conn, row["id"], tags)}
+
+
+def tag(conn, ident, *, add=None, remove=None):
+    """Add and/or remove tags, leaving the rest alone."""
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    if add:
+        store.add_tags(conn, row["id"], add)
+    if remove:
+        store.remove_tags(conn, row["id"], remove)
+    return {"id": row["id"], "tags": store.tags_of(conn, row["id"])}
 
 
 VALID_STATUS = ("draft", "published", "archived")
@@ -312,7 +341,9 @@ def delete(conn, ident) -> dict:
             d.rmdir()
         target.rmdir()
     # Files are gone; drop the row last so a failure above leaves the index
-    # pointing at something a retry can still find.
+    # pointing at something a retry can still find. Tags go explicitly because
+    # SQLite does not enforce the FK's ON DELETE CASCADE.
+    store.delete_tags(conn, row["id"])
     store.delete(conn, row["id"])
     return {"deleted": row["id"], "title": row["title"],
             "dir_path": str(target), "removed_files": removed_files}
@@ -342,7 +373,7 @@ def _refreshable(row: dict) -> tuple[bool, str]:
     return True, ""
 
 
-def refresh(conn, ident) -> dict:
+def refresh(conn, ident, *, force=False) -> dict:
     """Re-read the artifact's own `origin_path` and store it as a NEW version.
 
     The complement to `rerender`, which re-runs the pipeline over the source
@@ -352,6 +383,10 @@ def refresh(conn, ident) -> dict:
     time.
 
     Only an origin that is a real document file qualifies — see `_refreshable`.
+
+    Conditional by default: when the origin hashes the same as the stored source
+    there is nothing to record, so it reports `skipped` instead of minting an
+    identical version. Pass `force=True` to version it regardless.
     """
     row = store.get(conn, ident)
     if row is None:
@@ -361,6 +396,12 @@ def refresh(conn, ident) -> dict:
         raise ValueError(
             f"{ident} cannot be refreshed: {why}. Wrap it again with "
             f"source_path= to point it at a document.")
+    if not force:
+        current = filestore.checksum(filestore.read_source(row["origin_path"]))
+        if current == row["source_checksum"]:
+            return {**get(conn, row["id"]), "skipped": True,
+                    "reason": "origin matches the stored source; nothing to "
+                              "version. Pass force=true to version it anyway."}
     return wrap(conn, source_path=row["origin_path"], artifact_id=row["id"],
                 kind=row["kind"], language=row["language"])
 

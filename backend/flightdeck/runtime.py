@@ -15,6 +15,7 @@ import os
 import threading
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 
@@ -228,6 +229,14 @@ async def lifespan(app: FastAPI):
         froot.mkdir(parents=True, exist_ok=True)
 
         def _treasures_ping():
+            # Re-aim the origin watch first: a just-wrapped artifact brings a new
+            # origin file that nothing is watching yet.
+            rebuild = getattr(rt, "rebuild_origin_watch", None)
+            if rebuild is not None:
+                try:
+                    rebuild()
+                except Exception as e:
+                    print(f"[treasures] origin watch rebuild failed: {e}")
             loop.call_soon_threadsafe(_updated.set)
 
         def _schedule_treasures_ping():
@@ -240,6 +249,63 @@ async def lifespan(app: FastAPI):
                 rt.treasures_debounce_timer["timer"] = timer
                 timer.start()
 
+        # --- origin watch -------------------------------------------------
+        # Also watch the SOURCE documents artifacts were wrapped from, so a
+        # `Subscription_Service/18-….md` edited in an editor makes the dashboard
+        # show its "origin changed" badge without a manual page reload.
+        #
+        # It only ever PINGS. Auto-refreshing on save would mint a new version
+        # per keystroke-flush — a 671-line doc under editor autosave would leave
+        # dozens of ~196KB version pairs an hour and make the history
+        # meaningless. Staleness stays derived (computed on read) and updating
+        # stays a deliberate click.
+        #
+        # Directories are watched, not files: editors save by write-and-rename,
+        # which drops an inode-level file watch. Events are filtered back down to
+        # the exact origin paths.
+        origin_watch = {"paths": set()}
+
+        def _refreshable_origins():
+            try:
+                with rt.read_conn() as conn:
+                    from flightdeck.treasures import service as _svc
+                    return {r["origin_path"] for r in _svc.list_rows(conn, limit=100000)
+                            if _svc._refreshable(r)[0]}
+            except Exception:
+                return set()
+
+        class OriginHandler(_Handler):
+            def on_any_event(self, event):
+                if str(getattr(event, "src_path", "")) in origin_watch["paths"] \
+                   or str(getattr(event, "dest_path", "")) in origin_watch["paths"]:
+                    _schedule_treasures_ping()
+
+        origin_handler = OriginHandler()
+        origin_watches: list = []
+
+        def _rebuild_origin_watch():
+            """Re-aim the watch at the current set of refreshable origins.
+
+            Called on every debounced treasures ping, so an artifact wrapped from
+            a new file starts being watched without a restart.
+            """
+            paths = _refreshable_origins()
+            if paths == origin_watch["paths"]:
+                return
+            origin_watch["paths"] = paths
+            for w in origin_watches:
+                try:
+                    treasures_observer.unschedule(w)
+                except Exception:
+                    pass
+            origin_watches.clear()
+            for parent in {str(Path(p).parent) for p in paths}:
+                try:
+                    origin_watches.append(treasures_observer.schedule(
+                        origin_handler, parent, recursive=False))
+                except Exception as e:
+                    print(f"[treasures] origin watch skipped {parent}: {e}")
+
         class TreasuresHandler(_Handler):
             def on_any_event(self, event):
                 _schedule_treasures_ping()
@@ -248,6 +314,8 @@ async def lifespan(app: FastAPI):
         treasures_observer.schedule(TreasuresHandler(), str(froot), recursive=True)
         treasures_observer.daemon = True
         treasures_observer.start()
+        _rebuild_origin_watch()
+        rt.rebuild_origin_watch = _rebuild_origin_watch
     except Exception as e:
         treasures_observer = None
         print(f"[treasures] filestore watch failed to start: {e}")

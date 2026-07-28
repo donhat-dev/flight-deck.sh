@@ -93,10 +93,10 @@ def t_wrap(title=None, content=None, source_path=None, source_format=None,
         return {"error": f"{type(e).__name__}: {e}"}
 
 
-def t_refresh(ident):
+def t_refresh(ident, force=False):
     """Re-read the artifact's own origin file into a new version."""
     try:
-        return service.refresh(_conn(), ident)
+        return service.refresh(_conn(), ident, force=force)
     except LookupError as e:
         return {"error": str(e)}
     except ValueError as e:
@@ -119,11 +119,27 @@ def t_get(ident, include_source=False, include_html=False):
 
 
 def t_list(status=None, language=None, kind=None, origin_id=None, query=None,
-           limit=100, offset=0):
+           origin_root=None, tag=None, limit=100, offset=0):
     rows = service.list_rows(_conn(), status=status, language=language,
                              kind=kind, origin_id=origin_id, query=query,
+                             origin_root=origin_root, tag=tag,
                              limit=limit, offset=offset)
     return {"treasures": rows, "count": len(rows)}
+
+
+def t_tag(ident, add=None, remove=None, set=None):
+    """Add/remove tags, or replace the whole set."""
+    try:
+        if set is not None:
+            return service.set_tags(_conn(), ident, set)
+        return service.tag(_conn(), ident, add=add, remove=remove)
+    except LookupError as e:
+        return {"error": str(e)}
+
+
+def t_tags():
+    from flightdeck.treasures import store as _store
+    return {"tags": _store.all_tags(_conn())}
 
 
 def t_discover(do_import=False, max_files=400, max_age_days=None, roots=None):
@@ -277,14 +293,38 @@ TOOLS = {
         ["ident"]),
     "treasure_list": (
         t_list,
-        "List stored artifacts, newest first, with optional filters.",
+        "List stored artifacts, newest first, with optional filters. Rows carry "
+        "source_path, artifact_path and tags, so a list->open flow needs no "
+        "follow-up treasure_get.",
         {"status": {"type": "string"},
          "language": {"type": "string"},
          "kind": {"type": "string"},
          "origin_id": {"type": "string"},
-         "query": {"type": "string"},
+         "query": {"type": "string",
+                   "description": "substring of the title or slug"},
+         "origin_root": {"type": "string",
+                         "description": "prefix of origin_path — one call for "
+                                        "'everything that came out of this "
+                                        "folder', or from a URL prefix"},
+         "tag": {"type": "string", "description": "only artifacts with this tag"},
          "limit": {"type": "integer"},
          "offset": {"type": "integer"}},
+        []),
+    "treasure_tag": (
+        t_tag,
+        "Add and/or remove an artifact's tags, or replace the whole set with "
+        "set=[...]. Tags are normalised to lowercase and deduped, so filtering "
+        "by tag is an exact match. Returns the resulting tag list.",
+        {"ident": {"type": "string"},
+         "add": {"type": "array", "items": {"type": "string"}},
+         "remove": {"type": "array", "items": {"type": "string"}},
+         "set": {"type": "array", "items": {"type": "string"},
+                 "description": "replace every tag with this list"}},
+        ["ident"]),
+    "treasure_tags": (
+        t_tags,
+        "Every tag in use with its artifact count, most-used first.",
+        {},
         []),
     "treasure_discover": (
         t_discover,
@@ -309,8 +349,13 @@ TOOLS = {
         "was recorded at wrap time. Use this while a document is still being "
         "edited; use treasure_rerender instead when only the template changed. "
         "Only artifacts wrapped from a real file qualify (a transcript origin is "
-        "provenance, not a re-readable source).",
-        {"ident": {"type": "string"}},
+        "provenance, not a re-readable source).\n"
+        "Conditional: when the origin already hashes the same as the stored "
+        "source it reports skipped=true rather than minting an identical "
+        "version. Pass force=true to version it regardless.",
+        {"ident": {"type": "string"},
+         "force": {"type": "boolean",
+                   "description": "version it even when the origin is unchanged"}},
         ["ident"]),
     "treasure_stale": (
         t_stale,

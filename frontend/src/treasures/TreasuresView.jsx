@@ -171,6 +171,8 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
   const [filter, setFilter] = useState("all");  // all | draft | published | en | vi
   const [query, setQuery] = useState("");
   const [live, setLive] = useState(false);
+  const [tag, setTag] = useState(null);       // active tag chip, null = no tag filter
+  const [tags, setTags] = useState([]);       // every tag in use, with counts
 
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverResult, setDiscoverResult] = useState(null);
@@ -179,15 +181,16 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
 
   // The safety-net poll + the SSE refetch both read the latest filter/query
   // via a ref, same pattern App.jsx uses for its range-aware SSE callback.
-  const stateRef = useRef({ filter, query });
-  useEffect(() => { stateRef.current = { filter, query }; }, [filter, query]);
+  const stateRef = useRef({ filter, query, tag });
+  useEffect(() => { stateRef.current = { filter, query, tag }; }, [filter, query, tag]);
 
   const load = useCallback(async () => {
-    const { filter: f, query: q } = stateRef.current;
+    const { filter: f, query: q, tag: t } = stateRef.current;
     const params = new URLSearchParams();
     if (f === "draft" || f === "published") params.set("status", f);
     if (f === "en" || f === "vi") params.set("language", f);
     if (q) params.set("query", q);
+    if (t) params.set("tag", t);
     params.set("limit", "200");
     try {
       const [full, filtered] = await Promise.all([
@@ -197,12 +200,15 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
       setAllRows(full.treasures);
       setRows(filtered.treasures);
       setError(null);
+      // Chips come from the server so a tag added by an agent shows up here
+      // without a reload, and the counts stay honest.
+      get("/api/treasure-tags").then((r) => setTags(r.tags || [])).catch(() => {});
     } catch (e) {
       setError(String(e.message || e));
     }
   }, []);
 
-  useEffect(() => { load(); }, [load, filter, query]);
+  useEffect(() => { load(); }, [load, filter, query, tag]);
   // Live refresh: re-fetch when the backend pings over SSE (a parallel change
   // is wiring the filestore into this same `summary-updated` feed). `live`
   // reflects the real connection state so the label below is truthful.
@@ -278,6 +284,21 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
           <Chip active={filter === "published"} onClick={() => setFilter("published")} count={stats.published}>Published</Chip>
           <Chip active={filter === "en"} onClick={() => setFilter("en")} count={stats.en}>EN</Chip>
           <Chip active={filter === "vi"} onClick={() => setFilter("vi")} count={stats.vi}>VI</Chip>
+          {/* Tag chips sit alongside the status/language ones because they
+              compose with them server-side: tag AND status are separate WHERE
+              clauses, so picking both narrows rather than replaces. Clicking an
+              active tag clears it. */}
+          {tags.length > 0 && <span className="mx-1 text-zinc-700">|</span>}
+          {tags.map((t) => (
+            <Chip
+              key={t.tag}
+              active={tag === t.tag}
+              onClick={() => setTag(tag === t.tag ? null : t.tag)}
+              count={t.count}
+            >
+              #{t.tag}
+            </Chip>
+          ))}
           <input
             type="search"
             value={query}

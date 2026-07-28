@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { subscribe } from "../api.js";
 import { Editor, rootCtx, defaultValueCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
@@ -184,6 +185,18 @@ async function rerenderTreasure(id) {
   const path = `/api/treasures/${encodeURIComponent(id)}/rerender`;
   const r = await fetch(path, { method: "POST" });
   if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
+// Re-reads the artifact's ORIGIN document into a new version. Different verb
+// from rerender, which re-runs the pipeline over the already-stored source.
+async function refreshFromOrigin(id) {
+  const path = `/api/treasures/${encodeURIComponent(id)}/refresh`;
+  const r = await fetch(path, { method: "POST" });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.detail || `${path}: ${r.status}`);
+  }
   return r.json();
 }
 
@@ -402,6 +415,35 @@ function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {
   );
 }
 
+function EditModeToggle({ mode, onChange }) {
+  const label = { wysiwyg: "wysiwyg", raw: "raw markdown" };
+  return (
+    <div className="mb-2 flex items-center gap-2">
+      {["wysiwyg", "raw"].map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => onChange(m)}
+          title={m === "raw"
+            ? "Plain textarea — pasted markdown is stored byte-for-byte"
+            : "Rich editor — a paste is reparsed through the editor's schema"}
+          className={`rounded-md px-2 py-0.5 font-mono text-[10px] uppercase tracking-wide transition-colors ${
+            mode === m ? "bg-emerald-500/15 text-emerald-400"
+                       : "text-zinc-500 hover:bg-zinc-500/5"
+          }`}
+        >
+          {label[m]}
+        </button>
+      ))}
+      {mode === "raw" && (
+        <span className="font-mono text-[10px] text-zinc-500">
+          nothing is reparsed — safe for pasting a whole document
+        </span>
+      )}
+    </div>
+  );
+}
+
 function SaveRow({ onSave, saving, disabled, savedVersion, saveError }) {
   return (
     <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -445,6 +487,56 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
   const [headSaving, setHeadSaving] = useState(false);
   const [headError, setHeadError] = useState(null);
   const [headSaved, setHeadSaved] = useState(false);
+  const [updating, setUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState(null);
+  // "wysiwyg" | "raw". Raw exists because Milkdown PARSES a paste: dropping a
+  // whole markdown document into it goes through the ProseMirror schema, which
+  // rewrites anything the schema does not model (our component tags become
+  // inline html chips, list bullets get normalised) — fine for editing prose,
+  // wrong for replacing a document wholesale. Raw is a plain textarea, so
+  // pasted markdown is stored byte-for-byte.
+  const [editMode, setEditMode] = useState("wysiwyg");
+  // Bumping this remounts Milkdown so it reloads from `draft`. Needed because
+  // Milkdown owns its document internally: without a remount, raw edits would be
+  // invisible to it and the next WYSIWYG save would silently overwrite them.
+  const [milkdownKey, setMilkdownKey] = useState(0);
+
+  const switchEditMode = (next) => {
+    if (next === editMode) return;
+    if (next === "raw") {
+      // Seed the textarea from Milkdown's CURRENT text, not the last-loaded
+      // source, or switching would discard whatever was just typed.
+      if (apiRef.current) setDraft(apiRef.current());
+    } else {
+      setMilkdownReady(false);
+      setMilkdownKey((k) => k + 1);
+    }
+    setEditMode(next);
+  };
+
+  // Pull the origin document's current state into a new version. The badge that
+  // reveals this button comes from `origin_stale`, which the server computes on
+  // read rather than storing — a stored flag would be wrong the moment the file
+  // changed while the service was down.
+  const updateFromOrigin = async () => {
+    setUpdating(true);
+    setUpdateError(null);
+    try {
+      await refreshFromOrigin(id);
+      const fresh = await fetchTreasure(id);
+      setDetail(fresh);
+      // The stored source just changed underneath the editor, so reload it —
+      // otherwise the next save would write the pre-update text back.
+      setDraft(fresh.source || "");
+      setMilkdownReady(false);
+      setMilkdownKey((k) => k + 1);
+      setPreviewNonce((n) => n + 1);
+    } catch (e) {
+      setUpdateError(String(e.message || e));
+    } finally {
+      setUpdating(false);
+    }
+  };
 
   // font/custom_head are render inputs (service.update_meta doesn't touch
   // artifact.html), so every change here is PATCH-then-rerender, then a
@@ -533,6 +625,19 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
         else setDetailError(String(e.message || e));
       });
     return () => { live = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  // The server watches this artifact's origin document and pings the SSE stream
+  // when it changes; refetching here is what makes the "origin changed" badge
+  // appear without a manual reload. Only the row is refetched — never the editor
+  // content, which would discard whatever the user is typing.
+  useEffect(() => {
+    return subscribe(() => {
+      fetchTreasure(id)
+        .then((d) => setDetail((prev) => (prev ? { ...prev, ...d, source: prev.source } : d)))
+        .catch(() => {});
+    });
   }, [id]);
 
   const published = detail?.status === "published";
@@ -541,7 +646,10 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
 
   const save = async () => {
     if (saving || published) return;
-    const content = isMarkdown ? (apiRef.current ? apiRef.current() : draft) : draft;
+    // Raw mode is the textarea's own text; WYSIWYG serialises back out of
+    // Milkdown. An HTML-fragment source only ever has the textarea.
+    const useMilkdown = isMarkdown && editMode === "wysiwyg" && apiRef.current;
+    const content = useMilkdown ? apiRef.current() : draft;
     setSaving(true);
     setSaveError(null);
     try {
@@ -704,7 +812,40 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
           <FilePathLink path={detail.source_path} label="source.md" />
           <FilePathLink path={detail.artifact_path} label="artifact.html" />
+          {/* Read-only here: tags are set by an agent (treasure_tag) or by
+              clicking a chip in the list. Showing them makes that state visible
+              instead of something you have to query for. */}
+          {(detail.tags || []).map((t) => (
+            <span
+              key={t}
+              className="rounded-full border border-[color:var(--fd-hair-2)] px-2 py-0.5 font-mono text-[9px] text-zinc-400"
+            >
+              #{t}
+            </span>
+          ))}
         </div>
+        {/* The origin document moved on. Shown only when the server says so,
+            and only for an artifact wrapped from a real file — a transcript
+            origin cannot be re-read. Updating is a click, never automatic:
+            auto-refreshing on save would mint a version per editor flush. */}
+        {detail.origin_stale?.stale === true && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-amber-400">
+              origin changed
+            </span>
+            <button
+              type="button"
+              onClick={updateFromOrigin}
+              disabled={updating}
+              title={`Re-read ${detail.origin_stale.origin_path} into a new version`}
+              className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-amber-300 transition-colors hover:bg-amber-500/20 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {updating ? "Updating…" : "Update from source"}
+            </button>
+            <FilePathLink path={detail.origin_stale.origin_path} label="origin" />
+            {updateError && <span className="font-mono text-[10px] text-rose-400">{updateError}</span>}
+          </div>
+        )}
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <label className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">Font</label>
           <select
@@ -796,16 +937,31 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
            would discard whatever the user had typed. */}
         {!published && isMarkdown && (
           <div className={tab === "edit" ? "" : "hidden"}>
-            <MarkdownEditor
-              defaultValue={detail.source}
-              apiRef={apiRef}
-              onReady={() => setMilkdownReady(true)}
-              font={detail.font || "space-grotesk"}
-            />
+            <EditModeToggle mode={editMode} onChange={switchEditMode} />
+            {/* Raw is a sibling, not a replacement: Milkdown stays mounted so
+                switching back and forth cannot lose its document. */}
+            <div className={editMode === "raw" ? "hidden" : ""}>
+              <MarkdownEditor
+                key={milkdownKey}
+                defaultValue={draft}
+                apiRef={apiRef}
+                onReady={() => setMilkdownReady(true)}
+                font={detail.font || "space-grotesk"}
+              />
+            </div>
+            {editMode === "raw" && (
+              <textarea
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                spellCheck={false}
+                placeholder="Paste markdown here — stored byte-for-byte, nothing is reparsed."
+                className="h-[55vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
+              />
+            )}
             <SaveRow
               onSave={save}
               saving={saving}
-              disabled={saving || !milkdownReady}
+              disabled={saving || (editMode === "wysiwyg" && !milkdownReady)}
               savedVersion={savedVersion}
               saveError={saveError}
             />

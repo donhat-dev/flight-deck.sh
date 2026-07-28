@@ -28,21 +28,72 @@ def _db_path(request: Request) -> str:
 def list_treasures(request: Request, status: str | None = None,
                    language: str | None = None, kind: str | None = None,
                    origin_id: str | None = None, query: str | None = None,
+                   origin_root: str | None = None, tag: str | None = None,
                    limit: int = 200, offset: int = 0):
     with db.read_conn(_db_path(request)) as conn:
         rows = service.list_rows(conn, status=status, language=language,
                                  kind=kind, origin_id=origin_id, query=query,
+                                 origin_root=origin_root, tag=tag,
                                  limit=limit, offset=offset)
     return {"treasures": rows, "count": len(rows)}
 
 
+@router.get("/api/treasure-tags")
+def list_tags(request: Request):
+    """Every tag in use with its count — the dashboard's filter chips."""
+    with db.read_conn(_db_path(request)) as conn:
+        return {"tags": store.all_tags(conn)}
+
+
+class TagsIn(BaseModel):
+    add: list[str] | None = None
+    remove: list[str] | None = None
+    set: list[str] | None = None
+
+
+@router.post("/api/treasures/{ident}/tags")
+def tag_treasure(request: Request, ident: str, body: TagsIn):
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        if body.set is not None:
+            return service.set_tags(conn, ident, body.set)
+        return service.tag(conn, ident, add=body.add, remove=body.remove)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")
+
+
 @router.get("/api/treasures/{ident}")
 def get_treasure(request: Request, ident: str, include_source: bool = False):
+    """The detail row, always with the origin-staleness verdict attached so the
+    dashboard can offer its Update button without a second round trip."""
     with db.read_conn(_db_path(request)) as conn:
-        row = service.get(conn, ident, include_source=include_source)
+        row = service.get(conn, ident, include_source=include_source,
+                          include_stale=True)
     if row is None:
         raise HTTPException(status_code=404, detail="treasure not found")
     return row
+
+
+@router.post("/api/treasures/{ident}/refresh")
+def refresh_treasure(request: Request, ident: str):
+    """Re-read the artifact's origin document into a NEW version.
+
+    Distinct from /rerender, which re-runs the pipeline over the source already
+    stored. This is the "the file moved on" verb behind the dashboard's Update
+    button; it refuses an origin that is not a re-readable document.
+    """
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        return service.refresh(conn, ident)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")
+    except lint.ComponentError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except ValueError as e:
+        # not refreshable (transcript/URL origin), or an invalid stored field
+        raise HTTPException(status_code=409, detail=str(e))
+    except (OSError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {e}")
 
 
 @router.get("/api/treasures/{ident}/raw")

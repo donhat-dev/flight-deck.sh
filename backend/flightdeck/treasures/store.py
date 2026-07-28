@@ -45,21 +45,129 @@ CREATE TABLE IF NOT EXISTS treasures (
 )
 """
 
+# Tags live in their own table rather than a comma-joined column, so filtering
+# is an indexed join instead of a LIKE over a string, and a rename is one UPDATE.
+# ON DELETE CASCADE means service.delete needs no extra step: dropping the
+# artifact row drops its tags with it.
+_DDL_TAGS = """
+CREATE TABLE IF NOT EXISTS treasure_tags (
+  treasure_id text NOT NULL REFERENCES treasures(id) ON DELETE CASCADE,
+  tag         text NOT NULL,
+  PRIMARY KEY (treasure_id, tag)
+)
+"""
+
 _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_treasures_origin ON treasures(origin_id)",
     "CREATE INDEX IF NOT EXISTS idx_treasures_status ON treasures(status)",
     "CREATE INDEX IF NOT EXISTS idx_treasures_slug ON treasures(slug)",
     "CREATE INDEX IF NOT EXISTS idx_treasures_srcsum ON treasures(source_checksum)",
+    # origin_root filters are prefix scans on this column.
+    "CREATE INDEX IF NOT EXISTS idx_treasures_originpath ON treasures(origin_path)",
+    "CREATE INDEX IF NOT EXISTS idx_treasure_tags_tag ON treasure_tags(tag)",
 )
 
 
 def init(conn) -> None:
-    """Create the table + indexes if absent. Safe to call on every startup."""
+    """Create the tables + indexes if absent. Safe to call on every startup."""
     conn.execute(_DDL)
+    conn.execute(_DDL_TAGS)
     for stmt in _INDEXES:
         conn.execute(stmt)
     _ensure_font_column(conn)
     _ensure_custom_head_column(conn)
+    conn.commit()
+
+
+# --- tags -------------------------------------------------------------------
+def _clean_tags(tags) -> list[str]:
+    """Normalise to lowercase, trimmed, deduped, order preserved.
+
+    Normalising on the way IN is what makes `tag=` filtering exact-match: with
+    raw input, `Billing`, `billing ` and `billing` would be three tags.
+    """
+    out, seen = [], set()
+    for t in tags or []:
+        v = str(t).strip().lower()
+        if v and v not in seen:
+            seen.add(v)
+            out.append(v)
+    return out
+
+
+def tags_of(conn, treasure_id: str) -> list[str]:
+    rows = conn.execute(
+        "SELECT tag FROM treasure_tags WHERE treasure_id=? ORDER BY tag",
+        (treasure_id,)).fetchall()
+    return [r[0] for r in rows]
+
+
+def set_tags(conn, treasure_id: str, tags) -> list[str]:
+    """Replace the artifact's tag set."""
+    conn.execute("DELETE FROM treasure_tags WHERE treasure_id=?", (treasure_id,))
+    for tag in _clean_tags(tags):
+        conn.execute(
+            "INSERT INTO treasure_tags (treasure_id, tag) VALUES (?, ?)",
+            (treasure_id, tag))
+    conn.commit()
+    return tags_of(conn, treasure_id)
+
+
+def add_tags(conn, treasure_id: str, tags) -> list[str]:
+    existing = set(tags_of(conn, treasure_id))
+    for tag in _clean_tags(tags):
+        if tag not in existing:
+            conn.execute(
+                "INSERT INTO treasure_tags (treasure_id, tag) VALUES (?, ?)",
+                (treasure_id, tag))
+    conn.commit()
+    return tags_of(conn, treasure_id)
+
+
+def remove_tags(conn, treasure_id: str, tags) -> list[str]:
+    for tag in _clean_tags(tags):
+        conn.execute(
+            "DELETE FROM treasure_tags WHERE treasure_id=? AND tag=?",
+            (treasure_id, tag))
+    conn.commit()
+    return tags_of(conn, treasure_id)
+
+
+def all_tags(conn) -> list[dict]:
+    """Every tag in use with its artifact count, most-used first."""
+    rows = conn.execute(
+        "SELECT tag, COUNT(*) AS n FROM treasure_tags "
+        "GROUP BY tag ORDER BY n DESC, tag ASC").fetchall()
+    return [{"tag": r[0], "count": r[1]} for r in rows]
+
+
+def tags_for(conn, treasure_ids) -> dict[str, list[str]]:
+    """Tags for many artifacts in ONE query, keyed by id.
+
+    Listing 97 rows must not become 97 tag queries.
+    """
+    ids = list(treasure_ids)
+    if not ids:
+        return {}
+    marks = ",".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT treasure_id, tag FROM treasure_tags "
+        f"WHERE treasure_id IN ({marks}) ORDER BY tag", tuple(ids)).fetchall()
+    out: dict[str, list[str]] = {i: [] for i in ids}
+    for r in rows:
+        out.setdefault(r[0], []).append(r[1])
+    return out
+
+
+def delete_tags(conn, treasure_id: str) -> None:
+    """Drop an artifact's tags.
+
+    The FK carries ON DELETE CASCADE, but SQLite does not enforce foreign keys
+    unless `PRAGMA foreign_keys=ON` is set per connection — so the delete path
+    does it explicitly and the constraint stays as the Postgres-side guarantee
+    against orphans.
+    """
+    conn.execute("DELETE FROM treasure_tags WHERE treasure_id=?", (treasure_id,))
     conn.commit()
 
 
@@ -123,8 +231,17 @@ def delete(conn, art_id: str) -> int:
 
 
 def list_rows(conn, *, status=None, language=None, kind=None, origin_id=None,
-              query=None, limit=100, offset=0) -> list[dict]:
-    """Filtered, newest-first listing. `query` matches title or slug."""
+              query=None, origin_root=None, tag=None,
+              limit=100, offset=0) -> list[dict]:
+    """Filtered, newest-first listing.
+
+    `query`       matches title or slug.
+    `origin_root` matches the START of origin_path, so one call answers "every
+                  artifact that came out of this folder (or this site)". Works
+                  for a filesystem root and for a URL prefix alike, since both
+                  are just origin_path prefixes.
+    `tag`         restricts to artifacts carrying that tag.
+    """
     where, params = [], []
     for col, val in (("status", status), ("language", language),
                      ("kind", kind), ("origin_id", origin_id)):
@@ -135,6 +252,17 @@ def list_rows(conn, *, status=None, language=None, kind=None, origin_id=None,
         where.append("(lower(title) LIKE ? OR lower(slug) LIKE ?)")
         like = f"%{query.lower()}%"
         params += [like, like]
+    if origin_root:
+        # Prefix match, not LIKE %…%: a root is an anchor, and escaping the
+        # wildcards a path can contain is not worth it for a substring search.
+        # ESCAPE is spelled out because SQLite has NO default escape character
+        # for LIKE — without it the backslashes below would be literal and the
+        # escaping would silently do nothing.
+        where.append("origin_path LIKE ? ESCAPE '\\'")
+        params.append(_like_prefix(origin_root))
+    if tag:
+        where.append("id IN (SELECT treasure_id FROM treasure_tags WHERE tag=?)")
+        params.append(tag.strip().lower())
     clause = (" WHERE " + " AND ".join(where)) if where else ""
     cols = ",".join(COLUMNS)
     params += [int(limit), int(offset)]
@@ -142,3 +270,14 @@ def list_rows(conn, *, status=None, language=None, kind=None, origin_id=None,
         f"SELECT {cols} FROM treasures{clause} "
         f"ORDER BY updated_at DESC LIMIT ? OFFSET ?", tuple(params)).fetchall()
     return [_as_dict(r) for r in rows]
+
+
+def _like_prefix(root: str) -> str:
+    """`root` as a LIKE prefix pattern, with LIKE's own wildcards escaped.
+
+    A path or URL may legitimately contain `%` or `_` (`report_v2`, an
+    encoded space), and an unescaped `_` matches any character — so a naive
+    pattern would quietly over-match.
+    """
+    escaped = root.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return escaped + "%"
