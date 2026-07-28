@@ -212,15 +212,31 @@ function MilkdownPane({ defaultValue, apiRef, onReady }) {
 
 // Scoped so it never leaks onto other `.md` prose elsewhere in the app
 // (SessionDetail's own transcript rendering keeps the FlightDeck theme).
+//
+// Every rule here exists because `.md` (index.css) sets that SAME property
+// to a FlightDeck-theme value that isn't just a color — font-weight and
+// font-family differ too, not only the palette. Found live: <strong> was
+// rendering at weight 600 here vs the real artifact's 700 (only `color` had
+// been overridden), and a fenced code block kept `.md pre`'s dark
+// #08090c background inside an otherwise light editor. Audited every `.md`
+// rule against tokens.css's equivalent and override each property that
+// actually differs, not just the ones that looked obviously wrong.
 const ARTIFACT_SKIN_CSS = `
 .treasure-artifact-skin.md a { color: #1668e3; text-decoration-color: rgba(22,104,227,.35); }
 .treasure-artifact-skin.md a:hover { color: #0d4fb8; text-decoration-color: currentColor; }
-.treasure-artifact-skin.md strong { color: #0d1a29; }
+.treasure-artifact-skin.md strong { color: #0d1a29; font-weight: 700; }
 .treasure-artifact-skin.md h1, .treasure-artifact-skin.md h2,
 .treasure-artifact-skin.md h3, .treasure-artifact-skin.md h4 { color: #0d1a29; }
-.treasure-artifact-skin.md blockquote { border-left-color: #1668e3; color: #334860; }
+.treasure-artifact-skin.md blockquote { border-left-color: #1668e3; color: #334860; font-weight: 600; }
 .treasure-artifact-skin.md hr { border-top-color: #d9e2ec; }
-.treasure-artifact-skin.md code { background: #eef3f8; border: 1px solid #d9e2ec; border-radius: 6px; color: #0d1a29; }
+.treasure-artifact-skin.md code {
+  background: #eef3f8; border: 1px solid #d9e2ec; border-radius: 6px; color: #0d1a29;
+  font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
+}
+.treasure-artifact-skin.md pre { background: #ffffff; border-color: #d9e2ec; }
+.treasure-artifact-skin.md pre code { color: #0d1a29; }
+.treasure-artifact-skin.md th, .treasure-artifact-skin.md td { border-color: #d9e2ec; }
+.treasure-artifact-skin.md th { background: #eef3f8; color: #0d1a29; font-weight: 700; }
 `;
 
 function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {
