@@ -19,6 +19,12 @@
   font-weight: 400 700;
   font-display: swap;
 }
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('fonts/jetbrains-mono-vietnamese.woff2') format('woff2');
+  font-weight: 400 700;
+  font-display: swap;
+}
 
 :root {
   --paper: #f5f8fb;      /* cool paper bg, never warm beige */
@@ -49,6 +55,12 @@ body {
   line-height: 1.62;
   -webkit-font-smoothing: antialiased;
 }
+/* font selection (treasure_wrap `font`): the class always wins over the base
+   body rule above (higher specificity, same as any body.foo override), so
+   "default" and "jetbrains-mono" don't need !important to take effect. */
+body.font-default { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+body.font-space-grotesk { font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif; }
+body.font-jetbrains-mono { font-family: 'JetBrains Mono', ui-monospace, "SF Mono", monospace; }
 
 /* §3 uses TWO width tiers: a wide page wrap (up to 1760px on the reference's
    multi-column report) so wide components can breathe, and prose capped at

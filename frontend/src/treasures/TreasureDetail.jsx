@@ -8,6 +8,13 @@ import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
 // no colors, so it is safe under both Night and Day. See the design note
 // above MarkdownEditor for why we don't also pull in a Milkdown theme.
 import "@milkdown/prose/view/style/prosemirror.css";
+// The same two fonts Treasures' own tokens.css can embed into an artifact
+// (backend/flightdeck/treasures/templates/fonts/*.woff2), loaded here too so
+// the Edit tab can render the source in the artifact's real typeface instead
+// of approximating it — true WYSIWYG, not "close enough".
+import "@fontsource-variable/space-grotesk/wght.css";
+import "@fontsource/jetbrains-mono/vietnamese-400.css";
+import "@fontsource/jetbrains-mono/vietnamese-700.css";
 
 /* ---- Treasure detail: its own #/treasure/<id> page ----------------------
  * Was the bottom half of TreasuresView's combined list+detail pane; moved to
@@ -45,6 +52,26 @@ function kb(bytes) {
   return `${(bytes / 1024).toFixed(1)} KB`;
 }
 
+// vscode's registered protocol handler opens a local file straight from a
+// browser link — no server round-trip, works because these paths are on the
+// same machine the browser (and VS Code) run on.
+function vscodeUri(path) {
+  return path ? `vscode://file${path}` : undefined;
+}
+
+function FilePathLink({ path, label }) {
+  if (!path) return null;
+  return (
+    <a
+      href={vscodeUri(path)}
+      title={`Open in VS Code: ${path}`}
+      className="inline-flex items-center gap-1 font-mono text-[10px] text-zinc-500 transition-colors hover:text-emerald-300"
+    >
+      ↗ {label}
+    </a>
+  );
+}
+
 const STATUS_TONE = {
   draft: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
   published: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
@@ -68,6 +95,21 @@ function LanguageBadge({ language }) {
     </span>
   );
 }
+
+// Mirrors render.FONTS in the backend (backend/flightdeck/treasures/render.py)
+// — keep the two lists in sync by hand, there is no shared source yet.
+const FONT_OPTIONS = [
+  { value: "space-grotesk", label: "Space Grotesk" },
+  { value: "jetbrains-mono", label: "JetBrains Mono" },
+  { value: "default", label: "Default (system)" },
+];
+// The Edit pane's own font-family, so it matches whichever a treasure has
+// picked instead of always showing Space Grotesk.
+const FONT_STACK = {
+  "space-grotesk": "'Space Grotesk Variable', system-ui, sans-serif",
+  "jetbrains-mono": "'JetBrains Mono', ui-monospace, monospace",
+  "default": "system-ui, -apple-system, 'Segoe UI', sans-serif",
+};
 
 function ProvenanceLink({ originId, onOpenSession }) {
   if (!originId) return null;
@@ -112,15 +154,40 @@ async function putSource(id, content) {
   return r.json();
 }
 
+// PATCH is metadata-only (matches service.update_meta) — the caller must
+// follow with rerenderTreasure for the change to reach artifact.html on disk.
+async function patchTreasure(id, body) {
+  const path = `/api/treasures/${encodeURIComponent(id)}`;
+  const r = await fetch(path, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.detail || `${path}: ${r.status}`);
+  }
+  return r.json();
+}
+
+async function rerenderTreasure(id) {
+  const path = `/api/treasures/${encodeURIComponent(id)}/rerender`;
+  const r = await fetch(path, { method: "POST" });
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
 /* ---- Milkdown WYSIWYG pane (markdown sources only) ------------------------
  * Deliberately skips importing a Milkdown theme package (e.g. theme-nord):
  * its bundled CSS ships its own light-leaning defaults (`prefers-color-scheme`
  * only, not our app's manual Night/Day toggle) and would fight our tokens.
  * Instead the mount point wears `.md` — the same theme-aware markdown-prose
- * class SessionDetail's renderer uses (src/index.css) — so headings, lists,
- * code, blockquotes and tables already read correctly in both themes without
- * any new global CSS. Only `prosemirror.css` is imported above, for
- * structural behavior (whitespace handling), not color.
+ * class SessionDetail's renderer uses (src/index.css) — for structural rules
+ * (heading sizes, list/blockquote spacing). `.treasure-artifact-skin` (below)
+ * then overrides `.md`'s FlightDeck-theme colors with the artifact's actual
+ * tokens.css palette, so editing looks like the real output, not a FlightDeck
+ * panel — true WYSIWYG, not "close enough". Only `prosemirror.css` is
+ * imported above, for structural behavior (whitespace handling), not color.
  */
 function MilkdownPane({ defaultValue, apiRef, onReady }) {
   const { get, loading } = useEditor(
@@ -143,9 +210,27 @@ function MilkdownPane({ defaultValue, apiRef, onReady }) {
   return <Milkdown />;
 }
 
-function MarkdownEditor({ defaultValue, apiRef, onReady }) {
+// Scoped so it never leaks onto other `.md` prose elsewhere in the app
+// (SessionDetail's own transcript rendering keeps the FlightDeck theme).
+const ARTIFACT_SKIN_CSS = `
+.treasure-artifact-skin.md a { color: #1668e3; text-decoration-color: rgba(22,104,227,.35); }
+.treasure-artifact-skin.md a:hover { color: #0d4fb8; text-decoration-color: currentColor; }
+.treasure-artifact-skin.md strong { color: #0d1a29; }
+.treasure-artifact-skin.md h1, .treasure-artifact-skin.md h2,
+.treasure-artifact-skin.md h3, .treasure-artifact-skin.md h4 { color: #0d1a29; }
+.treasure-artifact-skin.md blockquote { border-left-color: #1668e3; color: #334860; }
+.treasure-artifact-skin.md hr { border-top-color: #d9e2ec; }
+.treasure-artifact-skin.md code { background: #eef3f8; border: 1px solid #d9e2ec; border-radius: 6px; color: #0d1a29; }
+`;
+
+function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {
   return (
-    <div className="md h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-4 text-[13px] leading-relaxed text-zinc-200 focus-within:border-emerald-500/40">
+    <div
+      className="treasure-artifact-skin md h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] p-4 text-[13.5px] leading-relaxed focus-within:border-emerald-500/40"
+      style={{ background: "#f5f8fb", color: "#0d1a29",
+              fontFamily: FONT_STACK[font] || FONT_STACK["space-grotesk"] }}
+    >
+      <style>{ARTIFACT_SKIN_CSS}</style>
       <MilkdownProvider>
         <MilkdownPane defaultValue={defaultValue} apiRef={apiRef} onReady={onReady} />
       </MilkdownProvider>
@@ -189,6 +274,50 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [fontSaving, setFontSaving] = useState(false);
+  const [fontError, setFontError] = useState(null);
+  const [headOpen, setHeadOpen] = useState(false);
+  const [headDraft, setHeadDraft] = useState("");
+  const [headSaving, setHeadSaving] = useState(false);
+  const [headError, setHeadError] = useState(null);
+  const [headSaved, setHeadSaved] = useState(false);
+
+  // font/custom_head are render inputs (service.update_meta doesn't touch
+  // artifact.html), so every change here is PATCH-then-rerender, then a
+  // fresh GET so the header (render_bytes/updated_at) and the iframe agree.
+  const applyRenderInput = async (patch) => {
+    await patchTreasure(id, patch);
+    await rerenderTreasure(id);
+    const fresh = await fetchTreasure(id);
+    setDetail(fresh);
+    setPreviewNonce((n) => n + 1);
+  };
+
+  const changeFont = async (value) => {
+    setFontSaving(true);
+    setFontError(null);
+    try {
+      await applyRenderInput({ font: value });
+    } catch (e) {
+      setFontError(String(e.message || e));
+    } finally {
+      setFontSaving(false);
+    }
+  };
+
+  const saveCustomHead = async () => {
+    setHeadSaving(true);
+    setHeadError(null);
+    setHeadSaved(false);
+    try {
+      await applyRenderInput({ custom_head: headDraft });
+      setHeadSaved(true);
+    } catch (e) {
+      setHeadError(String(e.message || e));
+    } finally {
+      setHeadSaving(false);
+    }
+  };
 
   // Permanent delete. Armed by a first click (see the back-nav), and the API
   // still requires ?confirm=true, so both layers must agree before anything on
@@ -231,6 +360,8 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
         if (!live) return;
         setDetail(d);
         setDraft(d.source || "");
+        setHeadDraft(d.custom_head || "");
+        setHeadSaved(false);
       })
       .catch((e) => {
         if (!live) return;
@@ -406,6 +537,26 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
             </>
           )}
         </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <FilePathLink path={detail.source_path} label="source.md" />
+          <FilePathLink path={detail.artifact_path} label="artifact.html" />
+        </div>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <label className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">Font</label>
+          <select
+            value={detail.font || "space-grotesk"}
+            disabled={fontSaving || published}
+            onChange={(e) => changeFont(e.target.value)}
+            title={published ? "Published artifacts are read-only from the dashboard" : "Change the body font and rerender"}
+            className="rounded-md border border-[color:var(--fd-hair-2)] bg-zinc-950/40 px-2 py-0.5 font-mono text-[10px] text-zinc-300 disabled:opacity-50"
+          >
+            {FONT_OPTIONS.map((f) => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+          {fontSaving && <span className="font-mono text-[10px] text-zinc-500">rerendering…</span>}
+          {fontError && <span className="font-mono text-[10px] text-rose-400">{fontError}</span>}
+        </div>
         {detail.published_url && (
           <p className="mt-2.5 text-[11px] text-amber-300/90">
             Published —{" "}
@@ -485,6 +636,7 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
               defaultValue={detail.source}
               apiRef={apiRef}
               onReady={() => setMilkdownReady(true)}
+              font={detail.font || "space-grotesk"}
             />
             <SaveRow
               onSave={save}
@@ -510,6 +662,45 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
               savedVersion={savedVersion}
               saveError={saveError}
             />
+          </div>
+        )}
+
+        {!published && tab === "edit" && (
+          <div className="mt-5 border-t border-[color:var(--fd-hair-2)] pt-4">
+            <button
+              type="button"
+              onClick={() => setHeadOpen((o) => !o)}
+              className="font-mono text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300"
+            >
+              {headOpen ? "▾" : "▸"} Custom &lt;head&gt;
+            </button>
+            {headOpen && (
+              <div className="mt-2">
+                <p className="mb-2 text-[10px] text-zinc-500">
+                  Raw HTML spliced in right before &lt;/head&gt; — extra meta/style/link tags. Not
+                  escaped; only paste HTML you trust.
+                </p>
+                <textarea
+                  value={headDraft}
+                  onChange={(e) => { setHeadDraft(e.target.value); setHeadSaved(false); }}
+                  spellCheck={false}
+                  placeholder='<meta name="robots" content="noindex">'
+                  className="h-24 w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
+                />
+                <div className="mt-2 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={saveCustomHead}
+                    disabled={headSaving}
+                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    {headSaving ? "Saving…" : "Save & rerender"}
+                  </button>
+                  {headSaved && <span className="font-mono text-[10px] text-emerald-400">saved, preview reloaded</span>}
+                  {headError && <span className="font-mono text-[10px] text-rose-400">{headError}</span>}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

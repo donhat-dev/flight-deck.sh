@@ -108,21 +108,41 @@ class MetaUpdateIn(BaseModel):
     kind: str | None = None
     language: str | None = None
     status: str | None = None
+    font: str | None = None
+    custom_head: str | None = None
 
 
 @router.patch("/api/treasures/{ident}")
 def patch_treasure(request: Request, ident: str, body: MetaUpdateIn):
-    """Change metadata (title/kind/language/status) without re-rendering.
-    Only the given fields are touched; the meta.json sidecar is rewritten so
-    disk and the index stay in agreement. Logic lives in service so the MCP
-    tool and this endpoint cannot drift apart."""
+    """Change metadata (title/kind/language/status/font/custom_head) without
+    re-rendering. Only the given fields are touched; the meta.json sidecar is
+    rewritten so disk and the index stay in agreement. Logic lives in service
+    so the MCP tool and this endpoint cannot drift apart.
+
+    font/custom_head are render inputs, not display-only metadata — this call
+    alone does not change the artifact.html already on disk. Follow with
+    POST .../rerender to bake the new value in."""
     conn = db.open_write(request.app.state.cfg["db_path"])
     try:
         return service.update_meta(conn, ident, title=body.title,
                                    kind=body.kind, language=body.language,
-                                   status=body.status)
+                                   status=body.status, font=body.font,
+                                   custom_head=body.custom_head)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except LookupError:
+        raise HTTPException(status_code=404, detail="treasure not found")
+
+
+@router.post("/api/treasures/{ident}/rerender")
+def rerender_treasure(request: Request, ident: str):
+    """Re-render the current version in place from its stored source — no
+    new version, no content change. The dashboard calls this right after a
+    PATCH that changes font/kind/language/status/custom_head, since those
+    only reach the HTML on disk through a render."""
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        return service.rerender(conn, ident)
     except LookupError:
         raise HTTPException(status_code=404, detail="treasure not found")
 

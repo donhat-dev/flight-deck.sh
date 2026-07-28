@@ -17,11 +17,12 @@ def now_iso() -> str:
 
 def wrap(conn, *, title, content, source_format="markdown", kind="report",
          language="en", origin_kind=None, origin_id=None, origin_path=None,
-         authored_at=None, artifact_id=None) -> dict:
+         authored_at=None, artifact_id=None, font=None, custom_head=None) -> dict:
     """Render `content` into a new artifact version and index it.
 
     Pass `artifact_id` to add a version to an existing artifact; omit it to
-    create a new one.
+    create a new one. `font`/`custom_head` default to the artifact's current
+    value (or the house default) when omitted, same as `status` below.
     """
     existing = store.get(conn, artifact_id) if artifact_id else None
     if existing:
@@ -44,10 +45,17 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
     # carries them, base64-embedded). When asset support lands, the artifact's
     # assets/ dir gets copied into this workdir before the call.
     status = existing["status"] if existing else "draft"
+    if font is not None and font not in VALID_FONT:
+        raise ValueError(f"invalid font: {font!r} "
+                         f"(expected one of {', '.join(VALID_FONT)})")
+    font = font or (existing or {}).get("font") or "space-grotesk"
+    custom_head = (custom_head if custom_head is not None
+                   else (existing or {}).get("custom_head"))
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
         rendered = render.render(content, source_format=source_format,
                                  title=title, language=language, kind=kind,
-                                 status=status, workdir=workdir)
+                                 status=status, font=font,
+                                 custom_head=custom_head, workdir=workdir)
     # Render succeeded — now the artifact dir is worth creating.
     art_dir = filestore.artifact_dir(slug, art_id)
     paths = filestore.write_version(art_dir, version, content, ext,
@@ -62,6 +70,8 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
         "kind": kind,
         "language": language,
         "status": status,
+        "font": font,
+        "custom_head": custom_head,
         "version": version,
         "source_format": source_format,
         "source_checksum": filestore.checksum(content),
@@ -109,6 +119,7 @@ def list_rows(conn, **filters):
 
 
 VALID_STATUS = ("draft", "published", "archived")
+VALID_FONT = render.FONTS
 
 
 def _save_meta(conn, row: dict) -> dict:
@@ -121,20 +132,27 @@ def _save_meta(conn, row: dict) -> dict:
 
 
 def update_meta(conn, ident, *, title=None, kind=None, language=None,
-                status=None) -> dict:
+                status=None, font=None, custom_head=None) -> dict:
     """Change metadata without re-rendering. Only the given fields move.
 
     Raises LookupError when the artifact is unknown and ValueError on an
-    unknown status, so each caller can map those to its own error shape.
+    unknown status/font, so each caller can map those to its own error shape.
+    Like kind/language/status, font/custom_head only reach the rendered HTML
+    on the next `wrap` (same artifact_id) or `rerender` call — this call alone
+    changes the index/meta.json, not the artifact.html already on disk.
     """
     if status is not None and status not in VALID_STATUS:
         raise ValueError(f"invalid status: {status!r} "
                          f"(expected one of {', '.join(VALID_STATUS)})")
+    if font is not None and font not in VALID_FONT:
+        raise ValueError(f"invalid font: {font!r} "
+                         f"(expected one of {', '.join(VALID_FONT)})")
     row = store.get(conn, ident)
     if row is None:
         raise LookupError(f"not found: {ident}")
     for field, val in (("title", title), ("kind", kind),
-                       ("language", language), ("status", status)):
+                       ("language", language), ("status", status),
+                       ("font", font), ("custom_head", custom_head)):
         if val is not None:
             row[field] = val
     return _save_meta(conn, row)
@@ -218,6 +236,8 @@ def rerender(conn, ident) -> dict:
         rendered = render.render(source, source_format=row["source_format"],
                                  title=row["title"], language=row["language"],
                                  kind=row["kind"], status=row["status"],
+                                 font=row.get("font") or "space-grotesk",
+                                 custom_head=row.get("custom_head"),
                                  workdir=workdir)
     Path(paths["artifact_path"]).write_text(rendered["html"], encoding="utf-8")
     row["render_checksum"] = filestore.checksum(rendered["html"])

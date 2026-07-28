@@ -102,6 +102,28 @@ def test_yaml_frontmatter_does_not_break_the_render(tmp_path):
     assert render.EXTERNAL_REF_RE.findall(html) == []
 
 
+def test_font_selects_the_body_class(tmp_path):
+    for font in ("default", "space-grotesk", "jetbrains-mono"):
+        out = render.render("# T\n", source_format="markdown", title="T",
+                            language="en", font=font, workdir=str(tmp_path))
+        assert f'font-{font}' in out["html"]
+
+
+def test_custom_head_is_spliced_before_head_close_tag(tmp_path):
+    head = '<meta name="robots" content="noindex"><style>.x{color:red}</style>'
+    out = render.render("# T\n", source_format="markdown", title="T",
+                        language="en", custom_head=head, workdir=str(tmp_path))
+    html = out["html"]
+    assert head in html
+    assert html.index(head) < html.index("</head>")
+
+
+def test_no_custom_head_means_no_extra_markup(tmp_path):
+    out = render.render("# T\n", source_format="markdown", title="T",
+                        language="en", workdir=str(tmp_path))
+    assert out["html"].count("</head>") == 1
+
+
 def test_a_real_horizontal_rule_is_not_mistaken_for_frontmatter(tmp_path):
     md = "---\n\nJust a rule above this paragraph.\n\n---\n\nAnd another.\n"
     out = render.render(md, source_format="markdown", title="Rules",

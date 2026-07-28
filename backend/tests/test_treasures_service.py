@@ -55,6 +55,65 @@ def test_wrap_same_id_bumps_version_and_keeps_history(monkeypatch, tmp_path):
     assert store.get(conn, first["id"])["version"] == 2
 
 
+def test_wrap_defaults_font_and_inherits_it_across_versions(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    first = service.wrap(conn, title="Doc", content="# One\n")
+    assert first["font"] == "space-grotesk"           # house default, unset
+    assert 'font-space-grotesk' in Path(first["artifact_path"]).read_text(encoding="utf-8")
+
+    picked = service.wrap(conn, title="Doc", content="# Two\n",
+                          artifact_id=first["id"], font="jetbrains-mono")
+    assert picked["font"] == "jetbrains-mono"
+
+    # omitted on the next wrap -> inherits the artifact's current font, not the house default
+    again = service.wrap(conn, title="Doc", content="# Three\n",
+                         artifact_id=first["id"])
+    assert again["font"] == "jetbrains-mono"
+    assert 'font-jetbrains-mono' in Path(again["artifact_path"]).read_text(encoding="utf-8")
+
+
+def test_wrap_rejects_unknown_font(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    with pytest.raises(ValueError):
+        service.wrap(conn, title="Doc", content="# One\n", font="comic-sans")
+
+
+def test_custom_head_is_spliced_verbatim_and_survives_rerender(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    head = '<meta name="robots" content="noindex">'
+    out = service.wrap(conn, title="Doc", content="# One\n", custom_head=head)
+    assert head in Path(out["artifact_path"]).read_text(encoding="utf-8")
+
+    again = service.rerender(conn, out["id"])
+    assert head in Path(again["artifact_path"]).read_text(encoding="utf-8")
+
+
+def test_update_meta_rejects_unknown_font(monkeypatch, tmp_path):
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    out = service.wrap(conn, title="Doc", content="# One\n")
+    with pytest.raises(ValueError):
+        service.update_meta(conn, out["id"], font="comic-sans")
+
+
+def test_update_meta_font_change_needs_rerender_to_reach_disk(monkeypatch, tmp_path):
+    """update_meta is metadata-only — the point of the split is that a stale
+    artifact.html survives until an explicit rerender, same as kind/status."""
+    monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
+    conn = _conn(tmp_path)
+    out = service.wrap(conn, title="Doc", content="# One\n")  # space-grotesk
+    before_html = Path(out["artifact_path"]).read_text(encoding="utf-8")
+
+    service.update_meta(conn, out["id"], font="jetbrains-mono")
+    assert Path(out["artifact_path"]).read_text(encoding="utf-8") == before_html
+
+    service.rerender(conn, out["id"])
+    assert 'font-jetbrains-mono' in Path(out["artifact_path"]).read_text(encoding="utf-8")
+
+
 def test_get_can_include_source_and_html(monkeypatch, tmp_path):
     monkeypatch.setenv("TREASURES_STORE", str(tmp_path / "store"))
     conn = _conn(tmp_path)

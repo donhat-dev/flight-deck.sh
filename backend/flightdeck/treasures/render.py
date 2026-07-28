@@ -84,12 +84,21 @@ def pandoc_path() -> str:
         "binary into ~/.flightdeck/bin, no root needed) or set TREASURES_PANDOC.")
 
 
+FONTS = ("default", "space-grotesk", "jetbrains-mono")
+
+
 def render(source_text: str, *, source_format: str, title: str,
            language: str = "en", kind: str = "report", status: str = "draft",
+           font: str = "space-grotesk", custom_head: str | None = None,
            workdir: str) -> dict:
     """Render `source_text` into a self-contained HTML string.
 
     source_format: "markdown" or "html" (an HTML fragment, not a document).
+    font: one of FONTS — a `body.font-{font}` class in tokens.css, so this is
+          a plain enum value, never raw markup.
+    custom_head: raw HTML spliced in right before `</head>` — NOT passed
+                 through pandoc's `-M` (which HTML-escapes metadata text), so
+                 arbitrary tags/attributes survive verbatim.
     workdir: a real directory; the template + fonts are copied in so pandoc can
              resolve the relative asset paths, and any `assets/` the caller has
              already placed there is picked up too.
@@ -132,6 +141,7 @@ def render(source_text: str, *, source_format: str, title: str,
         "-M", f"lang={language}",
         "-M", f"kind={kind}",
         "-M", f"status={status}",
+        "-M", f"font={font}",
     ]
     proc = subprocess.run(argv, cwd=str(work), capture_output=True,
                           text=True, timeout=120)
@@ -139,6 +149,8 @@ def render(source_text: str, *, source_format: str, title: str,
         raise RuntimeError(f"pandoc failed: {proc.stderr.strip()[:500]}")
 
     html = proc.stdout
+    if custom_head:
+        html = html.replace("</head>", f"{custom_head}\n</head>", 1)
     warnings = []
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")

@@ -9,12 +9,13 @@ Portable SQL only: `?` placeholders, ON CONFLICT upserts, TEXT ISO timestamps.
 The same DDL runs on SQLite (tests) and PostgreSQL (production), where the table
 is LOGGED because artifacts are user content, not derived ingest data.
 """
+from flightdeck import db
 
 COLUMNS = (
     "id", "title", "slug", "dir_path", "kind", "language", "status", "version",
     "source_format", "source_checksum", "render_checksum", "render_bytes",
     "origin_kind", "origin_id", "origin_path", "published_url", "duplicate_of",
-    "authored_at", "ingested_at", "updated_at",
+    "authored_at", "ingested_at", "updated_at", "font", "custom_head",
 )
 
 _DDL = """
@@ -38,7 +39,9 @@ CREATE TABLE IF NOT EXISTS treasures (
   duplicate_of    text,
   authored_at     text,
   ingested_at     text NOT NULL,
-  updated_at      text NOT NULL
+  updated_at      text NOT NULL,
+  font            text,
+  custom_head     text
 )
 """
 
@@ -55,7 +58,30 @@ def init(conn) -> None:
     conn.execute(_DDL)
     for stmt in _INDEXES:
         conn.execute(stmt)
+    _ensure_font_column(conn)
+    _ensure_custom_head_column(conn)
     conn.commit()
+
+
+def _ensure_font_column(conn) -> None:
+    """Migration: add font (default/space-grotesk/jetbrains-mono) to tables
+    created before font selection existed. NULL means "space-grotesk"."""
+    if db.is_postgres():
+        conn.execute("ALTER TABLE treasures ADD COLUMN IF NOT EXISTS font text")
+    else:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(treasures)").fetchall()}
+        if "font" not in cols:
+            conn.execute("ALTER TABLE treasures ADD COLUMN font TEXT")
+
+
+def _ensure_custom_head_column(conn) -> None:
+    """Migration: add custom_head (raw HTML injected before </head>)."""
+    if db.is_postgres():
+        conn.execute("ALTER TABLE treasures ADD COLUMN IF NOT EXISTS custom_head text")
+    else:
+        cols = {r[1] for r in conn.execute("PRAGMA table_info(treasures)").fetchall()}
+        if "custom_head" not in cols:
+            conn.execute("ALTER TABLE treasures ADD COLUMN custom_head TEXT")
 
 
 def upsert(conn, row: dict) -> dict:
