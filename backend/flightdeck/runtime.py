@@ -267,10 +267,15 @@ async def lifespan(app: FastAPI):
 
         def _refreshable_origins():
             try:
-                with rt.read_conn() as conn:
+                # Explicit close, not `with`: this connection comes from the
+                # pool and must be handed back on every path.
+                conn = rt.read_conn()
+                try:
                     from flightdeck.treasures import service as _svc
                     return {r["origin_path"] for r in _svc.list_rows(conn, limit=100000)
                             if _svc._refreshable(r)[0]}
+                finally:
+                    conn.close()
             except Exception:
                 return set()
 

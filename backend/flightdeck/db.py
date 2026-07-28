@@ -98,6 +98,19 @@ class _PgConn:
         else:
             self._c.close()
 
+    # `with open_read(...) as conn:` MUST route to close() above, i.e. return the
+    # connection to the pool. Without these, `__getattr__` below hands `with` to
+    # the wrapped psycopg connection's own context manager, which commits and
+    # leaves the connection checked out forever — a silent leak that only shows
+    # up when the pool is exhausted and every request starts timing out. That
+    # happened: eight debounced watcher pings killed the whole app.
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.close()
+        return False
+
     def __getattr__(self, name):
         return getattr(self._c, name)
 
