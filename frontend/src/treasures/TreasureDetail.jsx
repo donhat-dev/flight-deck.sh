@@ -4,17 +4,27 @@ import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
 import { getMarkdown } from "@milkdown/utils";
 import { Milkdown, MilkdownProvider, useEditor } from "@milkdown/react";
-// Structural editor reset only (whitespace handling, selected-node outline) —
-// no colors, so it is safe under both Night and Day. See the design note
-// above MarkdownEditor for why we don't also pull in a Milkdown theme.
+// Structural editor mechanics only (selection and editable-node handling).
+// The artifact skin below restores rendered-document whitespace rules; no
+// Milkdown theme is imported because it would bring a second visual system.
 import "@milkdown/prose/view/style/prosemirror.css";
 // The same two fonts Treasures' own tokens.css can embed into an artifact
 // (backend/flightdeck/treasures/templates/fonts/*.woff2), loaded here too so
 // the Edit tab can render the source in the artifact's real typeface instead
 // of approximating it — true WYSIWYG, not "close enough".
+//
+// Import the FULL faces, never a single subset. fontsource's `vietnamese-*.css`
+// files declare `font-family:'JetBrains Mono'` with NO `unicode-range`, so that
+// face claims the whole family while its file only carries Vietnamese glyphs:
+// every Latin character then falls back to the system monospace. Measured, the
+// bug was invisible-but-real — ASCII advance was 11.12px in the editor vs
+// 9.895px in the artifact, and because the `0` glyph was missing the CSS `ch`
+// unit degraded to its 0.5em spec fallback, making the 68ch prose measure
+// 561px instead of 672.85px. `400.css`/`700.css` declare all six subsets with
+// proper unicode-ranges, so the browser still downloads only what the text needs.
 import "@fontsource-variable/space-grotesk/wght.css";
-import "@fontsource/jetbrains-mono/vietnamese-400.css";
-import "@fontsource/jetbrains-mono/vietnamese-700.css";
+import "@fontsource/jetbrains-mono/400.css";
+import "@fontsource/jetbrains-mono/700.css";
 
 /* ---- Treasure detail: its own #/treasure/<id> page ----------------------
  * Was the bottom half of TreasuresView's combined list+detail pane; moved to
@@ -181,13 +191,12 @@ async function rerenderTreasure(id) {
  * Deliberately skips importing a Milkdown theme package (e.g. theme-nord):
  * its bundled CSS ships its own light-leaning defaults (`prefers-color-scheme`
  * only, not our app's manual Night/Day toggle) and would fight our tokens.
- * Instead the mount point wears `.md` — the same theme-aware markdown-prose
- * class SessionDetail's renderer uses (src/index.css) — for structural rules
- * (heading sizes, list/blockquote spacing). `.treasure-artifact-skin` (below)
- * then overrides `.md`'s FlightDeck-theme colors with the artifact's actual
- * tokens.css palette, so editing looks like the real output, not a FlightDeck
- * panel — true WYSIWYG, not "close enough". Only `prosemirror.css` is
- * imported above, for structural behavior (whitespace handling), not color.
+ *
+ * Do NOT put `.md` on this mount. That class is the independently-designed
+ * FlightDeck transcript theme used by SessionDetail, so borrowing it makes a
+ * second, drifting source of truth for type scale and spacing. The skin below
+ * mirrors tokens.css for this editor alone; `prosemirror.css` remains only for
+ * editor mechanics (whitespace handling and selected-node affordances).
  */
 function MilkdownPane({ defaultValue, apiRef, onReady }) {
   const { get, loading } = useEditor(
@@ -210,46 +219,145 @@ function MilkdownPane({ defaultValue, apiRef, onReady }) {
   return <Milkdown />;
 }
 
-// Scoped so it never leaks onto other `.md` prose elsewhere in the app
-// (SessionDetail's own transcript rendering keeps the FlightDeck theme).
-//
-// Every rule here exists because `.md` (index.css) sets that SAME property
-// to a FlightDeck-theme value that isn't just a color — font-weight and
-// font-family differ too, not only the palette. Found live: <strong> was
-// rendering at weight 600 here vs the real artifact's 700 (only `color` had
-// been overridden), and a fenced code block kept `.md pre`'s dark
-// #08090c background inside an otherwise light editor. Audited every `.md`
-// rule against tokens.css's equivalent and override each property that
-// actually differs, not just the ones that looked obviously wrong.
+// Scoped so it never leaks onto the `.md` transcript renderer in SessionDetail.
+// Keep this in lockstep with backend/.../templates/tokens.css: both contain the
+// artifact's complete prose rules rather than a handful of corrective overrides.
+// Milkdown inserts `.milkdown > .ProseMirror`, hence the content-root selector.
 const ARTIFACT_SKIN_CSS = `
-.treasure-artifact-skin.md a { color: #1668e3; text-decoration-color: rgba(22,104,227,.35); }
-.treasure-artifact-skin.md a:hover { color: #0d4fb8; text-decoration-color: currentColor; }
-.treasure-artifact-skin.md strong { color: #0d1a29; font-weight: 700; }
-.treasure-artifact-skin.md h1, .treasure-artifact-skin.md h2,
-.treasure-artifact-skin.md h3, .treasure-artifact-skin.md h4 { color: #0d1a29; }
-.treasure-artifact-skin.md blockquote { border-left-color: #1668e3; color: #334860; font-weight: 600; }
-.treasure-artifact-skin.md hr { border-top-color: #d9e2ec; }
-.treasure-artifact-skin.md code {
-  background: #eef3f8; border: 1px solid #d9e2ec; border-radius: 6px; color: #0d1a29;
+.treasure-editor-viewport { background: #f5f8fb; container-type: inline-size; }
+.treasure-artifact-skin {
+  box-sizing: border-box;
+  min-height: 100%;
+  max-width: min(1200px, 80cqw);
+  margin: 0 auto;
+  padding: clamp(2rem, 5cqw, 4rem) clamp(1.1rem, 4cqw, 2.6rem) 6rem;
+  background: #f5f8fb;
+  color: #0d1a29;
+  font-size: 16.5px;
+  font-weight: 400;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+/* Milkdown's structural stylesheet enables editor-oriented break-spaces and
+ * disables ligatures. Restore the artifact defaults for document content;
+ * its selected-node outline remains available as an editor-only affordance. */
+.treasure-artifact-skin .ProseMirror {
+  overflow-wrap: normal;
+  word-wrap: normal;
+  white-space: normal;
+  font-variant-ligatures: normal;
+  font-feature-settings: normal;
+}
+.treasure-artifact-skin .ProseMirror > h1:first-child {
+  margin: 0 0 1.4rem;
+  font-size: clamp(30px, 4.4cqw, 44px);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.015em;
+}
+.treasure-artifact-skin h1, .treasure-artifact-skin h2,
+.treasure-artifact-skin h3, .treasure-artifact-skin h4 {
+  font-weight: 700;
+  line-height: 1.25;
+  color: #0d1a29;
+}
+/* Tailwind's preflight removes the browser defaults which tokens.css retains
+ * for non-leading h1s, so restore them inside this isolated skin. */
+.treasure-artifact-skin h1 { font-size: 2em; margin: .67em 0; }
+.treasure-artifact-skin h2 {
+  margin: 3rem 0 1rem;
+  padding-bottom: .45rem;
+  font-size: 25px;
+  border-bottom: 1px solid #d9e2ec;
+}
+.treasure-artifact-skin h3 { margin: 2.2rem 0 .7rem; font-size: 19.5px; }
+.treasure-artifact-skin h4 { margin: 1.8rem 0 .5rem; font-size: 17px; color: #334860; }
+.treasure-artifact-skin h2 + h3 { margin-top: 1.2rem; }
+.treasure-artifact-skin p, .treasure-artifact-skin ul,
+.treasure-artifact-skin ol, .treasure-artifact-skin blockquote,
+.treasure-artifact-skin pre, .treasure-artifact-skin table,
+.treasure-artifact-skin figure { margin: 0 0 1.15rem; }
+.treasure-artifact-skin .ProseMirror > p,
+.treasure-artifact-skin .ProseMirror > ul,
+.treasure-artifact-skin .ProseMirror > ol,
+.treasure-artifact-skin .ProseMirror > blockquote { max-width: 68ch; }
+.treasure-artifact-skin ul, .treasure-artifact-skin ol { padding-left: 1.4rem; }
+.treasure-artifact-skin li { margin: .3rem 0; }
+.treasure-artifact-skin li > ul, .treasure-artifact-skin li > ol { margin: .3rem 0; }
+.treasure-artifact-skin strong { font-weight: 700; }
+.treasure-artifact-skin hr { height: 1px; margin: 2.5rem 0; border: 0; background: #d9e2ec; }
+.treasure-artifact-skin a { color: #1668e3; text-decoration-color: rgba(22,104,227,.35); }
+.treasure-artifact-skin a:hover { color: #0d4fb8; text-decoration-color: currentColor; }
+.treasure-artifact-skin code, .treasure-artifact-skin kbd,
+.treasure-artifact-skin samp, .treasure-artifact-skin pre {
   font-family: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, monospace;
 }
-.treasure-artifact-skin.md pre { background: #ffffff; border-color: #d9e2ec; }
-.treasure-artifact-skin.md pre code { color: #0d1a29; }
-.treasure-artifact-skin.md th, .treasure-artifact-skin.md td { border-color: #d9e2ec; }
-.treasure-artifact-skin.md th { background: #eef3f8; color: #0d1a29; font-weight: 700; }
+.treasure-artifact-skin code {
+  padding: .12em .38em;
+  font-size: .88em;
+  background: #eef3f8;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+}
+.treasure-artifact-skin pre {
+  overflow-x: auto;
+  white-space: pre;
+  padding: 1rem 1.1rem;
+  font-size: 13.5px;
+  line-height: 1.55;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 14px;
+}
+.treasure-artifact-skin pre code {
+  padding: 0;
+  font-size: inherit;
+  background: none;
+  border: 0;
+}
+.treasure-artifact-skin blockquote {
+  padding: .1rem 0 .1rem 1.1rem;
+  color: #334860;
+  font-weight: 600;
+  border-left: 3px solid #1668e3;
+}
+.treasure-artifact-skin blockquote > :last-child { margin-bottom: 0; }
+.treasure-artifact-skin table {
+  width: 100%;
+  overflow: hidden;
+  font-size: 14.5px;
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-collapse: collapse;
+  border-radius: 14px;
+}
+.treasure-artifact-skin th, .treasure-artifact-skin td {
+  padding: .55rem .7rem;
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+  border-bottom: 1px solid #d9e2ec;
+}
+.treasure-artifact-skin th { font-size: 15px; font-weight: 700; background: #eef3f8; }
+.treasure-artifact-skin tbody tr:last-child td { border-bottom: 0; }
+.treasure-artifact-skin img, .treasure-artifact-skin svg,
+.treasure-artifact-skin video { max-width: 100%; height: auto; }
+.treasure-artifact-skin figure { margin-inline: 0; }
+.treasure-artifact-skin figcaption { margin-top: .4rem; font-size: 13px; color: #334860; }
 `;
 
 function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {
   return (
-    <div
-      className="treasure-artifact-skin md h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] p-4 text-[13.5px] leading-relaxed focus-within:border-emerald-500/40"
-      style={{ background: "#f5f8fb", color: "#0d1a29",
-              fontFamily: FONT_STACK[font] || FONT_STACK["space-grotesk"] }}
-    >
-      <style>{ARTIFACT_SKIN_CSS}</style>
-      <MilkdownProvider>
-        <MilkdownPane defaultValue={defaultValue} apiRef={apiRef} onReady={onReady} />
-      </MilkdownProvider>
+    <div className="treasure-editor-viewport h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] focus-within:border-emerald-500/40">
+      <div
+        className="treasure-artifact-skin"
+        style={{ fontFamily: FONT_STACK[font] || FONT_STACK["space-grotesk"] }}
+      >
+        <style>{ARTIFACT_SKIN_CSS}</style>
+        <MilkdownProvider>
+          <MilkdownPane defaultValue={defaultValue} apiRef={apiRef} onReady={onReady} />
+        </MilkdownProvider>
+      </div>
     </div>
   );
 }
