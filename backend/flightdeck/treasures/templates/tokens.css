@@ -100,15 +100,70 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 
+/* The paper colour lives on <html>, not <body>, so body's own pseudo-elements
+   can paint the ambient background between the page colour and the content. A
+   `z-index:-1` pseudo of <body> would otherwise sit BEHIND body's background
+   and never be visible. */
+html { background: var(--paper); }
+
 body {
   margin: 0;
-  background: var(--paper);
+  background: transparent;
   color: var(--ink);
   font-family: 'Space Grotesk', system-ui, -apple-system, sans-serif;
   font-size: 16.5px;
   font-weight: 400;
   line-height: 1.62;
   -webkit-font-smoothing: antialiased;
+}
+
+/* --- ambient page background (canon §4: aurora + grain are permitted) ------
+ * This is the artifact SHELL's background, not a component: every artifact gets
+ * it, markdown-only documents included.
+ *
+ * The canonical hand-authored artifact spends four empty <div>s here — three
+ * blur blobs plus a grain overlay. A generated document must never have to carry
+ * empty divs, so the same look is rebuilt from body's two pseudo-elements: one
+ * holds all three blobs as stacked radial-gradient layers blurred as a group,
+ * the other holds the noise. Blob sizes, offsets, colours and the 90px blur are
+ * the canonical values.
+ *
+ * `fixed` rather than `absolute`: at shell level the wash should stay put while
+ * a long document scrolls, and it also keeps the blur bleed off-screen without
+ * ever adding a scrollbar.
+ */
+body::before {
+  content: "";
+  position: fixed;
+  /* Bleeds past the viewport so the blur's soft edge never shows as a seam. */
+  inset: -25vh -20vw;
+  z-index: -1;
+  pointer-events: none;
+  opacity: .5;
+  filter: blur(90px);
+  /* Positions are in vw/vh, NOT %, because the negative inset above makes this
+     box bigger than the viewport — a % would resolve against the box and push
+     the blob off-screen. The 25vh top bleed is why the vertical values are
+     offset: viewport y=0 sits at 25vh here.
+     The third blob is centred just past the viewport bottom (as the canonical
+     one is, at bottom:-260px), so only its upper arc shows and no circular
+     seam reads on a short document. */
+  background:
+    radial-gradient(560px 560px at 22vw 18vh, #7fb2ff 0%, transparent 65%),
+    radial-gradient(620px 620px at 82vw 30vh, #7fe6c3 0%, transparent 63%),
+    radial-gradient(420px 420px at 48vw 130vh, #bcd6ff 0%, transparent 60%);
+}
+/* Film grain. The noise is an inline SVG data URI, so the artifact stays
+   self-contained — w3.org in the xmlns is a namespace, never a fetch (see
+   render.EXTERNAL_REF_RE, which excludes it for exactly this reason). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: .05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
 }
 /* font selection (treasure_wrap `font`): the class always wins over the base
    body rule above (higher specificity, same as any body.foo override), so
@@ -281,6 +336,7 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; }
 
 /* --- hero: eyebrow paragraph, then the title, then an optional sub --------- */
 [data-component="hero"] {
+  position: relative;
   padding: 0 0 2.2rem;
   margin: 0 0 2.8rem;
   border-bottom: 1px solid var(--line);
@@ -366,7 +422,10 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; }
 
 /* --- print --------------------------------------------------------------- */
 @media print {
-  body { background: #fff; }
+  html, body { background: #fff; }
+  /* The ambient wash is screen decoration; on paper it only wastes toner and
+     muddies the text. */
+  body::before, body::after { display: none; }
   .doc { max-width: none; padding: 0; }
   pre, table { break-inside: avoid; }
 }
