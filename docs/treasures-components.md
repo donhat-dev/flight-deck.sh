@@ -153,8 +153,11 @@ Per the workspace rule that a guard needs a live negative test:
    disk or index.
 3. a forced degradation → the artifact contains no escaped `&lt;div
    data-component`, and the warning is present.
-4. a document using no components at all → output byte-identical to today, so
-   the existing library cannot regress.
+4. a document using no components at all → **no component markup in its body**,
+   so the existing library's rendering cannot regress. Note the rules
+   themselves do ship in every artifact's embedded CSS (one shared stylesheet
+   is the point), so the file is not byte-identical to a pre-component build —
+   only its body is.
 
 ---
 

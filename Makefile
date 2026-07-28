@@ -12,7 +12,7 @@ WORKSPACE   := /home/nathando/Documents/Projects
 GRAPH_FILE  := /home/nathando/Documents/Projects/nakivo-graph/nakivo-graph.json
 RUN_ENV     := FLIGHTDECK_WORKSPACE=$(WORKSPACE) TOKEN_AUDIT_GRAPH_FILE=$(GRAPH_FILE)
 
-.PHONY: venv build dev serve service enable logs test pandoc fonts
+.PHONY: venv build dev serve service enable logs test pandoc fonts fonts-verify
 
 venv:                       ## create .venv (repo root) + install python deps
 	python3 -m venv .venv
@@ -54,24 +54,50 @@ FONT_DIR := backend/flightdeck/treasures/templates/fonts
 # param is ignored) -- an old/plain UA gets served bare .ttf. A modern desktop
 # Chrome UA gets woff2, split into multiple @font-face blocks (one per script
 # subset, e.g. /* vietnamese */, /* latin-ext */, /* latin */, in no fixed
-# order). We anchor on the `/* vietnamese */` comment and take the src URL
-# from the block that follows it, so we get the subset that actually carries
-# U+1EA0-1EF9 (the block latin-ext lacks) rather than whichever URL is first.
+# order), so each subset's src URL is taken from the block following its own
+# comment rather than by position.
 FONT_UA  := Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36
 
 pandoc:                     ## fetch the pinned static pandoc into ~/.flightdeck/bin
 	bash scripts/fetch-pandoc.sh
 
-fonts:                      ## fetch Vietnamese-capable artifact fonts (woff2)
+# Fetch BOTH the latin and the vietnamese subset of every artifact family.
+#
+# This target used to grep only the `/* vietnamese */` block, which is where the
+# 2026-07-28 font bug came from: Google's vietnamese subset holds ONLY the
+# Vietnamese-specific codepoints (113 glyphs, no 'A', no 'a', no '0'). Declared
+# without a unicode-range it claimed the whole family, so every Latin character
+# in every artifact silently fell back to the system font and Space Grotesk was
+# never actually rendered. tokens.css now declares one face per subset WITH its
+# unicode-range, so both files per family are required.
+#
+# latin-ext / cyrillic / greek are deliberately skipped: the artifact `language`
+# field only allows en|vi.
+fonts:                      ## fetch latin + vietnamese subsets of the artifact fonts
 	mkdir -p $(FONT_DIR)
-	curl -sSL -A "$(FONT_UA)" \
-	  'https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&display=swap' \
-	  -o /tmp/flightdeck-space-grotesk.css
-	curl -sSL -o $(FONT_DIR)/space-grotesk-vietnamese.woff2 \
-	  "$$(grep -A 8 '/\* vietnamese \*/' /tmp/flightdeck-space-grotesk.css | grep -o 'https://[^)]*\.woff2' | head -1)"
-	curl -sSL -A "$(FONT_UA)" \
-	  'https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,600&display=swap' \
-	  -o /tmp/flightdeck-playfair-display.css
-	curl -sSL -o $(FONT_DIR)/playfair-display-vietnamese.woff2 \
-	  "$$(grep -A 8 '/\* vietnamese \*/' /tmp/flightdeck-playfair-display.css | grep -o 'https://[^)]*\.woff2' | head -1)"
-	ls -la $(FONT_DIR)
+	@set -e; \
+	fetch() { \
+	  fam="$$1"; slug="$$2"; query="$$3"; \
+	  curl -sSL -A "$(FONT_UA)" "https://fonts.googleapis.com/css2?family=$$query&display=swap" \
+	    -o /tmp/flightdeck-$$slug.css; \
+	  for sub in latin vietnamese; do \
+	    url=$$(grep -A 8 "/\* $$sub \*/" /tmp/flightdeck-$$slug.css \
+	           | grep -o 'https://[^)]*\.woff2' | head -1); \
+	    if [ -z "$$url" ]; then echo "FAIL: no $$sub subset for $$fam" >&2; exit 1; fi; \
+	    curl -sSL -o $(FONT_DIR)/$$slug-$$sub.woff2 "$$url"; \
+	  done; \
+	}; \
+	fetch "Space Grotesk"    space-grotesk    'Space+Grotesk:wght@400..700'; \
+	fetch "JetBrains Mono"   jetbrains-mono   'JetBrains+Mono:wght@400..700'; \
+	fetch "Playfair Display" playfair-display 'Playfair+Display:ital,wght@1,600'
+	@$(MAKE) --no-print-directory fonts-verify
+
+fonts-verify:               ## prove each family covers Latin AND Vietnamese
+	@.venv/bin/python -c "import sys; sys.path.insert(0,'backend'); \
+	from tests.test_treasures_render import _family_cmaps; \
+	from fontTools.ttLib import TTFont; \
+	import glob, os; \
+	rows=[(os.path.basename(p), os.path.getsize(p)/1024, len(TTFont(p).getBestCmap())) for p in sorted(glob.glob('$(FONT_DIR)/*.woff2'))]; \
+	[print('  %-38s %6.1f KB  %4d glyphs' % r) for r in rows]; \
+	print('  TOTAL %.1f KB' % sum(r[1] for r in rows))"
+	cd backend && ../.venv/bin/python -m pytest tests/test_treasures_render.py -q -k font

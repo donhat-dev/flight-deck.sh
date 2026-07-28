@@ -344,6 +344,29 @@ const ARTIFACT_SKIN_CSS = `
 .treasure-artifact-skin video { max-width: 100%; height: auto; }
 .treasure-artifact-skin figure { margin-inline: 0; }
 .treasure-artifact-skin figcaption { margin-top: .4rem; font-size: 13px; color: #334860; }
+
+/* --- components (docs/treasures-components.md) ---------------------------
+ * Milkdown keeps a component's tags as non-editable inline html chips rather
+ * than nesting the content inside them, so the editor cannot show a real
+ * hero/card box. What it CAN match is the inline badge, plus the hero accent's
+ * <em>. Everything else stays plain here on purpose: pretending to render a
+ * card the editor does not actually nest would be worse than showing none. */
+.treasure-artifact-skin [data-component="badge"] {
+  display: inline-block; font-size: 12.5px; font-weight: 700; line-height: 1.5;
+  border-radius: 999px; padding: 3px 12px; white-space: nowrap;
+  background: #eef3f8; color: #334860; border: 1px solid #d9e2ec;
+}
+.treasure-artifact-skin [data-component="badge"][data-tone="good"] { color: #0b6b4a; background: #dcf3e8; border-color: #a7dfc6; }
+.treasure-artifact-skin [data-component="badge"][data-tone="mid"]  { color: #7a5800; background: #fbf0cf; border-color: #ecd9a0; }
+.treasure-artifact-skin [data-component="badge"][data-tone="weak"] { color: #9c2f1f; background: #fbe4de; border-color: #f0bfb4; }
+/* The html chips Milkdown renders for a component's open/close tag: make them
+   read as markers rather than as body copy the author might try to edit. */
+.treasure-artifact-skin [data-type="html"] {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11.5px; color: #7a5800;
+  background: #fbf0cf; border: 1px solid #ecd9a0; border-radius: 6px;
+  padding: 1px 6px;
+}
 `;
 
 function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {

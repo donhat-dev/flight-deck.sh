@@ -2,28 +2,83 @@
  *
  * Fonts are LOCAL woff2 files; pandoc --embed-resources base64-inlines them, so
  * a published artifact makes zero network requests (claude.ai's CSP blocks
- * external hosts). Space Grotesk carries the Vietnamese block; the app's
- * latin-ext subsets do not, which would silently break VN documents.
+ * external hosts).
+ *
+ * EVERY face below must carry real Latin glyphs. Until 2026-07-28 all three
+ * embedded faces were Google's *vietnamese* subset, which contains ONLY the
+ * Vietnamese-specific codepoints — 113 glyphs, no 'A', no 'a', no '0'. Because
+ * they were declared without a unicode-range they claimed the whole family, so
+ * every Latin character in every artifact silently fell back to the system font
+ * and Space Grotesk was never actually rendered. The `0` glyph being absent also
+ * made the CSS `ch` unit degrade to its 0.5em spec fallback, so the 68ch prose
+ * measure was wrong too. Faces are now split latin / vietnamese WITH a
+ * unicode-range, so the family resolves correctly for both languages — the
+ * `language` field only allows en|vi, which is why latin-ext/cyrillic/greek are
+ * deliberately excluded.
  *
  * Two canon rules this file obeys deliberately:
  *   - §2 "Light theme, locked for the whole page. No section inverts."  So there
  *     is no prefers-color-scheme dark variant here: the house artifact look is
  *     light, on purpose.
  *   - §1 Playfair Display is allowed ONLY on a hero title's accent line, and a
- *     body serif is banned. A generated document has no 2-line hero, so
- *     Playfair is not declared at all — which also keeps the artifact smaller.
+ *     body serif is banned. It is declared here for exactly that one use
+ *     (`[data-component="hero"] em`) and nothing else may reference it.
  */
 @font-face {
   font-family: 'Space Grotesk';
+  src: url('fonts/space-grotesk-latin.woff2') format('woff2');
+  font-weight: 300 700;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Space Grotesk';
   src: url('fonts/space-grotesk-vietnamese.woff2') format('woff2');
+  font-weight: 300 700;
+  font-display: swap;
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('fonts/jetbrains-mono-latin.woff2') format('woff2');
   font-weight: 400 700;
   font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
 }
 @font-face {
   font-family: 'JetBrains Mono';
   src: url('fonts/jetbrains-mono-vietnamese.woff2') format('woff2');
   font-weight: 400 700;
   font-display: swap;
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('fonts/playfair-display-latin.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA,
+    U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193,
+    U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('fonts/playfair-display-vietnamese.woff2') format('woff2');
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1,
+    U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329,
+    U+1EA0-1EF9, U+20AB;
 }
 
 :root {
@@ -207,6 +262,107 @@ th, td { overflow-wrap: anywhere; }
 img, svg, video { max-width: 100%; height: auto; }
 figure { margin-inline: 0; }
 figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; }
+
+/* === components (docs/treasures-components.md) ============================
+ * Authored in markdown as `<div data-component="X">` + blank lines, or
+ * `<span data-component="X">` inline. Values are lifted from the canonical
+ * hand-authored artifact (ARTIFACT_STYLE.md §8) rather than re-invented, so a
+ * generated document and a hand-built one read as the same system.
+ *
+ * Selectors match on the ATTRIBUTE, never on `div[...]`: pandoc rewrites a div
+ * whose first child is a heading into `<section ... data-component="hero">`,
+ * so the element name is not stable.
+ *
+ * A document that uses no component emits no component markup in its body, so
+ * its rendering is unchanged. The RULES below still ship in every artifact —
+ * one shared stylesheet is the point — so the file is not byte-identical to a
+ * pre-component build, only its body is.
+ */
+
+/* --- hero: eyebrow paragraph, then the title, then an optional sub --------- */
+[data-component="hero"] {
+  padding: 0 0 2.2rem;
+  margin: 0 0 2.8rem;
+  border-bottom: 1px solid var(--line);
+}
+/* The .doc > h1:first-child rule sets a smaller page-title scale; inside a hero
+   the title carries the page, so it takes the canonical hero scale instead. */
+[data-component="hero"] h1 {
+  font-size: clamp(40px, 6.4vw, 84px);
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  margin: 0 0 22px;
+  max-width: 22ch;
+}
+/* §1: Playfair Display italic 600 is permitted here and NOWHERE else. */
+[data-component="hero"] h1 em,
+[data-component="hero"] h2 em {
+  font-family: 'Playfair Display', Georgia, serif;
+  font-style: italic;
+  font-weight: 600;
+  color: var(--azure);
+}
+[data-component="hero"] h2 {
+  font-size: clamp(30px, 4.6vw, 56px);
+  line-height: 1.14;
+  letter-spacing: -0.02em;
+  margin: -14px 0 22px;
+  padding: 0;
+  border-bottom: 0;
+}
+/* First paragraph = the eyebrow; any later paragraph = the deck/sub. */
+[data-component="hero"] > p:first-child {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--azure-deep);
+  margin: 0 0 18px;
+  max-width: none;
+}
+[data-component="hero"] > p:first-child ~ p {
+  font-size: 19px;
+  font-weight: 500;
+  color: var(--ink-2);
+  max-width: 60ch;
+  margin: 0 0 .6rem;
+}
+
+/* --- card ----------------------------------------------------------------- */
+[data-component="card"] {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 22px 24px;
+  margin: 0 0 1.15rem;
+  max-width: none;
+}
+[data-component="card"] > :first-child { margin-top: 0; }
+[data-component="card"] > :last-child { margin-bottom: 0; }
+[data-component="card"] h3 { margin: 0 0 .4rem; font-size: 19.5px; }
+[data-component="card"] > p { max-width: none; }
+[data-component="card"][data-tone="good"] { background: linear-gradient(150deg, var(--good-bg) 0%, var(--card) 55%); border-color: var(--good-line); }
+[data-component="card"][data-tone="mid"]  { background: linear-gradient(150deg, var(--mid-bg) 0%, var(--card) 55%);  border-color: var(--mid-line); }
+[data-component="card"][data-tone="weak"] { background: linear-gradient(150deg, var(--weak-bg) 0%, var(--card) 55%); border-color: var(--weak-line); }
+
+/* --- badge (inline) ------------------------------------------------------- */
+[data-component="badge"] {
+  display: inline-block;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  border-radius: 999px;
+  padding: 3px 12px;
+  white-space: nowrap;
+  vertical-align: baseline;
+  background: var(--paper-2);
+  color: var(--ink-2);
+  border: 1px solid var(--line);
+}
+[data-component="badge"][data-tone="good"] { color: var(--good); background: var(--good-bg); border-color: var(--good-line); }
+[data-component="badge"][data-tone="mid"]  { color: var(--mid);  background: var(--mid-bg);  border-color: var(--mid-line); }
+[data-component="badge"][data-tone="weak"] { color: var(--weak); background: var(--weak-bg); border-color: var(--weak-line); }
 
 /* --- print --------------------------------------------------------------- */
 @media print {

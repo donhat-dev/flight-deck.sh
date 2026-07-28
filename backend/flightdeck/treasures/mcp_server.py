@@ -85,6 +85,8 @@ def t_wrap(title, content, source_format="markdown", kind="report",
                             artifact_id=artifact_id, font=font,
                             custom_head=custom_head)
     except ValueError as e:
+        # Covers an invalid font AND lint.ComponentError (a ValueError
+        # subclass) — an unknown component name refuses the wrap outright.
         return {"error": str(e)}
 
 

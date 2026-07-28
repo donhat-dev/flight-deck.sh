@@ -1,18 +1,69 @@
-"""The wrap use case: render -> write files -> index.
+"""The wrap use case: lint -> render -> validate -> write files -> index.
 
 Order matters: the artifact is rendered and written to disk first, and only a
 successful render produces an index row. The DB therefore never advertises an
 artifact that is not on disk.
+
+The lint and validate stages come from `lint.py` and live HERE rather than in
+the callers, so neither the MCP tool nor the dashboard endpoint can bypass them
+(docs/treasures-components.md §3).
 """
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flightdeck.treasures import filestore, render, store
+from flightdeck.treasures import filestore, lint, render, store
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _render_checked(content, *, source_format, title, language, kind, status,
+                    font, custom_head, workdir) -> tuple[str, dict]:
+    """Lint -> render -> validate, with the plain-markdown fallback.
+
+    Returns `(content_to_store, rendered)`.
+
+    `content_to_store` carries the lint's blank-line fixes but NEVER the
+    fallback's stripped components: deleting an author's components from their
+    own source would be data loss, so the strip only ever affects this render's
+    HTML. The behaviour stays deterministic — a later rerender of the same
+    source reaches the same verdict and strips again.
+
+    Raises lint.ComponentError for an unknown component name (fail-closed:
+    called before anything touches disk).
+    """
+    notes: list[str] = []
+    if source_format == "markdown":
+        content, fixes = lint.lint(content)
+        notes += fixes
+    else:
+        # An HTML fragment is already markup; the blank-line rule is a markdown
+        # concern, so only the allowlist applies.
+        bad = lint.unknown_components(content)
+        if bad:
+            raise lint.ComponentError(
+                f"unknown component(s): {', '.join(repr(b) for b in bad)} — "
+                f"allowed: {', '.join(lint.COMPONENTS)}")
+
+    def _render(text):
+        return render.render(text, source_format=source_format, title=title,
+                             language=language, kind=kind, status=status,
+                             font=font, custom_head=custom_head,
+                             workdir=workdir)
+
+    rendered = _render(content)
+    problems = lint.validate(content, rendered["html"])
+    if problems:
+        # Fallback: ship a readable plain-markdown artifact rather than one
+        # printing raw tags as text. The source keeps its components.
+        rendered = _render(lint.strip(content))
+        notes.append(
+            "components stripped from the RENDER (source kept intact) and "
+            "re-rendered as plain markdown — " + "; ".join(problems))
+    rendered["warnings"] = list(rendered.get("warnings") or []) + notes
+    return content, rendered
 
 
 def wrap(conn, *, title, content, source_format="markdown", kind="report",
@@ -52,10 +103,13 @@ def wrap(conn, *, title, content, source_format="markdown", kind="report",
     custom_head = (custom_head if custom_head is not None
                    else (existing or {}).get("custom_head"))
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
-        rendered = render.render(content, source_format=source_format,
-                                 title=title, language=language, kind=kind,
-                                 status=status, font=font,
-                                 custom_head=custom_head, workdir=workdir)
+        # Lint may rewrite the content (blank-line fixes) or the validator may
+        # strip components; `content` is rebound so the source written to disk
+        # is exactly what produced this HTML.
+        content, rendered = _render_checked(
+            content, source_format=source_format, title=title,
+            language=language, kind=kind, status=status, font=font,
+            custom_head=custom_head, workdir=workdir)
     # Render succeeded — now the artifact dir is worth creating.
     art_dir = filestore.artifact_dir(slug, art_id)
     paths = filestore.write_version(art_dir, version, content, ext,
@@ -233,12 +287,19 @@ def rerender(conn, ident) -> dict:
     paths = _version_paths(row)
     source = Path(paths["source_path"]).read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="treasures-rerender-") as workdir:
-        rendered = render.render(source, source_format=row["source_format"],
-                                 title=row["title"], language=row["language"],
-                                 kind=row["kind"], status=row["status"],
-                                 font=row.get("font") or "space-grotesk",
-                                 custom_head=row.get("custom_head"),
-                                 workdir=workdir)
+        # Same gate as wrap, so an artifact re-rendered after a template change
+        # cannot end up held to a weaker contract than a freshly wrapped one.
+        fixed, rendered = _render_checked(
+            source, source_format=row["source_format"], title=row["title"],
+            language=row["language"], kind=row["kind"], status=row["status"],
+            font=row.get("font") or "space-grotesk",
+            custom_head=row.get("custom_head"), workdir=workdir)
+    if fixed != source:
+        # A lint autofix is semantically neutral (blank lines only), so persist
+        # it in place rather than leaving the stored source subtly broken for
+        # every future reader. No version bump: the document did not change.
+        Path(paths["source_path"]).write_text(fixed, encoding="utf-8")
+        row["source_checksum"] = filestore.checksum(fixed)
     Path(paths["artifact_path"]).write_text(rendered["html"], encoding="utf-8")
     row["render_checksum"] = filestore.checksum(rendered["html"])
     row["render_bytes"] = rendered["bytes"]

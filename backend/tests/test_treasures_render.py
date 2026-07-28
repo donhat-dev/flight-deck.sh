@@ -15,13 +15,45 @@ Nội dung tiếng Việt: hiệu quả, cộng đồng, người dùng.
 """
 
 
-def test_fonts_cover_vietnamese():
-    """The artifact fonts must carry the Vietnamese block; latin-ext does not."""
+ASCII_PROBE = {0x41: "A", 0x61: "a", 0x30: "0"}
+
+
+def _family_cmaps():
+    """Merged cmap per font family, keyed by the family's filename prefix.
+
+    Coverage is a FAMILY property, not a file property: a family is split into a
+    latin face and a vietnamese face, each carrying a unicode-range, so neither
+    file alone covers everything.
+    """
     ttlib = pytest.importorskip("fontTools.ttLib")
+    fams: dict[str, set[int]] = {}
     for path in render.font_paths():
-        cmap = set(ttlib.TTFont(path).getBestCmap().keys())
+        name = path.rsplit("/", 1)[-1]
+        fam = ("space-grotesk" if name.startswith("space-grotesk")
+               else "jetbrains-mono" if name.startswith("jetbrains-mono")
+               else "playfair-display" if name.startswith("playfair-display")
+               else name)
+        fams.setdefault(fam, set()).update(ttlib.TTFont(path).getBestCmap())
+    return fams
+
+
+def test_font_families_cover_vietnamese():
+    """Every family must carry the Vietnamese block; latin-ext does not."""
+    for fam, cmap in _family_cmaps().items():
         missing = [c for cp, c in VN_CODEPOINTS.items() if cp not in cmap]
-        assert not missing, f"{path} is missing Vietnamese glyphs: {missing}"
+        assert not missing, f"{fam} is missing Vietnamese glyphs: {missing}"
+
+
+def test_font_families_cover_ascii():
+    """REGRESSION: until 2026-07-28 every embedded face was Google's
+    *vietnamese* subset — 113 glyphs, no 'A', no 'a', no '0' — declared without
+    a unicode-range, so it claimed the whole family and all Latin text silently
+    fell back to the system font. Space Grotesk was never actually rendered in
+    any published artifact, and the missing '0' also made the CSS `ch` unit
+    degrade to its 0.5em fallback, so the 68ch prose measure was wrong too."""
+    for fam, cmap in _family_cmaps().items():
+        missing = [c for cp, c in ASCII_PROBE.items() if cp not in cmap]
+        assert not missing, f"{fam} cannot render basic Latin: {missing}"
 
 
 def test_render_markdown_is_self_contained(tmp_path):

@@ -15,7 +15,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 
 from flightdeck import db
-from flightdeck.treasures import filestore, service, store
+from flightdeck.treasures import filestore, lint, service, store
 
 router = APIRouter(tags=["treasures"])
 
@@ -96,9 +96,13 @@ def put_source(request: Request, ident: str, body: SourceIn):
     row = service.get(conn, ident)
     if row is None:
         raise HTTPException(status_code=404, detail="treasure not found")
-    return service.wrap(conn, title=row["title"], content=body.content,
-                        source_format=row["source_format"], kind=row["kind"],
-                        language=row["language"], artifact_id=row["id"])
+    try:
+        return service.wrap(conn, title=row["title"], content=body.content,
+                            source_format=row["source_format"], kind=row["kind"],
+                            language=row["language"], artifact_id=row["id"])
+    except lint.ComponentError as e:
+        # Fail-closed on an unknown component name: nothing was written.
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 
