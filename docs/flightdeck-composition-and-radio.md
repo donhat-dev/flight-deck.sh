@@ -126,6 +126,31 @@ and adopted per-view afterwards. This follows the pattern the repo already uses:
 one Vite entry per proposal (`component-lab.html`, `home-concept.html`,
 `home-concept-v2.html`), reviewable without mounting over the product.
 
+### The art-direction thesis
+
+Radio is not only a monitoring surface. It is a deliberate break from the
+industry assumption that **a control plane must arrive in a predictable frame** —
+the equal card grid, one metric per card, uniform panel chrome, a toolbar on top.
+That frame is a convention, not a requirement, and adopting it is what turned
+ComponentLab into design documentation rather than a product surface.
+
+The break has to be bounded, or "unconventional" becomes an excuse for a console
+nobody can operate under pressure. So the line is drawn between *what a reader
+can predict* and *what the layout looks like*:
+
+| Must stay predictable — operability | Free to break — art direction |
+|---|---|
+| A given fact always lives in the same slot | The frame: no equal grid, no card-per-metric, no uniform panel chrome |
+| Colour meaning (C6) never varies by screen | Region proportion, and deliberate emptiness |
+| Focus order, keyboard reach, visible focus | Type at display scale, print-like layering |
+| Destructive actions stay guarded and legible | Asymmetry, density contrast, off-centre anchors |
+| Numbers keep the mono face and tabular figures | How a number is framed and how large it reads |
+
+The falsifiable limit: someone who knows FlightDeck must still find any specific
+number within about two seconds. Art direction that costs more than that has
+failed, however good it looks. Judge Radio against this, not against how far it
+sits from the convention.
+
 ### What "Radio" means here
 
 A **monitoring** surface rather than an inspection one: something left on, which
@@ -175,25 +200,59 @@ Each stage is independently reviewable and leaves the product working.
 |---|---|---|---|
 | 1 | Write the composition contract | §2 as a `docs/` section | The rules exist before anything is built against them |
 | 2 | Composition lint | Tests for C3 (depth budget) and C6 (colour roles) | The rules are enforceable, not aspirational |
-| 3 | FlightDeckRadio static shell | `radio.html` + entry + component, representative local data | The composition reads as intended before real data complicates it |
+| 3 | FlightDeckRadio static shell, **Day palette only** | `radio.html` + entry + component, representative local data | The composition reads as intended before real data complicates it |
 | 4 | Wire live data | Existing endpoints + SSE | It is a control plane on real state |
 | 5 | Actions | Tune / mute / jump-to-artifact | It controls rather than displays |
-| 6 | Adopt back into the product | Apply C1–C4 to ONE existing view, judged against Radio | The rules survive contact with a view that has real requirements |
+| 6 | Adopt back into **Spend** | Re-compose Spend per §6, judged against Radio | The rules survive contact with a view that has real requirements |
+| 7 | Night palette port | Radio + Spend in Night | The art direction was in the composition, not in the paper colour |
+| 8 | Radio takes `/` | Retire the `home-concept*` entries | One home, not three |
 
-Stage 6 is the point of the exercise. Stages 3–5 exist to earn the right to do it.
+Stage 6 is the point of the exercise. Stages 3–5 exist to earn the right to do it,
+and stages 7–8 only make sense once it has been earned.
 
 ---
 
-## 5. Open decisions
+## 5. Decisions taken
 
-1. **Is "Radio" the monitoring surface described above**, or did you mean
-   something else by the name? Everything in §3 follows from that reading, so it
-   is the one assumption worth correcting early.
-2. **Which existing view is the stage-6 target?** Spend has the richest data;
-   Logbook has the strongest anchor candidate (the session you are reading);
-   Treasures is the newest and cheapest to change.
-3. **Does Radio replace the home view eventually, or stay a parallel plane?**
-   `docs/home-layout-local-workbench.md` already proposes a neutral home; Radio
-   and that proposal overlap and should not both become `/`.
-4. **Day palette parity** — Radio in Night only for the prototype, or both from
-   the start? Both doubles the review surface for stage 3.
+1. **Radio is the monitoring surface described above**, and its art direction
+   deliberately leaves the predictable control-plane frame — see the thesis in
+   §3, including the operability limits that keep the break usable.
+2. **Stage-6 target is Spend** — see §6.
+3. **Radio eventually replaces the home view.** It is parallel only while it is
+   being proven, not as a permanent second plane. Consequence:
+   `docs/home-layout-local-workbench.md` and the `home-concept*.html` entries are
+   superseded **as layouts**, but their content inventory stays the requirement
+   input — what a home must show did not change, only how it is composed. Those
+   entries should be retired when Radio takes `/`, rather than leaving three
+   competing homes in the repo.
+4. **Day palette first, Night after.** Not merely a sequencing choice: the
+   reference material *is* warm paper and ink, so Day is where this art direction
+   is actually provable. Night is the port, not the original.
+
+---
+
+## 6. Stage 6 target: Spend
+
+Spend currently renders **12 panel-level regions** — API-equivalent value,
+avoided value, four efficiency meters, cost trend, three operational signals,
+model breakdown, cost concentration — at close to equal weight. It is the
+strongest test of the contract precisely because it has the most to lose from
+uniformity.
+
+Proposed re-composition, with the rule each move answers:
+
+| Region | Weight | Rule |
+|---|---|---|
+| **Burn** — the trend chart, the current rate, and quota headroom read as ONE region | anchor, 50–60% | C1. It is the only region that answers "is this normal, and how much room is left" — the question the view exists for |
+| **Model breakdown** | dense support | C2 dense pole. Legitimately a matrix, so C4's symmetry exemption applies |
+| **Efficiency** — at most three meters | sparse support | C2 sparse pole, `space-24` around it. Today it is four numbers at panel weight |
+| **Signals** | dense list, short | C2. Ranked, no card chrome per item |
+| **Concentration + totals** | footer strip, wide and short | C4, echoing the reference's footer statistics |
+
+Two figures must not become the anchor despite being the largest numbers on the
+page: API-equivalent value is explicitly "not the amount charged", and avoided
+value is a comparison. Anchoring on either would make the view's most prominent
+claim a number nobody acts on — the exact failure C1 exists to prevent.
+
+Depth budget for the whole view: the anchor, the range control, and the selected
+signal. Three, inside C3's 2–4.
