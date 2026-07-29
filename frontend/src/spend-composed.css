@@ -30,20 +30,18 @@
    Depth budget: the anchor, the range control (from the component kit), and the
    selected signal. Three, inside C3's 2–4.
 
-   Tokens are the existing --fdx-* set in the Day palette, as Radio uses them.
+   Tokens are the existing --fdx-* set, as the rest of the plane uses them. This
+   sheet is the SPEND tab only: the chrome, the dial and the range control belong
+   to plane.css and ui/RangeControl.jsx.
    ============================================================ */
 
-.sc-shell {
-  min-height: 100vh;
+.sc-view {
   display: grid;
   grid-template-rows: auto auto auto auto;
   align-content: start;
-  background: var(--fdx-canvas);
-  color: var(--fdx-text);
-  font-family: var(--fdx-font-primary);
 }
 
-.sc-shell [data-num] {
+.sc-view [data-num] {
   font-family: var(--fdx-font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
@@ -59,80 +57,6 @@
 
 .sc-eyebrow[data-quiet="true"] {
   color: var(--fdx-text-muted);
-}
-
-/* ---------- masthead ---------- */
-
-.sc-masthead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--fdx-space-4);
-  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-4);
-  border-bottom: 1px solid var(--fdx-rule-strong);
-}
-
-.sc-wordmark {
-  font-family: var(--fdx-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--fdx-text-muted);
-}
-
-.sc-wordmark b {
-  color: var(--fdx-text);
-  font-weight: 600;
-}
-
-.sc-masthead-right {
-  display: flex;
-  align-items: center;
-  gap: var(--fdx-space-3);
-}
-
-/* A segmented control, not four raised buttons. Using the kit's `.fdx-button`
-   here put offset depth on all four segments at once — which the lint caught, and
-   correctly: depth every element has is not depth. Only the SELECTED segment
-   stands proud, which is both what C3 allows ("the active/selected item") and the
-   right physical idiom — one key down, the rest flush. */
-.sc-range {
-  display: flex;
-  border: 1px solid var(--fdx-rule-strong);
-}
-
-.sc-range-seg {
-  padding: var(--fdx-space-2) var(--fdx-space-3);
-  border: 0;
-  border-right: 1px solid var(--fdx-rule);
-  background: transparent;
-  color: var(--fdx-text-muted);
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color var(--fdx-motion-fast) var(--fdx-ease);
-}
-
-.sc-range-seg:last-child {
-  border-right: 0;
-}
-
-.sc-range-seg:hover {
-  color: var(--fdx-text);
-}
-
-.sc-range-seg:focus-visible {
-  outline: var(--fdx-focus-width) solid var(--fdx-focus);
-  outline-offset: -2px;
-}
-
-.sc-range-seg[aria-pressed="true"] {
-  background: var(--fdx-surface);
-  color: var(--fdx-signal);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 /* ---------- Burn — the anchor ---------- */
@@ -555,9 +479,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sc-shell *,
-  .sc-shell *::before,
-  .sc-shell *::after {
+  .sc-view *,
+  .sc-view *::before,
+  .sc-view *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
   }

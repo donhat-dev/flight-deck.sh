@@ -1,10 +1,12 @@
 /* composition: screen */
 
 /* ============================================================
-   FlightDeckRadio — stage 3 of docs/flightdeck-composition-and-radio.md
+   ON AIR — the monitoring view of the FlightDeckRadio plane.
 
    Declaring `composition: screen` above accepts the full contract, so the lint
-   requires this sheet to name exactly one anchor region.
+   requires this sheet to name exactly one anchor region. The plane's chrome
+   (masthead, dial, lamp, tabs) lives in plane.css and declares no anchor, so the
+   anchor below is the only one mounted at any moment.
 
    A monitoring surface, not an inspection one. It deliberately leaves the
    predictable control-plane frame (§3): no equal card grid, no card per metric,
@@ -25,120 +27,19 @@
    below comes from a token that both themes define.
    ============================================================ */
 
-.radio-shell {
-  min-height: 100vh;
+.radio-view {
   display: grid;
-  grid-template-rows: auto 1fr auto auto;
-  background: var(--fdx-canvas);
-  color: var(--fdx-text);
-  font-family: var(--fdx-font-primary);
+  grid-template-rows: 1fr auto auto;
+  align-content: start;
 }
 
 /* Every number on this page is mono with tabular figures. This is the
    operability half of the thesis: the art direction may reframe a number, never
    make it jump as it counts. */
-.radio-shell [data-num] {
+.radio-view [data-num] {
   font-family: var(--fdx-font-mono);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-}
-
-/* ---------- masthead: a rule and wide tracking, not a toolbar ---------- */
-
-.radio-masthead {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--fdx-space-6);
-  /* The dial's needle prints its reading ABOVE the tick scale, so the masthead
-     needs headroom for it — with space-4 the label collided with the top edge. */
-  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-3);
-  border-bottom: 1px solid var(--fdx-rule-strong);
-}
-
-.radio-wordmark {
-  font-family: var(--fdx-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.3em;
-  text-transform: uppercase;
-  color: var(--fdx-text-muted);
-}
-
-.radio-wordmark b {
-  color: var(--fdx-text);
-  font-weight: 600;
-}
-
-/* The dial: a tick scale with one needle. "One lit indicator at a time" (C6),
-   and the ticks are drawn by a gradient rather than 40 elements. */
-.radio-dial {
-  position: relative;
-  height: 26px;
-  border-bottom: 1px solid var(--fdx-rule);
-  background-image: repeating-linear-gradient(
-    to right,
-    var(--fdx-rule-strong) 0 1px,
-    transparent 1px 100%
-  );
-  background-size: 2.5% 8px;
-  background-repeat: repeat-x;
-  background-position: bottom;
-}
-
-.radio-needle {
-  position: absolute;
-  bottom: -1px;
-  width: 2px;
-  height: 22px;
-  background: var(--fdx-signal);
-  transition: left var(--fdx-motion-slow) var(--fdx-ease);
-}
-
-.radio-needle::after {
-  content: attr(data-label);
-  position: absolute;
-  bottom: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  padding-bottom: 3px;
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
-  letter-spacing: 0.12em;
-  white-space: nowrap;
-  color: var(--fdx-signal);
-}
-
-.radio-masthead-right {
-  display: flex;
-  align-items: center;
-  gap: var(--fdx-space-3);
-}
-
-.radio-onair-lamp {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fdx-space-2);
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--fdx-text-muted);
-}
-
-.radio-onair-lamp i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--fdx-rule-strong);
-}
-
-.radio-onair-lamp[data-live="true"] {
-  color: var(--fdx-signal);
-}
-
-.radio-onair-lamp[data-live="true"] i {
-  background: var(--fdx-signal);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
 }
 
 /* ---------- body: asymmetric by default (C4) ---------- */
@@ -501,18 +402,11 @@
   color: var(--fdx-critical);
 }
 
-.radio-offline {
-  padding: var(--fdx-space-2) var(--fdx-space-8);
-  border-top: 1px solid var(--fdx-rule);
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
-  color: var(--fdx-warning);
-}
 
 @media (prefers-reduced-motion: reduce) {
-  .radio-shell *,
-  .radio-shell *::before,
-  .radio-shell *::after {
+  .radio-view *,
+  .radio-view *::before,
+  .radio-view *::after {
     transition-duration: 0ms !important;
     animation-duration: 0ms !important;
   }

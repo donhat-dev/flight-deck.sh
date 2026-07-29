@@ -231,6 +231,45 @@ Every number comes from endpoints that already exist (`/api/summary`,
 updates). No backend work, and the SSE feed already carries the "something
 changed" ping the plane needs.
 
+### The plane shell — what makes two views one plane
+
+Radio and the re-composed Spend first shipped as two separate pages. Two pages in
+the same visual language are two proposals, not a control plane. `plane/Plane.jsx`
+is the shell that makes them one, and the split of responsibility is the design:
+
+| Owned by the plane | Owned by the view |
+|---|---|
+| Identity and instruments: wordmark, burn-rate dial, ON AIR lamp, palette switch | Its four (or five) regions |
+| The tabs, and the hash route behind them (`#/now`, `#/spend`) — a tab is linkable and survives a reload | Its own anchor |
+| Data both tabs need: quota + the rolling window, fetched once | Data only it needs: sessions for ON AIR, daily/by-model for SPEND |
+| View-scoped controls beside the tabs | — |
+| **No anchor** | **Exactly one anchor** |
+
+Three things that fall out of the contract rather than from taste:
+
+1. **Each tab keeps its own stylesheet.** Not tidiness — the lint checks anchors
+   per sheet, so merging `radio.css` and `spend-composed.css` would report C1
+   immediately. The file layout is what makes "two anchors" impossible to add
+   quietly.
+2. **Only the selected tab carries depth.** Depth on every tab would be a fourth
+   uniform-depth surface, the same mistake the range control made.
+3. **The range control appears on SPEND and is absent on ON AIR.** A time range
+   means nothing beside "what is running now", and a permanent control that is
+   dead on one tab is worse than one that comes and goes.
+
+**A render-time guard for the invariant the lint cannot reach.** Proving each
+sheet declares one anchor is not the same as proving the running page shows one: a
+shell that mounted both views would satisfy every sheet and still put two anchors
+on screen. `plane/Plane.test.jsx` renders the real shell and counts anchor-marked
+elements, reading the anchor class list *from the stylesheets' own markers* so a
+third tab is covered without editing the test. Verified by breaking it: rendering
+both views made it report `expected 2 to be 1`.
+
+The standalone `spend-concept.html` was retired here rather than at stage 8 — the
+moment the SPEND tab existed, a second copy of the same view was a duplicate to
+maintain, and the live-vs-v2 comparison it existed for works just as well at
+`/radio.html#/spend`.
+
 ### What makes it a control plane, not a dashboard
 
 It must act, not only display: tune to a session (open it), mute (stop watching),

@@ -1,8 +1,9 @@
 /**
- * FlightDeckRadio — the parallel control plane.
+ * ON AIR — the monitoring view of the FlightDeckRadio plane.
  *
- * Composition contract: docs/flightdeck-composition-and-radio.md §2, with the
- * region-to-rule mapping in radio.css. Four regions, one anchor.
+ * One of the plane's tabs (see plane/Plane.jsx, which owns the chrome, the dial
+ * and the shared quota/window fetch). This file is only the screen: four regions,
+ * one anchor, mapped to the contract in radio.css.
  *
  * It is a control plane rather than a dashboard because it acts: tune to a
  * channel (which repoints the anchor), mute one (stop watching it), and open the
@@ -17,8 +18,7 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
-import { get, subscribe } from "./api.js";
-import PaletteToggle from "./ui/PaletteToggle.jsx";
+import { get, subscribe } from "../api.js";
 
 const MUTED_KEY = "flightdeck.radio.muted";
 
@@ -101,19 +101,15 @@ function useRadioData() {
 
   const load = useCallback(async () => {
     try {
-      const [sessions, summary, quota, windows] = await Promise.all([
+      const [sessions, summary] = await Promise.all([
         get("/api/sessions?range=today"),
         get("/api/summary?range=today"),
-        get("/api/quota"),
-        get("/api/usage-windows"),
       ]);
       setState({
         live: true,
         loading: false,
         sessions: Array.isArray(sessions) ? sessions : [],
         summary: summary || {},
-        quota: quota || {},
-        window: windows?.active || null,
       });
     } catch {
       // Keep the sample, but never claim it is live.
@@ -328,8 +324,9 @@ function Log({ sessions }) {
 
 /* ---------------------------------------------------------------- page */
 
-export default function Radio() {
-  const { sessions, summary, quota, window: win, live, loading } = useRadioData();
+export default function OnAirView({ quota, window: win, live: planeLive }) {
+  const { sessions, summary, live: sessionsLive, loading } = useRadioData();
+  const live = planeLive && sessionsLive;
 
   const [muted, setMuted] = useState(() => {
     try {
@@ -358,35 +355,12 @@ export default function Radio() {
     [sessions, muted],
   );
 
-  const selected = tuned && audible.some((s) => s.session_id === tuned) ? tuned : audible[0]?.session_id;
+  const selected =
+    tuned && audible.some((s) => s.session_id === tuned) ? tuned : audible[0]?.session_id;
   const onAir = audible.find((s) => s.session_id === selected) || null;
 
-  // The needle reads burn rate against a 40 $/h full scale, so its position is a
-  // unit, not a decoration.
-  const needle = Math.min(98, Math.max(1, ((win?.burnRate?.costPerHour ?? 0) / 40) * 100));
-
   return (
-    <div className="radio-shell" data-loading={loading ? "true" : "false"}>
-      <header className="radio-masthead">
-        <p className="radio-wordmark">
-          Flight<b>Deck</b> Radio
-        </p>
-        <div className="radio-dial" aria-hidden="true">
-          <span
-            className="radio-needle"
-            style={{ left: `${needle}%` }}
-            data-label={win?.burnRate?.costPerHour ? money(win.burnRate.costPerHour) : ""}
-          />
-        </div>
-        <div className="radio-masthead-right">
-          <p className="radio-onair-lamp" data-live={live && onAir ? "true" : "false"}>
-            <i />
-            {live ? (onAir ? "On air" : "Quiet") : "Sample"}
-          </p>
-          <PaletteToggle />
-        </div>
-      </header>
-
+    <div className="radio-view">
       <div className="radio-body">
         <OnAir session={onAir} window={win} live={live} />
         <Channels
@@ -404,7 +378,7 @@ export default function Radio() {
 
       {!live && !loading && (
         <p className="radio-offline">
-          API unreachable — the numbers above are a representative sample, not live state.
+          Live data unavailable — the numbers above are a representative sample, not live state.
         </p>
       )}
     </div>

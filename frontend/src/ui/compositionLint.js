@@ -288,6 +288,10 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
     });
   }
 
+  // Which selector each anchor marker attaches to. A renderer can then be checked
+  // against the same source of truth the lint uses, instead of a hand-kept list.
+  const anchorSelectors = [];
+
   const depthBases = new Map();
   // Classes whose depth is UNCONDITIONAL — the rule carrying the offset names no
   // attribute and no pseudo-class, so every element with the class gets depth.
@@ -298,6 +302,7 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
 
   for (const rule of rules) {
     const isAnchor = [...anchorLines].some((l) => l === rule.line || l === rule.line - 1);
+    if (isAnchor) anchorSelectors.push(rule.selector);
 
     for (const decl of rule.decls) {
       const resolved = resolveValue(decl.value, vars);
@@ -353,6 +358,7 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
     violations,
     depthBases: [...depthBases.keys()],
     unconditionalDepth: [...unconditional],
+    anchorSelectors,
     anchors: anchors.length,
     kind: isLibrary ? "library" : "screen",
     exemptions: comments.filter((c) => /^composition-lint-allow:/.test(c.text)).length,

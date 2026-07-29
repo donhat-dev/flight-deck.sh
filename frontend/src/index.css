@@ -2873,3 +2873,46 @@ table.rd-sxs {
   outline: var(--fdx-focus-width) solid var(--fdx-focus);
   outline-offset: 2px;
 }
+
+/* A segmented control, not four raised buttons. Using `.fdx-button`
+   here put offset depth on all four segments at once — which the lint caught, and
+   correctly: depth every element has is not depth. Only the SELECTED segment
+   stands proud, which is both what C3 allows ("the active/selected item") and the
+   right physical idiom — one key down, the rest flush. */
+.fdx-segmented {
+  display: flex;
+  border: 1px solid var(--fdx-rule-strong);
+}
+
+.fdx-segmented-seg {
+  padding: var(--fdx-space-2) var(--fdx-space-3);
+  border: 0;
+  border-right: 1px solid var(--fdx-rule);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-segmented-seg:last-child {
+  border-right: 0;
+}
+
+.fdx-segmented-seg:hover {
+  color: var(--fdx-text);
+}
+
+.fdx-segmented-seg:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.fdx-segmented-seg[aria-pressed="true"] {
+  background: var(--fdx-surface);
+  color: var(--fdx-signal);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}

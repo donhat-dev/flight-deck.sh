@@ -15,7 +15,6 @@ export default defineConfig({
         homeConcept: `${rootDir}home-concept.html`,
         homeConceptV2: `${rootDir}home-concept-v2.html`,
         radio: `${rootDir}radio.html`,
-        spendConcept: `${rootDir}spend-concept.html`,
       },
     },
   },

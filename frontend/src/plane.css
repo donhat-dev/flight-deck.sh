@@ -1,0 +1,197 @@
+/* ============================================================
+   FlightDeckRadio — plane chrome.
+
+   NOT marked `composition: screen`, and that is deliberate: this sheet styles the
+   frame around the views, and the anchor belongs to whichever view is mounted.
+   Marking it a screen would demand an anchor here, and a masthead that claimed to
+   be the anchor would compete with the real one underneath it.
+
+   Each tab keeps its OWN stylesheet (radio.css, spend-composed.css), each
+   declaring one anchor. That is not tidiness: the lint checks anchors per sheet,
+   so merging the two into one file would report C1 immediately. The file layout
+   is what makes "two anchors" impossible to introduce quietly.
+
+   The one depth element here is the SELECTED tab. Depth on every tab would be a
+   fourth uniform-depth surface — the same mistake the range control made.
+   ============================================================ */
+
+.radio-plane {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  align-content: start;
+  background: var(--fdx-canvas);
+  color: var(--fdx-text);
+  font-family: var(--fdx-font-primary);
+}
+
+.radio-plane [data-num] {
+  font-family: var(--fdx-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- masthead: a rule and wide tracking, not a toolbar ---------- */
+
+.radio-chrome {
+  border-bottom: 1px solid var(--fdx-rule-strong);
+}
+
+.radio-masthead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fdx-space-6);
+  /* The dial prints its reading ABOVE the tick scale, so the row needs headroom
+     for it — with space-4 the label collided with the top edge. */
+  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-3);
+}
+
+.radio-wordmark {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-wordmark b {
+  color: var(--fdx-text);
+  font-weight: 600;
+}
+
+/* The dial: a tick scale with one needle, reading burn rate against a 40 $/h full
+   scale. It stays in the chrome because the rate matters on both tabs — it is the
+   plane's own instrument, not a region of either view. */
+.radio-dial {
+  position: relative;
+  height: 26px;
+  border-bottom: 1px solid var(--fdx-rule);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--fdx-rule-strong) 0 1px,
+    transparent 1px 100%
+  );
+  background-size: 2.5% 8px;
+  background-repeat: repeat-x;
+  background-position: bottom;
+}
+
+.radio-needle {
+  position: absolute;
+  bottom: -1px;
+  width: 2px;
+  height: 22px;
+  background: var(--fdx-signal);
+  transition: left var(--fdx-motion-slow) var(--fdx-ease);
+}
+
+.radio-needle::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-bottom: 3px;
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  color: var(--fdx-signal);
+}
+
+.radio-masthead-right {
+  display: flex;
+  align-items: center;
+  gap: var(--fdx-space-3);
+}
+
+.radio-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fdx-space-2);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-lamp i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fdx-rule-strong);
+}
+
+.radio-lamp[data-live="true"] {
+  color: var(--fdx-signal);
+}
+
+.radio-lamp[data-live="true"] i {
+  background: var(--fdx-signal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
+}
+
+/* ---------- tab bar ---------- */
+
+.radio-tabrow {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--fdx-space-4);
+  padding: 0 var(--fdx-space-8);
+}
+
+.radio-tabs {
+  display: flex;
+  gap: var(--fdx-space-2);
+}
+
+.radio-tab {
+  padding: var(--fdx-space-2) var(--fdx-space-4);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.radio-tab:hover {
+  color: var(--fdx-text);
+}
+
+.radio-tab:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+/* Only the selected tab stands proud. */
+.radio-tab[aria-selected="true"] {
+  border-color: var(--fdx-rule-strong);
+  background: var(--fdx-surface);
+  color: var(--fdx-signal);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}
+
+/* View-scoped controls live beside the tabs, so a control that means nothing on
+   the current view is simply absent rather than dead. */
+.radio-tabtools {
+  display: flex;
+  align-items: center;
+  gap: var(--fdx-space-2);
+  padding-bottom: var(--fdx-space-2);
+}
+
+.radio-offline {
+  padding: var(--fdx-space-2) var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  color: var(--fdx-warning);
+}

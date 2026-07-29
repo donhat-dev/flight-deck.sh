@@ -9,9 +9,9 @@
  * comparison. The anchor is Burn — the only region that answers "is this normal,
  * and how much room is left".
  *
- * This renders as its own page (`/spend-concept.html`) rather than replacing the
- * live view, following the repo's proposal pattern. Adopting it into `view ===
- * "usage"` is one swap in App.jsx, deliberately left as a separate decision.
+ * Rendered as the SPEND tab of the FlightDeckRadio plane, which owns the chrome
+ * and the range control (see plane/Plane.jsx) and passes `range` down. Adopting
+ * it into the dashboard's `view === "usage"` is a separate decision.
  */
 import React, { useEffect, useMemo, useState } from "react";
 import {
@@ -21,14 +21,6 @@ import {
 
 import { get } from "../api.js";
 import { compact, pct, shortModel, usd } from "../format.js";
-import PaletteToggle from "../ui/PaletteToggle.jsx";
-
-const RANGES = [
-  { k: "today", label: "Today" },
-  { k: "7d", label: "7 days" },
-  { k: "30d", label: "30 days" },
-  { k: "all", label: "All" },
-];
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const fmtDay = (d) => {
@@ -457,8 +449,7 @@ function Footer({ summary, byModel }) {
 
 /* ---------------------------------------------------------------- page */
 
-export default function SpendComposed() {
-  const [range, setRange] = useState("30d");
+export default function SpendComposed({ range = "30d" }) {
   const { summary, daily = [], byModel = [], window: win, quota, loading, error } =
     useSpendData(range);
 
@@ -485,32 +476,7 @@ export default function SpendComposed() {
   };
 
   return (
-    <div className="sc-shell">
-      <header className="sc-masthead">
-        <p className="sc-wordmark">
-          Flight<b>Deck</b> Spend · re-composed
-        </p>
-        {/* A segmented control: only the selected segment carries depth. The
-            first pass used four kit buttons and the lint flagged it — four
-            raised segments is uniform depth, which is no depth at all. */}
-        <div className="sc-masthead-right">
-        <div className="sc-range" role="group" aria-label="Time range">
-          {RANGES.map((r) => (
-            <button
-              key={r.k}
-              type="button"
-              className="sc-range-seg"
-              aria-pressed={range === r.k}
-              onClick={() => setRange(r.k)}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-          <PaletteToggle />
-        </div>
-      </header>
-
+    <div className="sc-view">
       <Burn summary={summary} daily={daily} window={win} quota={quota} colors={colors} />
 
       <div className="sc-dense">
