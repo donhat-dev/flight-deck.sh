@@ -41,7 +41,7 @@ const FILL_PROPS =
 
 /** A selector may carry offset depth if it can be acted on… */
 const INTERACTIVE =
-  /(:hover|:active|:focus|:focus-visible|:focus-within|:checked|:disabled|\[data-(checked|selected|active|pressed|open)|\b(button|btn|toggle|checkbox|check|input|tab|link|control|knob|switch|slider|trigger|dial|tune)\b|(^|[\s>+~])(a|button|input|select|textarea|summary|label)([[:.\s]|$))/i;
+  /(:hover|:active|:focus|:focus-visible|:focus-within|:checked|:disabled|\[data-(checked|selected|active|pressed|open)|\[aria-(pressed|selected|current|expanded|checked)|\b(button|btn|toggle|checkbox|check|input|tab|link|control|knob|switch|slider|trigger|dial|tune)\b|(^|[\s>+~])(a|button|input|select|textarea|summary|label)([[:.\s]|$))/i;
 // `data-state` is deliberately NOT in that list. It usually carries a *display*
 // state — a log line reading "failed", a badge reading "waiting" — which is not
 // an affordance, so accepting it would have let any static row claim depth.
@@ -162,6 +162,14 @@ export function parseCss(src) {
   return { rules, vars, comments };
 }
 
+/** Merge the custom properties of several stylesheets into one map, so a screen
+ *  sheet can be linted with the kit's tokens in scope. Later sources win. */
+export function collectVars(sources) {
+  const out = new Map();
+  for (const src of sources) for (const [k, v] of parseCss(src).vars) out.set(k, v);
+  return out;
+}
+
 /** Substitute `var(--x)` until it stops changing. Without this the lint is
  *  blind: `.fdx-button` reaches its offset through TWO hops
  *  (`--fdx-button-shadow` → `--fdx-shadow-control-alert` → `4px 4px 0 …`), so a
@@ -234,8 +242,14 @@ function allowed(comments, lines, ruleId) {
  * Lint one stylesheet. Returns violations plus the measurements a reviewer
  * needs even when nothing failed (which regions carry depth, and where).
  */
-export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET } = {}) {
-  const { rules, vars, comments } = parseCss(src);
+export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedVars } = {}) {
+  const { rules, vars: own, comments } = parseCss(src);
+  // A screen sheet reaches for tokens defined in the kit — `.sc-burn` gets its
+  // offset from `var(--fdx-shadow-print)`, which lives in index.css. With a
+  // per-file var map the lint could not resolve it and reported both anchors as
+  // FLAT: the same blind spot as the two-hop alias, one level up. Own
+  // definitions still win, so a screen can override a token locally.
+  const vars = inheritedVars ? new Map([...inheritedVars, ...own]) : own;
   const violations = [];
   const push = (rule, line, message, scope = null) => {
     const at = scope === null ? line : [line, scope];

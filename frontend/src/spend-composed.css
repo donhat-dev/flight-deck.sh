@@ -1,0 +1,558 @@
+/* composition: screen */
+
+/* ============================================================
+   Spend, re-composed — stage 6 of docs/flightdeck-composition-and-radio.md
+
+   Stage 6 is the point of the exercise: the rules have to survive contact with a
+   view that has real requirements. Today's Spend renders 12 panel-level regions
+   at close to equal weight, which is why it has the most to lose from
+   uniformity.
+
+   The moves, and the rule each answers:
+
+     Burn         anchor — trend + current rate + quota headroom as ONE region,
+                  because that is the single question the view exists to answer:
+                  "is this normal, and how much room is left"                 C1
+     Models       dense support. Legitimately a matrix, so C4's symmetry
+                  exemption applies to its columns — but not to the page       C2
+     Signals      dense list, ranked, no card chrome per item; one selectable   C2
+     Efficiency   at most THREE meters inside space-24 emptiness. Today it is
+                  four numbers plus a ring at panel weight                     C2
+     Footer       concentration + the two headline totals, wide and short       C4
+
+   The demotion is the argument. API-equivalent value and avoided value are the
+   largest numbers on the page and they are NOT the anchor: the first is
+   explicitly "not the amount charged", the second is a comparison. Anchoring on
+   either makes the view's most prominent claim a number nobody acts on — the
+   exact failure C1 exists to prevent. They belong in the footer, where a
+   reference figure belongs.
+
+   Depth budget: the anchor, the range control (from the component kit), and the
+   selected signal. Three, inside C3's 2–4.
+
+   Tokens are the existing --fdx-* set in the Day palette, as Radio uses them.
+   ============================================================ */
+
+.sc-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto auto auto;
+  align-content: start;
+  background: var(--fdx-canvas);
+  color: var(--fdx-text);
+  font-family: var(--fdx-font-primary);
+}
+
+.sc-shell [data-num] {
+  font-family: var(--fdx-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.sc-eyebrow {
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fdx-signal);
+}
+
+.sc-eyebrow[data-quiet="true"] {
+  color: var(--fdx-text-muted);
+}
+
+/* ---------- masthead ---------- */
+
+.sc-masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fdx-space-4);
+  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-4);
+  border-bottom: 1px solid var(--fdx-rule-strong);
+}
+
+.sc-wordmark {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.sc-wordmark b {
+  color: var(--fdx-text);
+  font-weight: 600;
+}
+
+/* A segmented control, not four raised buttons. Using the kit's `.fdx-button`
+   here put offset depth on all four segments at once — which the lint caught, and
+   correctly: depth every element has is not depth. Only the SELECTED segment
+   stands proud, which is both what C3 allows ("the active/selected item") and the
+   right physical idiom — one key down, the rest flush. */
+.sc-range {
+  display: flex;
+  border: 1px solid var(--fdx-rule-strong);
+}
+
+.sc-range-seg {
+  padding: var(--fdx-space-2) var(--fdx-space-3);
+  border: 0;
+  border-right: 1px solid var(--fdx-rule);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.sc-range-seg:last-child {
+  border-right: 0;
+}
+
+.sc-range-seg:hover {
+  color: var(--fdx-text);
+}
+
+.sc-range-seg:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.sc-range-seg[aria-pressed="true"] {
+  background: var(--fdx-surface);
+  color: var(--fdx-signal);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}
+
+/* ---------- Burn — the anchor ---------- */
+
+/* composition: anchor
+   Trend, current rate and remaining room read as one region rather than three
+   panels. The rate carries display type; the chart is inside the same frame, not
+   a sibling card, because splitting them was what made "is this normal" a
+   two-panel question. */
+.sc-burn {
+  display: grid;
+  grid-template-columns: minmax(16rem, 0.42fr) minmax(0, 1fr);
+  gap: var(--fdx-space-8);
+  min-height: 56vh;
+  margin: var(--fdx-space-8);
+  padding: var(--fdx-space-8);
+  border: 1px solid var(--fdx-rule-strong);
+  background: var(--fdx-surface);
+  box-shadow: var(--fdx-shadow-print);
+}
+
+@media (max-width: 68rem) {
+  .sc-burn {
+    grid-template-columns: minmax(0, 1fr);
+    margin: var(--fdx-space-4);
+    padding: var(--fdx-space-6);
+  }
+}
+
+.sc-burn-read {
+  display: grid;
+  align-content: start;
+  gap: var(--fdx-space-3);
+}
+
+.sc-rate {
+  display: flex;
+  align-items: baseline;
+  gap: var(--fdx-space-3);
+  margin-top: var(--fdx-space-2);
+}
+
+.sc-rate b {
+  font-size: clamp(2.8rem, 6.4vw, 4.8rem);
+  font-weight: 400;
+  line-height: 0.9;
+}
+
+.sc-rate span {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+/* Headroom belongs to the anchor, not to a separate quota panel: "how much room
+   is left" is half of the anchor's question. */
+.sc-headroom {
+  margin-top: var(--fdx-space-4);
+  padding-top: var(--fdx-space-4);
+  border-top: 1px solid var(--fdx-rule);
+}
+
+.sc-headroom-bar {
+  position: relative;
+  height: 3px;
+  margin-top: var(--fdx-space-2);
+  background: var(--fdx-rule);
+}
+
+.sc-headroom-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fdx-signal);
+}
+
+.sc-burn-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: var(--fdx-space-3) var(--fdx-space-4);
+  margin-top: var(--fdx-space-4);
+}
+
+.sc-fact dt {
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.sc-fact dd {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+}
+
+.sc-chart {
+  min-width: 0;
+  min-height: 20rem;
+}
+
+.sc-chart-empty {
+  display: grid;
+  height: 100%;
+  place-items: center;
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  color: var(--fdx-text-muted);
+}
+
+/* ---------- Models + Signals — the dense pole, asymmetric ---------- */
+
+.sc-dense {
+  display: grid;
+  grid-template-columns: minmax(0, 1.62fr) minmax(18rem, 0.52fr);
+  gap: var(--fdx-space-8);
+  padding: 0 var(--fdx-space-8);
+}
+
+@media (max-width: 68rem) {
+  .sc-dense {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fdx-space-6);
+    padding: 0 var(--fdx-space-4);
+  }
+}
+
+.sc-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fdx-space-3);
+  padding-bottom: var(--fdx-space-2);
+  border-bottom: 1px solid var(--fdx-rule-strong);
+}
+
+.sc-meta {
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  color: var(--fdx-text-muted);
+}
+
+/* A matrix, so equal columns are correct here — C4's exemption is about content
+   being genuinely tabular, and this is the one region that is. */
+.sc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-table th {
+  padding: var(--fdx-space-2) var(--fdx-space-2);
+  border-bottom: 1px solid var(--fdx-rule);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+  text-align: right;
+}
+
+.sc-table th:first-child,
+.sc-table td:first-child {
+  text-align: left;
+}
+
+.sc-table td {
+  padding: var(--fdx-space-2);
+  border-bottom: 1px solid var(--fdx-rule);
+  text-align: right;
+}
+
+.sc-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.sc-table td:first-child {
+  font-family: var(--fdx-font-primary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.sc-cost {
+  color: var(--fdx-signal);
+}
+
+/* Caution, not failure: an unpriced model is a gap in our price table, not a
+   broken run — so it wears Warning and never Critical (C6). */
+.sc-unpriced {
+  margin-left: var(--fdx-space-2);
+  padding: 1px 5px;
+  border: 1px solid color-mix(in srgb, var(--fdx-warning) 45%, transparent);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fdx-warning);
+}
+
+/* Ranked list with hairlines: no card chrome per item, which is what made three
+   signals read as three panels. */
+.sc-signal {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  gap: var(--fdx-space-2) var(--fdx-space-3);
+  width: 100%;
+  padding: var(--fdx-space-3) var(--fdx-space-2);
+  border: 0;
+  border-bottom: 1px solid var(--fdx-rule);
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sc-signal:hover {
+  background: color-mix(in srgb, var(--fdx-surface) 70%, transparent);
+}
+
+.sc-signal:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+/* The third and last depth element on the page. */
+.sc-signal[data-selected="true"] {
+  border-left-color: var(--fdx-signal);
+  background: var(--fdx-surface);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}
+
+.sc-signal i {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--fdx-text-muted);
+}
+
+.sc-signal[data-mark="signal"] i {
+  background: var(--fdx-signal);
+}
+
+.sc-signal[data-mark="caution"] i {
+  background: var(--fdx-warning);
+}
+
+.sc-signal[data-mark="good"] i {
+  background: var(--fdx-positive);
+}
+
+.sc-signal-title {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* Both are spans inside one grid cell (a <p> cannot nest in a <button>), so they
+   need display:block — as inline spans they ran together into one line. */
+.sc-signal-copy {
+  display: block;
+  margin: 3px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--fdx-text-muted);
+}
+
+.sc-signal-value {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sc-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fdx-space-1);
+  padding-top: var(--fdx-space-3);
+}
+
+.sc-chip {
+  padding: 2px 7px;
+  border: 1px solid var(--fdx-rule);
+  border-radius: 999px;
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  color: var(--fdx-text-muted);
+}
+
+/* ---------- Efficiency — the sparse pole ---------- */
+
+.sc-efficiency {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--fdx-space-16);
+  /* space-24 of emptiness, and three meters at most. Raising every region's
+     spacing together would only move the flatness up a scale. */
+  padding: var(--fdx-space-24) var(--fdx-space-8);
+  margin-top: var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule);
+}
+
+@media (max-width: 68rem) {
+  .sc-efficiency {
+    gap: var(--fdx-space-8);
+    padding: var(--fdx-space-16) var(--fdx-space-4);
+  }
+}
+
+.sc-meter dt {
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.sc-meter dd {
+  margin: var(--fdx-space-2) 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+
+/* A meter implies a bounded scale. `Avg context / turn` has no natural maximum
+   — it exceeds the model's context window because it counts cache reads — so
+   that meter ships WITHOUT a bar rather than with an invented denominator. A bar
+   pinned at 100% against a made-up ceiling is worse than no bar. */
+.sc-meter-bar {
+  position: relative;
+  height: 3px;
+  margin-top: var(--fdx-space-3);
+  background: var(--fdx-rule);
+}
+
+.sc-meter-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fdx-text);
+}
+
+.sc-meter[data-tone="good"] .sc-meter-bar i {
+  background: var(--fdx-positive);
+}
+
+/* ---------- Footer — reference figures, wide and short ---------- */
+
+.sc-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--fdx-space-8);
+  padding: var(--fdx-space-4) var(--fdx-space-8) var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule-strong);
+}
+
+@media (max-width: 68rem) {
+  .sc-footer {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--fdx-space-6);
+    padding: var(--fdx-space-4) var(--fdx-space-4) var(--fdx-space-6);
+  }
+}
+
+.sc-total {
+  display: grid;
+  align-content: start;
+  gap: var(--fdx-space-1);
+}
+
+.sc-total-value {
+  font-size: 1.5rem;
+  line-height: 1.1;
+}
+
+.sc-total-note {
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--fdx-text-muted);
+}
+
+.sc-conc-bar {
+  display: flex;
+  height: 8px;
+  margin-top: var(--fdx-space-2);
+  overflow: hidden;
+  background: var(--fdx-rule);
+}
+
+.sc-conc-list {
+  display: grid;
+  gap: var(--fdx-space-1);
+  margin-top: var(--fdx-space-3);
+}
+
+.sc-conc-row {
+  display: grid;
+  grid-template-columns: 7px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fdx-space-2);
+  font-size: 10px;
+  color: var(--fdx-text-muted);
+}
+
+.sc-conc-row b {
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--fdx-text);
+}
+
+.sc-footnote {
+  padding: 0 var(--fdx-space-8) var(--fdx-space-8);
+  font-size: 9px;
+  line-height: 1.6;
+  color: var(--fdx-text-muted);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sc-shell *,
+  .sc-shell *::before,
+  .sc-shell *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}

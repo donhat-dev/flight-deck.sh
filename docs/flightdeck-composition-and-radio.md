@@ -250,7 +250,7 @@ Each stage is independently reviewable and leaves the product working.
 | 3 | ✅ FlightDeckRadio shell, **Day palette only** | `radio.html` + `radio-entry.jsx` + `Radio.jsx` + `radio.css`. Declares `composition: screen`, so the lint requires it to name its anchor | The composition reads as intended before real data complicates it |
 | 4 | ✅ Wire live data | `/api/sessions`, `/api/summary`, `/api/quota`, `/api/usage-windows` + the SSE ping. No backend work | It is a control plane on real state — verified rendering live sessions |
 | 5 | ◐ Actions | Tune (repoints the anchor), mute (local watch list, persisted), open transcript. **Jump-to-artifact not built** | It controls rather than displays |
-| 6 | Adopt back into **Spend** | Re-compose Spend per §6, judged against Radio | The rules survive contact with a view that has real requirements |
+| 6 | ✅ Re-compose **Spend** | `spend-concept.html` + `SpendComposed.jsx` + `spend-composed.css`, live on the same endpoints. Swapping it into `view === "usage"` is left as a separate decision | The rules survive contact with a view that has real requirements |
 | 7 | Night palette port | Radio + Spend in Night | The art direction was in the composition, not in the paper colour |
 | 8 | Radio takes `/` | Retire the `home-concept*` entries | One home, not three |
 
@@ -346,4 +346,38 @@ value is a comparison. Anchoring on either would make the view's most prominent
 claim a number nobody acts on — the exact failure C1 exists to prevent.
 
 Depth budget for the whole view: the anchor, the range control, and the selected
-signal. Three, inside C3's 2–4.
+signal. Three, inside C3's 2–4 — and now **measured** rather than asserted: the
+lint reports `spend-composed.css` at exactly three depth-bearing elements at rest
+(`.sc-burn`, `.sc-range-seg`, `.sc-signal`), with `radio.css` at two.
+
+### What building it changed
+
+Delivered as its own entry (`/spend-concept.html`) on the repo's proposal
+pattern, live on the same five endpoints the dashboard uses. **Adopting it into
+`view === "usage"` is one swap in `App.jsx`, deliberately not done here** — it
+replaces the daily tool, so the flip is a decision rather than a step.
+
+Four things the work forced, three of them corrections:
+
+1. **A blind spot in the lint, of exactly the kind the lint exists to close.**
+   Both anchors take their offset from `var(--fdx-shadow-print)`, declared in
+   `index.css`. The var map was per-file, so the lint could not resolve it and
+   reported **both anchors as flat** — it had never checked the one region it most
+   needed to. Fixed with `collectVars()` + an `inheritedVars` option; a screen can
+   still override a token locally. Same failure as the two-hop alias, one level
+   up, and found only by asking the lint to print what it saw.
+2. **The range control was four raised buttons.** Built from the kit's
+   `.fdx-button`, all four segments carried offset depth — uniform depth, which is
+   no depth. Now a segmented control where only the selected segment stands proud:
+   what C3 allows, and the right physical idiom. `aria-pressed` was added to the
+   lint's interaction vocabulary, since an ARIA state *is* an interaction state.
+3. **A fake scale, removed.** `Avg context / turn` had a meter bar computed
+   against an invented 200K denominator, so at 372K it sat pinned at 100% and read
+   as "at the limit". The figure has no natural ceiling — it counts cache reads —
+   so that meter now ships with **no bar**. A bar implies a bounded scale; where
+   none exists, the number stands alone.
+4. **The demotion holds up in practice.** API-equivalent value ($27.3K) and
+   avoided value ($127.3K) are by far the largest numbers on the page and they sit
+   in the footer, while the anchor carries $29/hour. Reading the page top to
+   bottom now answers "is this normal, and how much room is left" before it offers
+   any reference figure — which was the whole claim of §6.

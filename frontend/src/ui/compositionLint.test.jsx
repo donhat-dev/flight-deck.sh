@@ -12,7 +12,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { baseClass, hasOffsetDepth, lintCss, lintJsx, resolveValue } from "./compositionLint.js";
+import {
+  baseClass, collectVars, hasOffsetDepth, lintCss, lintJsx, resolveValue,
+} from "./compositionLint.js";
 
 const SRC = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -52,6 +54,21 @@ describe("offset depth detection", () => {
     expect(resolveValue("var(--a)", vars)).toBe("2px 2px 0 red");
   });
 
+  it("resolves a token defined in another stylesheet", () => {
+    // Both screens get their anchor's offset from --fdx-shadow-print, which is
+    // declared in the kit. Without inherited vars the lint called both anchors
+    // flat — it never checked the one region it most needed to.
+    const kit = `:root { --fdx-shadow-print: 4px 4px 0 #d94625; }`;
+    const screen = `/* composition: anchor */\n.burn { box-shadow: var(--fdx-shadow-print); }`;
+
+    expect(lintCss(screen).depthBases).toEqual([]); // blind, as it was
+    expect(lintCss(screen, { inheritedVars: collectVars([kit]) }).depthBases).toEqual([".burn"]);
+
+    // A screen may still override the token for itself.
+    const own = `.burn { --fdx-shadow-print: none; box-shadow: var(--fdx-shadow-print); }`;
+    expect(lintCss(own, { inheritedVars: collectVars([kit]) }).depthBases).toEqual([]);
+  });
+
   it("does not loop forever on a self-referencing property", () => {
     const vars = new Map([["--a", "var(--a)"]]);
     expect(resolveValue("var(--a)", vars)).toBe("var(--a)");
@@ -78,6 +95,17 @@ describe("C3a — depth marks interaction, not decoration", () => {
 
   it("allows the page shell, which is ground rather than figure", () => {
     expect(ids(lintCss(`.wb-shell { box-shadow: 6px 6px 0 #ccc; }`))).toEqual([]);
+  });
+
+  it("accepts an ARIA interaction state", () => {
+    // aria-pressed IS an interaction state by definition, so a segmented
+    // control whose selected segment stands proud is allowed — this is how
+    // Spend's range control stopped putting depth on all four segments.
+    expect(ids(lintCss(`.sc-range-seg[aria-pressed="true"] { box-shadow: 2px 2px 0 #ccc; }`)))
+      .toEqual([]);
+    // …but a plain aria label is not a state, so it earns nothing.
+    expect(ids(lintCss(`.panel[aria-label="Signal"] { box-shadow: 2px 2px 0 #ccc; }`)))
+      .toEqual(["C3a"]);
   });
 
   it("treats a trigger as the control it is", () => {
@@ -297,9 +325,12 @@ describe("the real stylesheets satisfy the contract", () => {
     expect(sheets.length).toBeGreaterThanOrEqual(3);
   });
 
+  const read = (name) => fs.readFileSync(path.join(SRC, name), "utf8");
+  const kitVars = collectVars(sheets.map(read));
+
   it.each(sheets)("%s — no C3 or C6 violations", (name) => {
-    const src = fs.readFileSync(path.join(SRC, name), "utf8");
-    const { violations } = lintCss(src, { file: name });
+    const src = read(name);
+    const { violations } = lintCss(src, { file: name, inheritedVars: kitVars });
     const detail = violations.map((v) => `${v.file}:${v.line} [${v.rule}] ${v.message}`);
     expect(detail).toEqual([]);
   });
@@ -308,7 +339,7 @@ describe("the real stylesheets satisfy the contract", () => {
     // The class set comes from the stylesheets rather than a hand-written list,
     // so a new depth-bearing class is covered the day it is written.
     const depthClasses = sheets.flatMap(
-      (name) => lintCss(fs.readFileSync(path.join(SRC, name), "utf8")).unconditionalDepth,
+      (name) => lintCss(read(name), { inheritedVars: kitVars }).unconditionalDepth,
     );
     const walk = (dir) =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
@@ -338,10 +369,7 @@ describe("the real stylesheets satisfy the contract", () => {
     // lint would be to keep adding markers until it guards nothing. Lowering
     // this number is a normal part of stage 3+; raising it needs a decision.
     const CEILING = 3;
-    const total = sheets.reduce(
-      (sum, name) => sum + lintCss(fs.readFileSync(path.join(SRC, name), "utf8")).exemptions,
-      0,
-    );
+    const total = sheets.reduce((sum, name) => sum + lintCss(read(name)).exemptions, 0);
     expect(total).toBeLessThanOrEqual(CEILING);
   });
 });
