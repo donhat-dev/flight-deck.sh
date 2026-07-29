@@ -103,13 +103,12 @@ Below `640px`:
 
 ## 7. Integration recommendation
 
-The proposal is intentionally a separate Vite entry because `/` currently mounts MiniTown and the original dashboard in `App.jsx` is not mounted.
+The proposal is intentionally a separate Vite entry so it can be reviewed without touching the running dashboard: `/` mounts `App.jsx`, which is the real product.
 
 For production integration:
 
 1. Add a `HomeView` branch to `App.jsx` while preserving its existing data loaders, SSE subscription, range logic, session detail route, and specialist surfaces.
 2. Feed the home from existing summary, sessions, quota, MCP/system, task, and diff endpoints.
-3. Move MiniTown to an explicit concept route instead of deleting it.
-4. Rename navigation in one migration after the neutral home is accepted; do not mix old and new vocabulary in the same shell.
+3. Rename navigation in one migration after the neutral home is accepted; do not mix old and new vocabulary in the same shell.
 
 The prototype uses representative local data and does not mutate backend state.

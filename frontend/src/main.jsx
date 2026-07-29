@@ -1,13 +1,10 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
+// Self-hosted fonts (offline-safe, no external <link>), per FlightDeck Night:
+// Outfit for display + UI, IBM Plex Mono for all instrument labels & numbers.
 import "@fontsource-variable/outfit";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/600.css";
-import MiniTown from "./MiniTown.jsx";
-import "./minitown.css";
-
-createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <MiniTown />
-  </React.StrictMode>,
-);
+import App from "./App.jsx";
+import "./index.css";
+createRoot(document.getElementById("root")).render(<App />);
