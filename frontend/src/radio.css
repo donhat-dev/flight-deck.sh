@@ -108,6 +108,12 @@
   color: var(--fdx-signal);
 }
 
+.radio-masthead-right {
+  display: flex;
+  align-items: center;
+  gap: var(--fdx-space-3);
+}
+
 .radio-onair-lamp {
   display: inline-flex;
   align-items: center;

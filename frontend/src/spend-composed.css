@@ -86,6 +86,12 @@
   font-weight: 600;
 }
 
+.sc-masthead-right {
+  display: flex;
+  align-items: center;
+  gap: var(--fdx-space-3);
+}
+
 /* A segmented control, not four raised buttons. Using the kit's `.fdx-button`
    here put offset depth on all four segments at once — which the lint caught, and
    correctly: depth every element has is not depth. Only the SELECTED segment

@@ -18,6 +18,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { get, subscribe } from "./api.js";
+import PaletteToggle from "./ui/PaletteToggle.jsx";
 
 const MUTED_KEY = "flightdeck.radio.muted";
 
@@ -377,10 +378,13 @@ export default function Radio() {
             data-label={win?.burnRate?.costPerHour ? money(win.burnRate.costPerHour) : ""}
           />
         </div>
-        <p className="radio-onair-lamp" data-live={live && onAir ? "true" : "false"}>
-          <i />
-          {live ? (onAir ? "On air" : "Quiet") : "Sample"}
-        </p>
+        <div className="radio-masthead-right">
+          <p className="radio-onair-lamp" data-live={live && onAir ? "true" : "false"}>
+            <i />
+            {live ? (onAir ? "On air" : "Quiet") : "Sample"}
+          </p>
+          <PaletteToggle />
+        </div>
       </header>
 
       <div className="radio-body">

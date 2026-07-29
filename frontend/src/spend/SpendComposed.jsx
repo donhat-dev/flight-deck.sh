@@ -21,6 +21,7 @@ import {
 
 import { get } from "../api.js";
 import { compact, pct, shortModel, usd } from "../format.js";
+import PaletteToggle from "../ui/PaletteToggle.jsx";
 
 const RANGES = [
   { k: "today", label: "Today" },
@@ -492,6 +493,7 @@ export default function SpendComposed() {
         {/* A segmented control: only the selected segment carries depth. The
             first pass used four kit buttons and the lint flagged it — four
             raised segments is uniform depth, which is no depth at all. */}
+        <div className="sc-masthead-right">
         <div className="sc-range" role="group" aria-label="Time range">
           {RANGES.map((r) => (
             <button
@@ -504,6 +506,8 @@ export default function SpendComposed() {
               {r.label}
             </button>
           ))}
+        </div>
+          <PaletteToggle />
         </div>
       </header>
 

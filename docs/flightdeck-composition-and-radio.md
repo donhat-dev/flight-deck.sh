@@ -251,8 +251,8 @@ Each stage is independently reviewable and leaves the product working.
 | 4 | ✅ Wire live data | `/api/sessions`, `/api/summary`, `/api/quota`, `/api/usage-windows` + the SSE ping. No backend work | It is a control plane on real state — verified rendering live sessions |
 | 5 | ◐ Actions | Tune (repoints the anchor), mute (local watch list, persisted), open transcript. **Jump-to-artifact not built** | It controls rather than displays |
 | 6 | ✅ Re-compose **Spend** | `spend-concept.html` + `SpendComposed.jsx` + `spend-composed.css`, live on the same endpoints. Swapping it into `view === "usage"` is left as a separate decision | The rules survive contact with a view that has real requirements |
-| 7 | Night palette port | Radio + Spend in Night | The art direction was in the composition, not in the paper colour |
-| 8 | Radio takes `/` | Retire the `home-concept*` entries | One home, not three |
+| 7 | ✅ Night palette port | `ui/PaletteToggle.jsx` on both planes. Every colour already came from a token both themes define, so flipping `data-theme` **was** the port | Verified in both palettes with the composition unchanged: the art direction was never in the paper colour |
+| 8 | ⏸ Radio takes `/` | Retire the `home-concept*` entries | One home, not three — **needs a decision, not a step**: it replaces the daily entry point |
 
 Stage 6 is the point of the exercise. Stages 3–5 exist to earn the right to do it,
 and stages 7–8 only make sense once it has been earned.

@@ -2850,3 +2850,26 @@ table.rd-sxs {
   .fdx-pixel-scan { transform: translate3d(0, 72px, 0) !important; opacity: 0.12; }
   .fdx-pixel-beacon { opacity: 0.48; }
 }
+
+/* Palette switch used by the parallel planes (Radio, Spend re-composed). Flat by
+   design: it is an instrument for testing the Night port, not a region. */
+.fdx-palette-toggle {
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--fdx-rule-strong);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.fdx-palette-toggle:hover {
+  color: var(--fdx-text);
+}
+
+.fdx-palette-toggle:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: 2px;
+}

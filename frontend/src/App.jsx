@@ -645,6 +645,15 @@ export default function App() {
             Radio
             <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
           </a>
+          <a
+            href="/spend-concept.html"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
+          >
+            <span className="w-4 text-center text-base leading-none opacity-80">◐</span>
+            Spend v2
+            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
+          </a>
         </nav>
         <SidebarQuota data={quota} onRefresh={refreshQuota} />
         <div className="mt-auto flex items-center gap-2 px-5 py-4 text-xs">
