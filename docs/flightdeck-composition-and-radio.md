@@ -247,15 +247,59 @@ Each stage is independently reviewable and leaves the product working.
 |---|---|---|---|
 | 1 | Write the composition contract | §2 as a `docs/` section | The rules exist before anything is built against them |
 | 2 | ✅ Composition lint | `compositionLint.js` — C1, C3a/b/c, C6a/b enforced; C2/C4/C5 declared undecidable | The rules are enforceable, not aspirational. Verified by a live negative test: violations injected into a real stylesheet were caught through the same path CI uses |
-| 3 | FlightDeckRadio static shell, **Day palette only** | `radio.html` + entry + component, representative local data. `radio.css` opens with `composition: screen`, so the lint requires it to name its anchor | The composition reads as intended before real data complicates it |
-| 4 | Wire live data | Existing endpoints + SSE | It is a control plane on real state |
-| 5 | Actions | Tune / mute / jump-to-artifact | It controls rather than displays |
+| 3 | ✅ FlightDeckRadio shell, **Day palette only** | `radio.html` + `radio-entry.jsx` + `Radio.jsx` + `radio.css`. Declares `composition: screen`, so the lint requires it to name its anchor | The composition reads as intended before real data complicates it |
+| 4 | ✅ Wire live data | `/api/sessions`, `/api/summary`, `/api/quota`, `/api/usage-windows` + the SSE ping. No backend work | It is a control plane on real state — verified rendering live sessions |
+| 5 | ◐ Actions | Tune (repoints the anchor), mute (local watch list, persisted), open transcript. **Jump-to-artifact not built** | It controls rather than displays |
 | 6 | Adopt back into **Spend** | Re-compose Spend per §6, judged against Radio | The rules survive contact with a view that has real requirements |
 | 7 | Night palette port | Radio + Spend in Night | The art direction was in the composition, not in the paper colour |
 | 8 | Radio takes `/` | Retire the `home-concept*` entries | One home, not three |
 
 Stage 6 is the point of the exercise. Stages 3–5 exist to earn the right to do it,
 and stages 7–8 only make sense once it has been earned.
+
+### What stages 3–5 actually produced
+
+Reachable from the dashboard sidebar under **Planes → Radio** (an anchor, not a
+`setView` button, because Radio is its own Vite entry). Registered in
+`vite.config.js`; the backend already serves `dist` with `html=True`, so
+`/radio.html` needs no route.
+
+Four regions, mapped in `radio.css`: **On air** (anchor, ~55vh, display numeral,
+the page's only depth, carrying the print offset), **Channels** (dense band,
+hairlines and no card chrome, depth on the selected row only), **Signal** (three
+meters inside `space-24`), **Log** (wide, short). Tokens are the existing
+`--fdx-*` set in its Day palette — no third namespace after `--fd2-*`.
+
+**Three things this stage established beyond the shell:**
+
+1. **The lint caught its author.** C3c flagged `radio-channel` as depth rendered
+   per row. It was a false positive — the depth belongs to
+   `[data-selected="true"]`, so only one row has it — and the fix was to
+   distinguish *unconditional* depth from *attribute-gated* depth rather than to
+   suppress the rule. C3c now flags only classes whose depth has no gate, which
+   is the pattern that is actually wrong. Two of the lint's own bugs surfaced the
+   same way: exemptions attached to the declaration instead of the rule, and a
+   single-line `.map()` slipped past a line-based scanner.
+2. **A colour-role error of ours, caught by reading the render.** The log first
+   showed a *running* session in Warning. Running is the most normal state on the
+   page; C6 assigns active to Coral Signal, and Warning means caution. Now:
+   running → Signal, idle → muted, and Warning/Critical stay **unused** because
+   `/api/sessions` cannot tell us a run was delayed or failed. Colouring an idle
+   run as a problem would be an invented fact.
+3. **Radio put a known pricing gap where it cannot be missed.** Session cost
+   reads `$0.00` for nearly every channel, because `flightdeck/pricing.py` knows
+   `claude-opus-4` but **not `claude-opus-5`**, which is what these sessions run
+   on. Spend already discloses the same gap honestly — "5.6B unpriced tokens" in
+   its header, and no Opus 5 row in the model breakdown — so this is a known
+   omission rather than a hidden one. What Radio changes is the reading: in Spend
+   the gap is one caveat in a header; on Radio the gap fills the cost column of
+   nearly every channel. Burn rate and window spend stay correct because `/api/usage-windows`
+   prices separately. Not fixed here — the real per-token prices are not ours to
+   invent on a cost dashboard. Adding the price row belongs to stage 6.
+
+**Not done, and why:** "jump to the artifact or diff a run produced" needs a
+session→artifact relation that no endpoint exposes. Tune, mute and open-transcript
+are real; that fourth action would need the relation built first.
 
 ---
 

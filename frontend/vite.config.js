@@ -14,6 +14,7 @@ export default defineConfig({
         componentLab: `${rootDir}component-lab.html`,
         homeConcept: `${rootDir}home-concept.html`,
         homeConceptV2: `${rootDir}home-concept-v2.html`,
+        radio: `${rootDir}radio.html`,
       },
     },
   },

@@ -629,6 +629,22 @@ export default function App() {
             Systems
           </div>
           {SYS_NAV.map(navBtn)}
+          {/* Radio is a separate Vite entry, not a view in this SPA, so it is an
+              anchor rather than a setView button. Styled like navBtn on purpose:
+              a link that looked different would read as broken, and the arrow is
+              what signals it leaves the dashboard. */}
+          <div className="mb-1 mt-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+            Planes
+          </div>
+          <a
+            href="/radio.html"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
+          >
+            <span className="w-4 text-center text-base leading-none opacity-80">◎</span>
+            Radio
+            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
+          </a>
         </nav>
         <SidebarQuota data={quota} onRefresh={refreshQuota} />
         <div className="mt-auto flex items-center gap-2 px-5 py-4 text-xs">

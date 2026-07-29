@@ -41,7 +41,11 @@ const FILL_PROPS =
 
 /** A selector may carry offset depth if it can be acted on… */
 const INTERACTIVE =
-  /(:hover|:active|:focus|:focus-visible|:focus-within|:checked|:disabled|\[data-(checked|selected|active|pressed|open|state)|\b(button|btn|toggle|checkbox|check|input|tab|link|control|knob|switch|slider|trigger|dial|tune)\b|(^|[\s>+~])(a|button|input|select|textarea|summary|label)([[:.\s]|$))/i;
+  /(:hover|:active|:focus|:focus-visible|:focus-within|:checked|:disabled|\[data-(checked|selected|active|pressed|open)|\b(button|btn|toggle|checkbox|check|input|tab|link|control|knob|switch|slider|trigger|dial|tune)\b|(^|[\s>+~])(a|button|input|select|textarea|summary|label)([[:.\s]|$))/i;
+// `data-state` is deliberately NOT in that list. It usually carries a *display*
+// state — a log line reading "failed", a badge reading "waiting" — which is not
+// an affordance, so accepting it would have let any static row claim depth.
+// Genuine interaction states are already covered by checked/selected/pressed/open.
 
 /** Depth that exists only while the pointer or focus is on an element is not
  *  competing for attention at rest, so it does not spend budget. */
@@ -271,6 +275,12 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET } = {}) {
   }
 
   const depthBases = new Map();
+  // Classes whose depth is UNCONDITIONAL — the rule carrying the offset names no
+  // attribute and no pseudo-class, so every element with the class gets depth.
+  // C3c needs this distinction: `.radio-channel[data-selected="true"]` gives
+  // depth to one row, and flagging the class would punish the very pattern that
+  // makes the gate visible.
+  const unconditional = new Set();
 
   for (const rule of rules) {
     const isAnchor = [...anchorLines].some((l) => l === rule.line || l === rule.line - 1);
@@ -285,6 +295,8 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET } = {}) {
         if (atRest && !depthBases.has(base)) {
           depthBases.set(base, { line: decl.line, selector: rule.selector });
         }
+        const gated = /[[:]/.test(splitTop(rule.selector, ",")[0].trim());
+        if (atRest && !gated) unconditional.add(base);
         if (!INTERACTIVE.test(rule.selector) && !FRAME.test(rule.selector) && !isAnchor) {
           push(
             "C3a",
@@ -326,6 +338,7 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET } = {}) {
   return {
     violations,
     depthBases: [...depthBases.keys()],
+    unconditionalDepth: [...unconditional],
     anchors: anchors.length,
     kind: isLibrary ? "library" : "screen",
     exemptions: comments.filter((c) => /^composition-lint-allow:/.test(c.text)).length,
@@ -348,38 +361,40 @@ export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
   const names = depthClasses.map((c) => c.replace(/^\./, "")).filter(Boolean);
   if (!names.length) return { violations };
 
-  const lines = src.split("\n");
-  let mapDepth = 0; // parenthesis depth at which the innermost .map( opened
+  // Scanned as one string rather than line by line: `rows.map(r => <li
+  // className="raised"/>)` opens and closes on a single line, and a per-line
+  // scan that only checks openness at the end of the line misses exactly that.
   let parens = 0;
-  const openMaps = [];
+  const openMaps = []; // paren depth at which each enclosing .map( opened
+  let line = 1;
 
-  lines.forEach((text, index) => {
-    for (let i = 0; i < text.length; i++) {
-      if (text.startsWith(".map(", i)) openMaps.push(parens);
-      if (text[i] === "(") parens++;
-      else if (text[i] === ")") {
-        parens--;
-        while (openMaps.length && parens <= openMaps[openMaps.length - 1]) openMaps.pop();
-      }
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    if (ch === "\n") line++;
+    if (src.startsWith(".map(", i)) openMaps.push(parens);
+    if (ch === "(") parens++;
+    else if (ch === ")") {
+      parens--;
+      while (openMaps.length && parens <= openMaps[openMaps.length - 1]) openMaps.pop();
     }
-    mapDepth = openMaps.length;
-    if (!mapDepth) return;
+
+    if (!openMaps.length || !src.startsWith("className=", i)) continue;
 
     // Only a className written as a plain literal is unbounded; an expression
     // (`?`, `&&`, or a template hole) can gate depth on the selected row.
-    const attr = text.match(/className=(?:"([^"]*)"|'([^']*)')/);
-    if (!attr) return;
+    const attr = /^className=(?:"([^"]*)"|'([^']*)')/.exec(src.slice(i, i + 200));
+    if (!attr) continue;
     const value = attr[1] ?? attr[2] ?? "";
     const hit = names.find((n) => value.split(/\s+/).includes(n));
     if (hit) {
       violations.push({
         rule: "C3c",
         file,
-        line: index + 1,
+        line,
         message: `\`${hit}\` carries offset depth and is rendered unconditionally inside a .map(); depth in a list belongs to the selected row only`,
       });
     }
-  });
+  }
 
   return { violations };
 }

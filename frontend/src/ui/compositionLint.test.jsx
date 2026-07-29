@@ -249,6 +249,26 @@ describe("C3c — depth inside a repeated list", () => {
     expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
   });
 
+  it("separates unconditional depth from attribute-gated depth", () => {
+    // This distinction was found by the lint flagging Radio's own channel rows.
+    // The class is written statically in the .map(), but the depth belongs to
+    // `[data-selected="true"]`, so only one row ever has it. Flagging the class
+    // would have punished the pattern that makes the gate visible in the first
+    // place; the fix is to feed C3c only classes whose depth has no gate.
+    const gated = `.row { padding: 1rem; }
+      .row[data-selected="true"] { box-shadow: 2px 2px 0 #ccc; }`;
+    expect(lintCss(gated).unconditionalDepth).toEqual([]);
+    expect(lintCss(gated).depthBases).toEqual([".row"]);
+
+    const always = `.row:not(.x) { box-shadow: 2px 2px 0 #ccc; }
+      .card-raised { box-shadow: 2px 2px 0 #ccc; }`;
+    expect(lintCss(always).unconditionalDepth).toEqual([".card-raised"]);
+
+    const jsx = `{rows.map((r) => <li className="row" key={r.id}>{r.n}</li>)}`;
+    expect(ids(lintJsx(jsx, lintCss(gated).unconditionalDepth))).toEqual([]);
+    expect(ids(lintJsx(jsx, [".row"]))).toEqual(["C3c"]);
+  });
+
   it("ignores depth outside any list", () => {
     const jsx = `<section className="on-air raised">…</section>`;
     expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
@@ -288,7 +308,7 @@ describe("the real stylesheets satisfy the contract", () => {
     // The class set comes from the stylesheets rather than a hand-written list,
     // so a new depth-bearing class is covered the day it is written.
     const depthClasses = sheets.flatMap(
-      (name) => lintCss(fs.readFileSync(path.join(SRC, name), "utf8")).depthBases,
+      (name) => lintCss(fs.readFileSync(path.join(SRC, name), "utf8")).unconditionalDepth,
     );
     const walk = (dir) =>
       fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {

@@ -1,0 +1,513 @@
+/* composition: screen */
+
+/* ============================================================
+   FlightDeckRadio — stage 3 of docs/flightdeck-composition-and-radio.md
+
+   Declaring `composition: screen` above accepts the full contract, so the lint
+   requires this sheet to name exactly one anchor region.
+
+   A monitoring surface, not an inspection one. It deliberately leaves the
+   predictable control-plane frame (§3): no equal card grid, no card per metric,
+   no uniform panel chrome, no toolbar. What it must NOT break is operability —
+   a fact always in the same slot, one colour meaning, mono tabular figures,
+   reachable focus.
+
+   How the four regions answer the contract:
+
+     On air    anchor, ~55% of the first screen, the only region with depth  C1
+     Channels  dense band, space-2 rhythm, mono, hairlines and no card chrome C2
+     Signal    three meters inside space-24 emptiness, the sparse pole        C2
+     Log       wide and short footer strip                                    C4
+
+   Tokens are the existing --fdx-* set in index.css, in its Day palette. No new
+   namespace: home-concept-v2 forked into --fd2-* and that fragmentation is a
+   cost, not a feature. Night is stage 7 and needs no change here — every colour
+   below comes from a token that both themes define.
+   ============================================================ */
+
+.radio-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  background: var(--fdx-canvas);
+  color: var(--fdx-text);
+  font-family: var(--fdx-font-primary);
+}
+
+/* Every number on this page is mono with tabular figures. This is the
+   operability half of the thesis: the art direction may reframe a number, never
+   make it jump as it counts. */
+.radio-shell [data-num] {
+  font-family: var(--fdx-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- masthead: a rule and wide tracking, not a toolbar ---------- */
+
+.radio-masthead {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fdx-space-6);
+  /* The dial's needle prints its reading ABOVE the tick scale, so the masthead
+     needs headroom for it — with space-4 the label collided with the top edge. */
+  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-3);
+  border-bottom: 1px solid var(--fdx-rule-strong);
+}
+
+.radio-wordmark {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-wordmark b {
+  color: var(--fdx-text);
+  font-weight: 600;
+}
+
+/* The dial: a tick scale with one needle. "One lit indicator at a time" (C6),
+   and the ticks are drawn by a gradient rather than 40 elements. */
+.radio-dial {
+  position: relative;
+  height: 26px;
+  border-bottom: 1px solid var(--fdx-rule);
+  background-image: repeating-linear-gradient(
+    to right,
+    var(--fdx-rule-strong) 0 1px,
+    transparent 1px 100%
+  );
+  background-size: 2.5% 8px;
+  background-repeat: repeat-x;
+  background-position: bottom;
+}
+
+.radio-needle {
+  position: absolute;
+  bottom: -1px;
+  width: 2px;
+  height: 22px;
+  background: var(--fdx-signal);
+  transition: left var(--fdx-motion-slow) var(--fdx-ease);
+}
+
+.radio-needle::after {
+  content: attr(data-label);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  padding-bottom: 3px;
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  white-space: nowrap;
+  color: var(--fdx-signal);
+}
+
+.radio-onair-lamp {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fdx-space-2);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-onair-lamp i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fdx-rule-strong);
+}
+
+.radio-onair-lamp[data-live="true"] {
+  color: var(--fdx-signal);
+}
+
+.radio-onair-lamp[data-live="true"] i {
+  background: var(--fdx-signal);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
+}
+
+/* ---------- body: asymmetric by default (C4) ---------- */
+
+.radio-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(19rem, 0.55fr);
+  align-items: start;
+  gap: var(--fdx-space-8);
+  padding: var(--fdx-space-8);
+}
+
+@media (max-width: 60rem) {
+  .radio-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* ---------- On air — the anchor ---------- */
+
+/* composition: anchor
+   The one region that answers "what is happening right now", so it is the only
+   one with display type and the only one with depth. The offset is the print
+   material (--fdx-shadow-print), which is the registration mark of the
+   reference material rather than a control affordance. */
+.radio-onair {
+  position: relative;
+  min-height: 55vh;
+  display: grid;
+  align-content: start;
+  gap: var(--fdx-space-4);
+  padding: var(--fdx-space-8);
+  border: 1px solid var(--fdx-rule-strong);
+  background: var(--fdx-surface);
+  box-shadow: var(--fdx-shadow-print);
+}
+
+.radio-eyebrow {
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--fdx-signal);
+}
+
+.radio-onair-title {
+  margin: 0;
+  font-size: clamp(1.5rem, 3.1vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.radio-onair-sub {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  color: var(--fdx-text-muted);
+}
+
+/* The burn rate at display scale — the largest thing on the page, because it is
+   the number the surface exists to carry. */
+.radio-rate {
+  display: flex;
+  align-items: baseline;
+  gap: var(--fdx-space-3);
+  margin-top: var(--fdx-space-4);
+}
+
+.radio-rate b {
+  font-size: clamp(3rem, 8vw, 6rem);
+  font-weight: 400;
+  line-height: 0.9;
+}
+
+.radio-rate span {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+/* Facts keep a fixed slot each: same order, same place, every render. */
+.radio-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
+  gap: var(--fdx-space-3) var(--fdx-space-6);
+  margin-top: var(--fdx-space-4);
+  padding-top: var(--fdx-space-4);
+  border-top: 1px solid var(--fdx-rule);
+}
+
+.radio-fact {
+  display: grid;
+  gap: 2px;
+}
+
+.radio-fact dt {
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-fact dd {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.radio-onair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--fdx-space-2);
+  margin-top: var(--fdx-space-6);
+}
+
+/* ---------- Channels — the dense pole (C2) ---------- */
+
+.radio-channels {
+  display: grid;
+  gap: var(--fdx-space-2);
+}
+
+.radio-channels-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fdx-space-3);
+  padding-bottom: var(--fdx-space-2);
+  border-bottom: 1px solid var(--fdx-rule-strong);
+}
+
+.radio-count {
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  color: var(--fdx-text-muted);
+}
+
+.radio-band {
+  display: grid;
+  /* space-2 rhythm, hairlines instead of card chrome — the density that makes
+     the anchor's emptiness read as deliberate. */
+  gap: 0;
+}
+
+/* The row and its mute control share one line; the row itself stays a single
+   button so tuning is one keystroke away and the mute is a separate stop. */
+.radio-channel-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: var(--fdx-space-1);
+}
+
+.radio-channel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fdx-space-2);
+  width: 100%;
+  padding: var(--fdx-space-2) var(--fdx-space-2) var(--fdx-space-2) var(--fdx-space-3);
+  border: 0;
+  border-bottom: 1px solid var(--fdx-rule);
+  border-left: 2px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--fdx-motion-fast) var(--fdx-ease),
+    border-color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.radio-channel:hover {
+  background: color-mix(in srgb, var(--fdx-surface) 70%, transparent);
+}
+
+.radio-channel:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+/* Depth in a list belongs to the selected row only (C3c) — hence the attribute
+   rather than a second class, so no code path can render it unconditionally. */
+.radio-channel[data-selected="true"] {
+  border-left-color: var(--fdx-signal);
+  background: var(--fdx-surface);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}
+
+.radio-channel-name {
+  display: block;
+  overflow: hidden;
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.radio-channel-meta {
+  display: block;
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  color: var(--fdx-text-muted);
+}
+
+.radio-channel-cost {
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.radio-mute {
+  padding: 0 var(--fdx-space-1);
+  border: 0;
+  background: none;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.radio-mute:hover {
+  color: var(--fdx-signal);
+}
+
+.radio-muted-note {
+  padding-top: var(--fdx-space-2);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  color: var(--fdx-text-muted);
+}
+
+.radio-muted-note button {
+  border: 0;
+  background: none;
+  color: var(--fdx-signal);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+/* ---------- Signal — the sparse pole (C2) ---------- */
+
+.radio-signal {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--fdx-space-16);
+  /* space-24 of deliberate emptiness. Three meters at most: raising every
+     region's spacing together would only move the flatness up a scale. */
+  padding: var(--fdx-space-24) var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule);
+}
+
+@media (max-width: 60rem) {
+  .radio-signal {
+    gap: var(--fdx-space-8);
+    padding: var(--fdx-space-16) var(--fdx-space-6);
+  }
+}
+
+.radio-meter dt {
+  font-family: var(--fdx-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.radio-meter dd {
+  margin: var(--fdx-space-2) 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.2rem);
+  line-height: 1;
+}
+
+.radio-meter-bar {
+  position: relative;
+  height: 3px;
+  margin-top: var(--fdx-space-3);
+  background: var(--fdx-rule);
+}
+
+.radio-meter-bar i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--fdx-text);
+}
+
+.radio-meter[data-tone="signal"] .radio-meter-bar i {
+  background: var(--fdx-signal);
+}
+
+.radio-meter[data-tone="positive"] .radio-meter-bar i {
+  background: var(--fdx-positive);
+}
+
+/* ---------- Log — wide and short (C4) ---------- */
+
+.radio-log {
+  display: grid;
+  gap: 0;
+  padding: var(--fdx-space-4) var(--fdx-space-8) var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule-strong);
+}
+
+.radio-log-head {
+  padding-bottom: var(--fdx-space-2);
+}
+
+.radio-log-item {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: var(--fdx-space-3);
+  padding: var(--fdx-space-2) 0;
+  border-bottom: 1px solid var(--fdx-rule);
+  font-family: var(--fdx-font-mono);
+  font-size: 11px;
+}
+
+.radio-log-item time {
+  color: var(--fdx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.radio-log-item p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Colour means one thing everywhere (C6), and the mapping has to be the
+   contract's, not a convenient one. Running is *active*, which C6 assigns to
+   Coral Signal — an earlier pass had it wearing Warning, which would have said
+   "caution" about the most normal state on the page. Idle is unremarkable, so it
+   gets muted text rather than a colour. Warning and Critical stay reserved for
+   delay and failure, states this log cannot yet derive from /api/sessions. */
+.radio-log-item b {
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.radio-log-item[data-state="live"] b {
+  color: var(--fdx-signal);
+}
+
+.radio-log-item[data-state="idle"] b {
+  color: var(--fdx-text-muted);
+}
+
+.radio-log-item[data-state="delayed"] b {
+  color: var(--fdx-warning);
+}
+
+.radio-log-item[data-state="failed"] b {
+  color: var(--fdx-critical);
+}
+
+.radio-offline {
+  padding: var(--fdx-space-2) var(--fdx-space-8);
+  border-top: 1px solid var(--fdx-rule);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  color: var(--fdx-warning);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .radio-shell *,
+  .radio-shell *::before,
+  .radio-shell *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
