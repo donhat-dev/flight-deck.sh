@@ -627,6 +627,8 @@ kbd,
   color: color-mix(in srgb, var(--wb-ink-soft) 78%, transparent);
 }
 
+/* composition: anchor — "continue where you left off" is what this screen is
+   for, so it is the one region allowed display weight and depth. */
 .wb-continue {
   position: relative;
   display: grid;

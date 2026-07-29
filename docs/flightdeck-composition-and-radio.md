@@ -102,13 +102,60 @@ Bind the existing spec so drift is detectable:
 The table restates `DESIGN.md` §2 in checkable form, because "Pink is not an
 accent" written as prose did not stop the drift the critique observed.
 
-### Where this lives
+### Where this lives — stage 2, implemented
 
-A new `docs/` section, plus a lint that is cheap because the tokens are CSS
-variables: a test can assert that `--fdx-depth-*` never appears in a `color:` or
-`background:` on text, and that no file uses more than N depth-bearing selectors.
-Same shape as the Playfair-confinement test already guarding the Treasures
-tokens.
+`frontend/src/ui/compositionLint.js` + `compositionLint.test.jsx` (35 tests, part
+of `npm test`). It reads the stylesheets by glob, so a sheet added later —
+`radio.css` — is covered without touching the lint.
+
+**What turned out to be decidable, and what did not.** Enforcing the contract
+meant admitting that only part of it is visible in source:
+
+| Rule | Status | Why |
+|---|---|---|
+| C1 at most one anchor | enforced | via a `composition: anchor` marker |
+| C1 a screen has an anchor | enforced when a sheet declares `composition: screen` | opt-in: choosing which region is the anchor is a design decision, not a lint's |
+| C2 density rhythm | **not checkable** | "at least one sparse region" is a layout fact; a spacing histogram cannot tell a deliberate void from a gap |
+| C3a depth only on interactive / frame / anchor | enforced | the rule with the most teeth |
+| C3b depth budget | enforced on screens | counts base classes **at rest**, excluding frames |
+| C3c depth in a list is conditional | enforced on JSX | a depth class inside `.map()` must arrive via an expression |
+| C4 asymmetry | **not checkable** | the matrix exemption is a content judgement; an equal grid is right whenever the content is a matrix |
+| C5 distinct metadata | **not checkable here** | needs the rendered string per region |
+| C6a depth material as fill or text | enforced | |
+| C6b role token vs the selector's role | enforced, 3 directions | error↔action, loading↔error, caution↔error — the unambiguous ones |
+
+The undecidable three stay in review. Writing a weak proxy for them and calling
+it enforcement would be worse than leaving them explicit.
+
+**Two markers, both greppable.** `composition: anchor` declares the anchor;
+`composition-lint-allow: <rule> — <reason>` exempts one site and the **reason is
+mandatory** — an exemption nobody had to justify is a silent rule deletion. A
+ratchet test caps the total exemption count at its current value (3), so the
+cheapest way past the lint cannot be to keep adding markers.
+
+**Three findings from building it**, none of which the prose diagnosis had:
+
+1. **Depth hides behind token aliases.** `.fdx-button` reaches its offset through
+   two hops (`--fdx-button-shadow` → `--fdx-shadow-control-alert` →
+   `4px 4px 0 …`). A grep for offset shadows finds 4 sites in `index.css`; the
+   lint, resolving `var()`, finds **9**. Any check that does not resolve custom
+   properties reports the kit as flatter than it is.
+2. **`.fdx-showcase-panel` is the diagnosed defect, now marked as debt.** Every
+   catalog specimen carries the same `--fdx-shadow-print` offset — §1's
+   "adopted them and then applied them uniformly", found independently by the
+   rule rather than by reading. It holds an exemption whose reason names it as
+   debt to remove at stage 3, not as an approval.
+3. **`home-concept-v2.css` measures as flat.** One depth-bearing element
+   (`.fd2-btn`), no anchor, and spacing that never leaves the 0.35–1.5rem band.
+   It passes the lint — nothing there is *wrong* — but it has not made the
+   composition decisions the contract asks for. That is the gap Radio exists to
+   close, restated as a measurement.
+
+Deliberately *not* enforced by material: `--fdx-shadow-print`
+(`4px 4px 0 var(--fdx-signal)`) and `--fdx-shadow-control-*`
+(`4px 4px 0 var(--fdx-depth-pink)`) are the same geometry in different
+materials, and exempting the print family would have made C3a toothless —
+uniform print depth is exactly how the flatness happened.
 
 ---
 
@@ -199,8 +246,8 @@ Each stage is independently reviewable and leaves the product working.
 | # | Stage | Deliverable | Verifies |
 |---|---|---|---|
 | 1 | Write the composition contract | §2 as a `docs/` section | The rules exist before anything is built against them |
-| 2 | Composition lint | Tests for C3 (depth budget) and C6 (colour roles) | The rules are enforceable, not aspirational |
-| 3 | FlightDeckRadio static shell, **Day palette only** | `radio.html` + entry + component, representative local data | The composition reads as intended before real data complicates it |
+| 2 | ✅ Composition lint | `compositionLint.js` — C1, C3a/b/c, C6a/b enforced; C2/C4/C5 declared undecidable | The rules are enforceable, not aspirational. Verified by a live negative test: violations injected into a real stylesheet were caught through the same path CI uses |
+| 3 | FlightDeckRadio static shell, **Day palette only** | `radio.html` + entry + component, representative local data. `radio.css` opens with `composition: screen`, so the lint requires it to name its anchor | The composition reads as intended before real data complicates it |
 | 4 | Wire live data | Existing endpoints + SSE | It is a control plane on real state |
 | 5 | Actions | Tune / mute / jump-to-artifact | It controls rather than displays |
 | 6 | Adopt back into **Spend** | Re-compose Spend per §6, judged against Radio | The rules survive contact with a view that has real requirements |

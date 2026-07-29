@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* composition: library
+   This sheet is the shared component kit, not one screen. It defines depth per
+   component; how many of those a screen puts on a page is that screen's
+   composition, so the C3b per-screen depth budget does not apply here. Every
+   other rule in src/ui/compositionLint.js does. */
+
 /* Global UI scale. The dashboard sizes most text with hardcoded px (text-[9px]
    .. text-[33px]), which the root font-size can't scale, so one zoom bumps the
    whole interface uniformly (text + spacing + charts). Tune --app-zoom to taste. */
@@ -1025,6 +1031,7 @@ table.rd-sxs {
   to { transform: rotate(360deg); }
 }
 
+/* composition: anchor */
 .fdx-console {
   border: 1px solid var(--fdx-rule-strong);
   border-radius: var(--fdx-radius-sm);
@@ -1064,6 +1071,8 @@ table.rd-sxs {
   background-size: 25% 25%;
 }
 
+/* composition-lint-allow: C3a — decoration inside the declared anchor; the
+   reticle is part of the console object, not a region of its own */
 .fdx-console-reticle {
   position: relative;
   width: 7rem;
@@ -2017,6 +2026,8 @@ table.rd-sxs {
 
 .fdx-depth-key i[data-layer="face"] { background: var(--fdx-action-face); }
 .fdx-depth-key i[data-layer="frame"] { background: var(--fdx-depth-ink); }
+/* composition-lint-allow: C6a — a legend swatch whose whole job is to display
+   the depth material itself; this is the one place it is not an accent */
 .fdx-depth-key i[data-layer="depth"] { background: var(--fdx-depth-pink); }
 
 .fdx-state-matrix > div {
@@ -2099,6 +2110,11 @@ table.rd-sxs {
   gap: var(--fdx-space-16);
 }
 
+/* composition-lint-allow: C3a — KNOWN DEBT, not an approval. Every catalog
+   specimen sits in this frame with the same print offset, which is exactly the
+   uniformity docs/flightdeck-composition-and-radio.md §1 diagnoses: depth every
+   element has is not depth. Correct for a catalog, wrong for a product surface.
+   Remove this marker (and the shadow) when the lab is re-composed at stage 3. */
 .fdx-showcase-panel {
   min-width: 0;
   border: 1px solid var(--fdx-rule-strong);
