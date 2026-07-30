@@ -27,6 +27,7 @@ import { get, subscribe } from "../api.js";
 import PaletteToggle from "../ui/PaletteToggle.jsx";
 import RangeControl from "../ui/RangeControl.jsx";
 import OnAirView from "./OnAirView.jsx";
+import RadioKey from "./RadioKey.jsx";
 import SpendView from "../spend/SpendComposed.jsx";
 
 const TABS = [
@@ -121,16 +122,12 @@ export default function Plane() {
         <div className="radio-tabrow">
           <div className="radio-tabs" role="tablist" aria-label="Plane views">
             {TABS.map((t) => (
-              <button
+              <RadioKey
                 key={t.k}
-                type="button"
-                role="tab"
-                className="radio-tab"
-                aria-selected={tab === t.k}
-                onClick={() => goTab(t.k)}
-              >
-                {t.label}
-              </button>
+                label={t.label}
+                selected={tab === t.k}
+                onSelect={() => goTab(t.k)}
+              />
             ))}
           </div>
           {/* Present only where it means something. */}

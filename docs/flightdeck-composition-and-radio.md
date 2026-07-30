@@ -251,8 +251,20 @@ Three things that fall out of the contract rather than from taste:
    per sheet, so merging `radio.css` and `spend-composed.css` would report C1
    immediately. The file layout is what makes "two anchors" impossible to add
    quietly.
-2. **Only the selected tab carries depth.** Depth on every tab would be a fourth
-   uniform-depth surface, the same mistake the range control made.
+2. **The tabs are a bank of old radio preset keys** (`plane/RadioKey.jsx`) — line
+   art, not shading: one silhouette path plus the two seams where the top face,
+   the chamfer and the front lip meet. State is carried the way a key bank carries
+   it: the selected key is **down in its socket** (translated and clipped by the
+   same 3px, so its lip reads shorter), its top face takes the panel colour, and
+   the pressed key is the only one lit.
+
+   That form costs **nothing** from the depth budget, which is the point. The
+   three-dimensionality comes from drawn facets — §3's thesis frees print-like
+   layering — while no key carries a depth *material* (`Xpx Ypx 0`). Giving every
+   key a shadow instead would have been a fourth uniform-depth surface, the same
+   mistake the range control made. Because the key is drawn art at a fixed 120×48,
+   a tab label has to stay short (≤ 8 characters) — which is what a preset label
+   is anyway.
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is
    dead on one tab is worse than one that comes and goes.

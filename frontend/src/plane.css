@@ -11,8 +11,11 @@
    so merging the two into one file would report C1 immediately. The file layout
    is what makes "two anchors" impossible to introduce quietly.
 
-   The one depth element here is the SELECTED tab. Depth on every tab would be a
-   fourth uniform-depth surface — the same mistake the range control made.
+   The tabs are drawn as a bank of old radio preset keys (plane/RadioKey.jsx):
+   line-art slabs, state carried by which key is DOWN rather than by a depth
+   material. So this sheet spends nothing from the depth budget — a shadow on
+   every key would have been a fourth uniform-depth surface, the same mistake the
+   range control made.
    ============================================================ */
 
 .radio-plane {
@@ -133,7 +136,7 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
 }
 
-/* ---------- tab bar ---------- */
+/* ---------- tab bar: a bank of radio preset keys ---------- */
 
 .radio-tabrow {
   display: flex;
@@ -143,40 +146,91 @@
   padding: 0 var(--fdx-space-8);
 }
 
+/* Keys sit flush on the panel edge with a hairline gap, the way a preset bank
+   does — close enough to read as one instrument, separate enough to read as
+   discrete keys. */
 .radio-tabs {
   display: flex;
-  gap: var(--fdx-space-2);
+  align-items: flex-end;
+  gap: 3px;
 }
 
-.radio-tab {
-  padding: var(--fdx-space-2) var(--fdx-space-4);
-  border: 1px solid transparent;
-  border-bottom: 0;
+.radio-key {
+  /* Exactly the SVG viewBox, so no facet is stretched. */
+  position: relative;
+  width: 7.5rem;
+  height: 3rem;
+  padding: 0;
+  border: 0;
   background: transparent;
   color: var(--fdx-text-muted);
+  cursor: pointer;
+  transition:
+    transform var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.radio-key-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.radio-key-edge,
+.radio-key-seam {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.1;
+  stroke-linejoin: miter;
+}
+
+/* Fill is state, not form: an unpressed key is open line work. */
+.radio-key-top {
+  fill: none;
+}
+
+/* The label lives on the top face (y 5–28 of 48), not in the middle of the box. */
+.radio-key-label {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 69%;
+  display: grid;
+  place-items: center;
   font-family: var(--fdx-font-mono);
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  cursor: pointer;
-  transition: color var(--fdx-motion-fast) var(--fdx-ease);
 }
 
-.radio-tab:hover {
+.radio-key:hover {
   color: var(--fdx-text);
 }
 
-.radio-tab:focus-visible {
+.radio-key:focus-visible {
   outline: var(--fdx-focus-width) solid var(--fdx-focus);
-  outline-offset: -2px;
+  outline-offset: 2px;
 }
 
-/* Only the selected tab stands proud. */
-.radio-tab[aria-selected="true"] {
-  border-color: var(--fdx-rule-strong);
-  background: var(--fdx-surface);
+/* Pressed, the way a latched preset key is pressed: the key sinks into its
+   socket — moved down and clipped by the same amount, so the front lip reads
+   shorter — its top face takes the panel colour, and it is the one that is lit.
+   Nothing here uses an offset shadow, so the depth budget is untouched. */
+.radio-key[aria-selected="true"] {
+  transform: translateY(3px);
+  color: var(--fdx-text);
+}
+
+.radio-key[aria-selected="true"] .radio-key-art {
+  clip-path: inset(0 0 3px 0);
+}
+
+.radio-key[aria-selected="true"] .radio-key-top {
+  fill: var(--fdx-surface);
+}
+
+.radio-key[aria-selected="true"] .radio-key-label {
   color: var(--fdx-signal);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 /* View-scoped controls live beside the tabs, so a control that means nothing on
