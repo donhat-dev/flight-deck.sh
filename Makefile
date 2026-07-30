@@ -101,3 +101,26 @@ fonts-verify:               ## prove each family covers Latin AND Vietnamese
 	[print('  %-38s %6.1f KB  %4d glyphs' % r) for r in rows]; \
 	print('  TOTAL %.1f KB' % sum(r[1] for r in rows))"
 	cd backend && ../.venv/bin/python -m pytest tests/test_treasures_render.py -q -k font
+
+# Satoshi — FlightDeck's primary typeface, self-hosted so rendering never depends
+# on the network. The VARIABLE cut: one file for wght 300-900, because the kit
+# uses 600 and the static cuts have no 600 (a missing weight is silently rounded).
+# Verifies the binary after fetching, since a font that downloads but has no ASCII
+# glyphs is exactly how a previous font bug hid for weeks.
+satoshi:
+	@mkdir -p frontend/src/fonts
+	@UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"; \
+	url=$$(curl -s --max-time 20 -A "$$UA" \
+	  "https://api.fontshare.com/v2/css?f[]=satoshi@1&display=swap" \
+	  | grep -oE "//cdn\.fontshare\.com/[^']+\.woff2" | head -1); \
+	test -n "$$url" || { echo "could not resolve the Satoshi woff2 URL"; exit 1; }; \
+	curl -sL --max-time 30 -A "$$UA" "https:$$url" -o frontend/src/fonts/satoshi-variable.woff2
+	@.venv/bin/python -c "from fontTools.ttLib import TTFont; \
+f=TTFont('frontend/src/fonts/satoshi-variable.woff2'); \
+ax=[(a.axisTag,a.minValue,a.maxValue) for a in f['fvar'].axes]; \
+cm=f.getBestCmap(); n=sum(1 for c in range(0x20,0x7f) if c in cm); \
+assert ax==[('wght',300.0,900.0)], f'unexpected axes {ax}'; \
+assert n==95, f'ASCII coverage {n}/95 — refusing a font that cannot render Latin'; \
+print(f'satoshi ok: axes {ax}, {len(f.getGlyphOrder())} glyphs, ASCII {n}/95')"
+
+.PHONY: satoshi

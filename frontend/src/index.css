@@ -99,7 +99,7 @@ body { zoom: var(--app-zoom); }
 
 @layer base {
   html {
-    font-family: "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
+    font-family: "Satoshi", "Outfit Variable", ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
     background: var(--fd-void);

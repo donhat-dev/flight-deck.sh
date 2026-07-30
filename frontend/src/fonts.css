@@ -1,0 +1,30 @@
+/* ============================================================
+   Satoshi — FlightDeck's primary typeface.
+
+   Self-hosted rather than pulled from the Fontshare CDN: FlightDeck runs on
+   localhost and must not depend on the network to render its own type. The file
+   is the VARIABLE cut (one 42KB woff2 covering wght 300–900) because the kit uses
+   500, 600, 700 and 900, and the static cuts have no 600 — a missing weight is
+   silently rounded, which is how "we use Satoshi 600" becomes "we use 500 or 700
+   depending on the browser".
+
+   Refetch with `make satoshi` (see the Makefile) so the binary's provenance is
+   never a mystery.
+
+   Verified on the downloaded binary, not assumed from the CSS:
+     wght axis 300–900, 504 glyphs, ASCII 95/95.
+
+   Known gap, pre-existing and unchanged by adopting Satoshi: only 26 of 74
+   Vietnamese precomposed characters are present (ơ ư ả ạ ế ệ ộ ớ ợ ủ ự … are
+   missing). The Outfit it replaces covered 0 of that same set, so Vietnamese text
+   was already falling back to a system font. Fixing it would mean adding a
+   Vietnamese-capable face with a `unicode-range` guard, which is a separate call.
+   ============================================================ */
+
+@font-face {
+  font-family: "Satoshi";
+  src: url("./fonts/satoshi-variable.woff2") format("woff2-variations");
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
