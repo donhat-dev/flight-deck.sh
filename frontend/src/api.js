@@ -1,6 +1,28 @@
+/**
+ * Turn a failed response into an error that says WHY.
+ *
+ * These used to throw `"/api/x: 400"` and drop the body, which is where the
+ * reason lives: FastAPI puts it in `detail`, and for the treasures write paths
+ * that detail is the service's own validation text ("title is required when
+ * passing content="). Without it a form can only report a number.
+ */
+async function fail(path, r) {
+  let detail = "";
+  try {
+    const body = await r.json();
+    detail = typeof body?.detail === "string" ? body.detail : "";
+  } catch {
+    /* not JSON, or empty — the status is all we have */
+  }
+  const err = new Error(detail || `${path}: ${r.status}`);
+  err.status = r.status;
+  err.detail = detail;
+  throw err;
+}
+
 export async function get(path) {
   const r = await fetch(path);
-  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  if (!r.ok) await fail(path, r);
   return r.json();
 }
 
@@ -10,13 +32,13 @@ export async function post(path, body) {
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
-  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  if (!r.ok) await fail(path, r);
   return r.json();
 }
 
 export async function del(path) {
   const r = await fetch(path, { method: "DELETE" });
-  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  if (!r.ok) await fail(path, r);
   return r.json();
 }
 

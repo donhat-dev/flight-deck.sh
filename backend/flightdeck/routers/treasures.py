@@ -131,6 +131,52 @@ def discover_treasures(request: Request, do_import: bool = False,
             conn.close()
 
 
+class CreateIn(BaseModel):
+    title: str | None = None
+    content: str | None = None
+    source_path: str | None = None
+    kind: str = "report"
+    language: str = "en"
+    font: str | None = None
+    tags: list[str] | None = None
+
+
+@router.post("/api/treasures", status_code=201)
+def create_treasure(request: Request, body: CreateIn):
+    """Create a treasure from pasted text OR a file already on disk.
+
+    Both intake paths exist because they are not equivalent. `source_path` is the
+    better one whenever the document is already a file: the process reads it
+    itself, so the stored checksum is the hash of what is actually on disk and a
+    later edit can be detected. Passing `content` hashes whatever arrived, which
+    can never notice that the text was already stale.
+
+    Validation deliberately stays in `service.wrap` — which of the two was given,
+    and whether a title is present — so this route only translates the failures
+    rather than restating the rules and letting the two drift apart.
+    """
+    cfg = request.app.state.cfg
+    conn = db.open_write(cfg["db_path"])
+    try:
+        row = service.wrap(
+            conn, title=body.title, content=body.content,
+            source_path=body.source_path, kind=body.kind,
+            language=body.language, font=body.font,
+            origin_kind="ui" if body.content is not None else None,
+        )
+        if body.tags:
+            # set_tags returns only {id, tags}, so merging keeps the response shape
+            # identical whether or not tags were passed. Returning it directly
+            # silently dropped version/status/render_bytes from the created row.
+            row = {**row, "tags": service.set_tags(conn, row["id"], body.tags)["tags"]}
+        return row
+    except lint.ComponentError as e:
+        # Fail-closed on an unknown component name: nothing was written.
+        raise HTTPException(status_code=400, detail=str(e))
+    except (ValueError, FileNotFoundError, IsADirectoryError, PermissionError) as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 class SourceIn(BaseModel):
     content: str
 

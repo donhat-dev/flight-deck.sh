@@ -164,6 +164,109 @@ function ErrorPanel({ message, onRetry }) {
 }
 
 /* ---- Treasures view (list only — detail lives at #/treasure/<id>) -------- */
+
+/**
+ * Create a treasure from the dashboard.
+ *
+ * Two intake paths, and they are NOT equivalent — which is why the file path is
+ * the default rather than the paste box. With a path the server reads the file
+ * itself, so the stored checksum describes what is on disk: the row stays
+ * refreshable and a later edit is detectable. Pasted text hashes whatever
+ * arrived, so it can never gain that property.
+ */
+function CreatePanel({ onCreated, onCancel }) {
+  const [mode, setMode] = useState("path");
+  const [path, setPath] = useState("");
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [tags, setTags] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const submit = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const body = mode === "path"
+        ? { source_path: path.trim() }
+        : { title: title.trim(), content };
+      const list = tags.split(",").map((t) => t.trim()).filter(Boolean);
+      if (list.length) body.tags = list;
+      onCreated(await post("/api/treasures", body));
+    } catch (e) {
+      // The server's `detail` is the service's own validation text.
+      setError(e.detail || e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ready = mode === "path" ? path.trim().length > 0
+    : title.trim().length > 0 && content.trim().length > 0;
+
+  const input = "w-full rounded-md border border-[color:var(--fd-hair-2)] bg-transparent px-3 py-2 font-mono text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none";
+
+  return (
+    <section className="fd-shell">
+      <div className="fd-core space-y-3 px-5 py-4">
+        <div className="flex items-center justify-between gap-3">
+          <Eyebrow>New treasure</Eyebrow>
+          <div className="fdx-segmented" role="group" aria-label="Source">
+            <button type="button" className="fdx-segmented-seg"
+                    aria-pressed={mode === "path"} onClick={() => setMode("path")}>
+              From file
+            </button>
+            <button type="button" className="fdx-segmented-seg"
+                    aria-pressed={mode === "paste"} onClick={() => setMode("paste")}>
+              Paste
+            </button>
+          </div>
+        </div>
+
+        {mode === "path" ? (
+          <>
+            <input className={input} value={path} onChange={(e) => setPath(e.target.value)}
+                   placeholder="/home/…/docs/report.md" autoFocus />
+            <p className="text-[10px] leading-[1.5] text-zinc-500">
+              Preferred: the server reads the file, so this stays refreshable and an
+              edit on disk is detectable. Paths are limited to the configured read
+              roots.
+            </p>
+          </>
+        ) : (
+          <>
+            <input className={input} value={title} onChange={(e) => setTitle(e.target.value)}
+                   placeholder="Title (required — nothing to derive it from)" autoFocus />
+            <textarea className={`${input} min-h-[9rem]`} value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      placeholder="# Markdown…" />
+          </>
+        )}
+
+        <input className={input} value={tags} onChange={(e) => setTags(e.target.value)}
+               placeholder="tags, comma separated (optional)" />
+
+        {error && (
+          <p className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[11px] text-rose-300">
+            {error}
+          </p>
+        )}
+
+        <div className="flex items-center gap-2">
+          <button type="button" className="fdx-button" data-variant="primary" data-size="sm"
+                  disabled={!ready || busy} onClick={submit}>
+            <span>{busy ? "Creating…" : "Create"}</span>
+          </button>
+          <button type="button" className="fdx-button" data-variant="secondary"
+                  data-size="sm" onClick={onCancel}>
+            <span>Cancel</span>
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
   const [allRows, setAllRows] = useState(null); // unfiltered baseline, drives the summary strip
   const [rows, setRows] = useState([]);         // current filtered/searched view
@@ -174,6 +277,7 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
   const [tag, setTag] = useState(null);       // active tag chip, null = no tag filter
   const [tags, setTags] = useState([]);       // every tag in use, with counts
 
+  const [creating, setCreating] = useState(false);
   const [discoverBusy, setDiscoverBusy] = useState(false);
   const [discoverResult, setDiscoverResult] = useState(null);
   const [discoverError, setDiscoverError] = useState(null);
@@ -314,6 +418,16 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
           </span>
           <button
             type="button"
+            onClick={() => setCreating((v) => !v)}
+            aria-expanded={creating}
+            className="fdx-button"
+            data-variant={creating ? "secondary" : "primary"}
+            data-size="sm"
+          >
+            <span>{creating ? "Close" : "New treasure"}</span>
+          </button>
+          <button
+            type="button"
             onClick={load}
             className="rounded-full border border-[color:var(--fd-hair-2)] px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/5"
           >
@@ -339,6 +453,17 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
           )}
         </div>
       </div>
+
+      {creating && (
+        <CreatePanel
+          onCancel={() => setCreating(false)}
+          onCreated={(row) => {
+            setCreating(false);
+            load();
+            onOpenTreasure?.(row.id);
+          }}
+        />
+      )}
 
       {discoverError && (
         <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-2.5 text-[11px] text-rose-300">
