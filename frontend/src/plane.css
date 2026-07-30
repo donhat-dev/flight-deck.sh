@@ -11,12 +11,10 @@
    so merging the two into one file would report C1 immediately. The file layout
    is what makes "two anchors" impossible to introduce quietly.
 
-   The tabs are a bank of old radio preset keys: rectangular caps whose period
-   feeling comes from moulding — a slot rail, a chamfer hairline, fluted plastic,
-   and the lip a cap stands on. State is which key is DOWN, not which key has a
-   shadow, so this sheet spends nothing from the depth budget. A shadow on every
-   key would have been a fourth uniform-depth surface, the same mistake the range
-   control made.
+   The tabs are soft neo-brutalist keys built from the kit's control tokens
+   (face / frame / depth, DESIGN.md §5) rather than from a bespoke vocabulary. They
+   do spend depth budget — one base class, and two rendered elements — which is a
+   deliberate trade recorded in docs/flightdeck-composition-and-radio.md §3.
    ============================================================ */
 
 .radio-plane {
@@ -137,13 +135,17 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
 }
 
-/* ---------- tab bar: a bank of radio preset keys ---------- */
+/* ---------- tab bar: soft neo-brutalist keys ---------- */
 
-/* Back to rectangular caps. The drawn 3/4 solid was accurate and wrong for the
-   job: at tab size the facets fought the label, and a control plane's navigation
-   should not be the most illustrated thing on the page. The period feeling now
-   comes from MOULDING details on a rectangle — a slot rail, a chamfer hairline,
-   fluted plastic, a lip the cap stands on — none of which spend depth budget. */
+/* The tabs now speak the component kit's control language instead of a bespoke
+   one: face / frame / depth per DESIGN.md §5, built from the same tokens
+   `.fdx-button` uses. Two earlier attempts made the tabs their own idiom — a drawn
+   3/4 solid, then moulded caps with a slot rail — and both put a second physical
+   vocabulary in a chrome row that already had one.
+
+   The depth MATERIAL is constant across states; only the offset changes. A key
+   standing out is 4px from the panel, a latched key is 1px into it. State is the
+   travel, not the colour of the shadow. */
 
 .radio-tabrow {
   display: flex;
@@ -153,93 +155,63 @@
   padding: 0 var(--fdx-space-8);
 }
 
-/* The bank sits in a slot. One rail runs under every key: unpressed keys stand on
-   it, and the pressed one sinks through it. Without the rail a "pressed" key just
-   looks misaligned, because nothing says what it is pressed INTO. */
 .radio-tabs {
-  position: relative;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  /* Room for the 4px offset of the last key, so the bank is not clipped by the
+     row's edge. */
+  gap: var(--fdx-space-3);
+  padding: 0 var(--fdx-space-1) var(--fdx-space-2);
 }
 
-/* The keys STAND on the rail — no padding between them and it, or they float and
-   the pressed key has nothing to sink through. The rail overhangs the bank on both
-   sides so it reads as a slot in the panel rather than an underline. */
-.radio-tabs::after {
-  content: "";
-  position: absolute;
-  inset: auto -0.75rem 0 -0.75rem;
-  height: 1px;
-  background: var(--fdx-rule-strong);
-}
-
-.radio-key {
-  position: relative;
-  min-width: 6.75rem;
-  padding: 0.6rem 1.1rem 0.5rem;
-  border: 1px solid var(--fdx-rule-strong);
-  /* The lip the cap stands on. It is what makes the key read as UP, and losing it
-     is what makes the pressed key read as DOWN — a drop shadow would have said
-     "floating" instead, which is the opposite of a latched preset key. */
-  border-bottom-width: 3px;
-  border-radius: 1px;
-  background-color: var(--fdx-canvas);
-  /* Fluted plastic. Very faint and widely spaced: at 45% over a 6px period it
-     read as a speaker grille and fought the label, which is the one thing on a
-     key that has to be read. */
-  background-image: repeating-linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--fdx-rule) 26%, transparent) 0 1px,
-    transparent 1px 10px
-  );
-  color: var(--fdx-text-muted);
+.radio-tab {
+  --key-face: var(--fdx-surface);
+  --key-frame: var(--fdx-text);
+  min-height: 2.375rem;
+  padding: 0 var(--fdx-space-4);
+  border: var(--fdx-control-border-width) solid var(--key-frame);
+  border-radius: var(--fdx-radius-xs);
+  background: var(--key-face);
+  box-shadow: var(--fdx-shadow-control-alert);
+  color: var(--fdx-text);
   font-family: var(--fdx-font-mono);
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   cursor: pointer;
   transition:
-    transform var(--fdx-motion-fast) var(--fdx-ease),
     color var(--fdx-motion-fast) var(--fdx-ease),
-    border-bottom-width var(--fdx-motion-fast) var(--fdx-ease);
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    border-color var(--fdx-motion-fast) var(--fdx-ease),
+    box-shadow var(--fdx-motion-fast) var(--fdx-ease),
+    transform var(--fdx-motion-fast) var(--fdx-ease);
+  touch-action: manipulation;
 }
 
-/* The moulded chamfer, seen almost head-on: one hairline inset from the top edge,
-   which is all that survives of the bevel at this scale. */
-.radio-key::before {
-  content: "";
-  position: absolute;
-  inset: 3px 3px auto 3px;
-  height: 1px;
-  background: var(--fdx-rule);
+/* Lift on hover, exactly as the kit's controls do — and only for a key that is
+   not already down, or hovering would appear to un-press it. */
+.radio-tab:not([aria-selected="true"]):hover {
+  --key-face: var(--fdx-surface-inverse);
+  --key-frame: var(--fdx-depth-ink);
+  color: var(--fdx-text-inverse);
+  transform: translate(-1px, -1px);
+  box-shadow: var(--fdx-shadow-control-alert-hover);
 }
 
-.radio-key:hover {
-  color: var(--fdx-text);
-}
-
-.radio-key:focus-visible {
+.radio-tab:focus-visible {
   outline: var(--fdx-focus-width) solid var(--fdx-focus);
   outline-offset: 2px;
 }
 
-/* Latched down: the cap drops through the rail, loses the lip it was standing on,
-   takes the panel colour, and the socket wall shadows its top edge. The shadow is
-   INSET, so it is a socket rather than a depth material — the depth budget stays
-   at zero for this sheet. */
-.radio-key[aria-selected="true"] {
-  transform: translateY(3px);
-  border-bottom-width: 1px;
-  background-color: var(--fdx-surface);
-  background-image: none;
-  color: var(--fdx-signal);
-  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--fdx-depth-muted) 62%, transparent);
-}
-
-/* A key in its socket catches no light on the chamfer. */
-.radio-key[aria-selected="true"]::before {
-  opacity: 0;
+/* Latched down: the kit's pressed state made persistent. The key travels the full
+   3px into the panel and its offset collapses to 1px, so it reads as held rather
+   than as merely coloured. */
+.radio-tab[aria-selected="true"] {
+  --key-face: var(--fdx-action-face);
+  --key-frame: var(--fdx-depth-ink);
+  color: #fff9f1;
+  transform: translate(3px, 3px);
+  box-shadow: var(--fdx-shadow-control-alert-pressed);
 }
 
 /* View-scoped controls live beside the tabs, so a control that means nothing on

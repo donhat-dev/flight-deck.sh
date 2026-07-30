@@ -251,27 +251,32 @@ Three things that fall out of the contract rather than from taste:
    per sheet, so merging `radio.css` and `spend-composed.css` would report C1
    immediately. The file layout is what makes "two anchors" impossible to add
    quietly.
-2. **The tabs are a bank of old radio preset keys** — rectangular caps, not a
-   drawn solid. An intermediate version rendered each key as a cuboid in oblique
-   3/4 projection with a chamfered front-top edge, matching a wireframe reference
-   exactly. It was accurate and wrong for the job: at tab size the facets fought
-   the 10px label, and a control plane's navigation should not be the most
-   illustrated thing on its own page. **Reverted to rectangles, with the period
-   feeling carried by moulding instead of by geometry:**
+2. **The tabs are soft neo-brutalist keys, built from the kit's control tokens**
+   — face / frame / depth per `DESIGN.md` §5, the same recipe `.fdx-button` uses.
+   An unselected key stands 4px off the panel; the selected one is the kit's
+   pressed state made persistent: travelled 3px in, offset collapsed to 1px, face
+   switched to Action. **The depth material never changes between states — only
+   the travel does**, so state is read as "held down" rather than as "a different
+   colour of shadow".
 
-   | Detail | What it does |
-   |---|---|
-   | A slot rail under the bank, overhanging both ends | Gives the pressed key something to sink *into*. Without it a lowered key just looks misaligned |
-   | A 3px bottom border — the lip the cap stands on | What makes an unpressed key read as UP. Losing the lip is what makes the pressed one read as DOWN |
-   | A chamfer hairline inset from the top edge | All that survives of a bevel at this scale |
-   | Fluted plastic, `repeating-linear-gradient` at 6% alpha | At 45% over a 6px period it read as a speaker grille and fought the label |
-   | Pressed: `inset 0 2px 0` from the socket wall | An **inset** shadow, so it is a socket rather than a depth material |
+   Two earlier attempts gave the tabs their own physical vocabulary — a drawn 3/4
+   cuboid, then moulded caps with a slot rail — and both put a *second* idiom in a
+   chrome row that already had one. Using the kit's controls is what makes the row
+   read as one instrument.
 
-   Two things this buys. First, **the depth budget stays at zero for this sheet** —
-   verified, not assumed: `plane.css` reports no depth-bearing element, because a
-   lip is a border and a socket is an inset. Second, a drop shadow on the selected
-   key would have said "floating", which is the opposite of a latched preset key;
-   the physical read and the contract happen to want the same thing here.
+   **What it costs, measured on the page rather than assumed.** Counting elements
+   with a hard offset on the Spend tab: two tabs + the range segment + the Burn
+   anchor = **4**, and **5** once a signal is selected — over C3's ceiling. So the
+   range segment gave up its 2px offset and now shows selection with fill and the
+   coral label alone. Re-measured: **3** at rest, 4 with a signal selected, inside
+   budget. The segment was the second physical idiom in that row anyway.
+
+   **The override is recorded, not hidden.** C3c reads "every key has depth" as
+   depth-per-list-row and fires. It is a real override, so it carries a
+   `composition-lint-allow: C3c` marker with its reason in `Plane.jsx`, and the
+   ratchet ceiling rose 3 → 4 as a decision. The exemption mechanism was extended
+   to JSX for this, with the reason still mandatory: a marker without one is
+   still a violation.
 
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is

@@ -20,6 +20,14 @@ const SRC = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const ids = (result) => result.violations.map((v) => v.rule);
 
+/** Every non-test .jsx under src, so a new screen is covered without an edit. */
+const walkJsx = (dir = SRC) =>
+  fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const full = path.join(dir, e.name);
+    if (e.isDirectory()) return walkJsx(full);
+    return e.isFile() && /\.jsx$/.test(e.name) && !/\.test\./.test(e.name) ? [full] : [];
+  });
+
 // ---------------------------------------------------------------- primitives
 
 describe("offset depth detection", () => {
@@ -297,6 +305,26 @@ describe("C3c — depth inside a repeated list", () => {
     expect(ids(lintJsx(jsx, [".row"]))).toEqual(["C3c"]);
   });
 
+  it("honours a JSX exemption above the .map(, and still needs a reason", () => {
+    // Same mechanism as the CSS side, because the neo-brutalist tab bank is a
+    // real override: every key in a preset bank stands proud.
+    const withReason = `
+      {/* composition-lint-allow: C3c — a preset bank, bounded by a code change */}
+      {TABS.map((t) => <button className="raised" key={t.k}>{t.label}</button>)}`;
+    expect(ids(lintJsx(withReason, [".raised"]))).toEqual([]);
+
+    const bare = `
+      {/* composition-lint-allow: C3c */}
+      {TABS.map((t) => <button className="raised" key={t.k}>{t.label}</button>)}`;
+    expect(ids(lintJsx(bare, [".raised"]))).toEqual(["C3c"]);
+  });
+
+  it("does not treat a .map( inside a comment as a list", () => {
+    const jsx = `/* rows.map((r) => <li className="raised" />) */
+<b className="raised" />`;
+    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
+  });
+
   it("ignores depth outside any list", () => {
     const jsx = `<section className="on-air raised">…</section>`;
     expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
@@ -341,14 +369,7 @@ describe("the real stylesheets satisfy the contract", () => {
     const depthClasses = sheets.flatMap(
       (name) => lintCss(read(name), { inheritedVars: kitVars }).unconditionalDepth,
     );
-    const walk = (dir) =>
-      fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) return walk(full);
-        return e.isFile() && /\.jsx$/.test(e.name) && !/\.test\./.test(e.name) ? [full] : [];
-      });
-
-    const files = walk(SRC);
+    const files = walkJsx();
     // Without these two, an empty class set or an empty file list would make
     // the assertion below pass while checking nothing.
     expect(depthClasses.length).toBeGreaterThan(3);
@@ -368,8 +389,16 @@ describe("the real stylesheets satisfy the contract", () => {
     // number may fall but not rise: without this, the cheapest way past the
     // lint would be to keep adding markers until it guards nothing. Lowering
     // this number is a normal part of stage 3+; raising it needs a decision.
-    const CEILING = 3;
-    const total = sheets.reduce((sum, name) => sum + lintCss(read(name)).exemptions, 0);
-    expect(total).toBeLessThanOrEqual(CEILING);
+    //
+    // Raised from 3 to 4 when the plane's tabs became neo-brutalist keys: every
+    // key in a preset bank stands proud, which C3c reads as depth per list row.
+    // That override is deliberate and its reason is in Plane.jsx.
+    const CEILING = 4;
+    const cssMarkers = sheets.reduce((sum, name) => sum + lintCss(read(name)).exemptions, 0);
+    const jsxMarkers = walkJsx().reduce(
+      (sum, file) => sum + lintJsx(fs.readFileSync(file, "utf8"), [".x"]).exemptions,
+      0,
+    );
+    expect(cssMarkers + jsxMarkers).toBeLessThanOrEqual(CEILING);
   });
 });

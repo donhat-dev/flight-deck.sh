@@ -381,32 +381,40 @@ export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
   const names = depthClasses.map((c) => c.replace(/^\./, "")).filter(Boolean);
   if (!names.length) return { violations };
 
+  // Comments are blanked first for two reasons: an exemption marker has to be
+  // findable by line, and a `.map(` inside a comment must not count as a list.
+  const { clean, comments } = stripComments(src);
+
   // Scanned as one string rather than line by line: `rows.map(r => <li
   // className="raised"/>)` opens and closes on a single line, and a per-line
   // scan that only checks openness at the end of the line misses exactly that.
   let parens = 0;
-  const openMaps = []; // paren depth at which each enclosing .map( opened
+  // Each entry records the paren depth the .map( opened at AND its line, because
+  // an exemption belongs above the `.map(` — the line the reader would annotate —
+  // not above the className several lines inside it.
+  const openMaps = [];
   let line = 1;
 
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
+  for (let i = 0; i < clean.length; i++) {
+    const ch = clean[i];
     if (ch === "\n") line++;
-    if (src.startsWith(".map(", i)) openMaps.push(parens);
+    if (clean.startsWith(".map(", i)) openMaps.push({ depth: parens, line });
     if (ch === "(") parens++;
     else if (ch === ")") {
       parens--;
-      while (openMaps.length && parens <= openMaps[openMaps.length - 1]) openMaps.pop();
+      while (openMaps.length && parens <= openMaps[openMaps.length - 1].depth) openMaps.pop();
     }
 
-    if (!openMaps.length || !src.startsWith("className=", i)) continue;
+    if (!openMaps.length || !clean.startsWith("className=", i)) continue;
 
     // Only a className written as a plain literal is unbounded; an expression
     // (`?`, `&&`, or a template hole) can gate depth on the selected row.
-    const attr = /^className=(?:"([^"]*)"|'([^']*)')/.exec(src.slice(i, i + 200));
+    const attr = /^className=(?:"([^"]*)"|'([^']*)')/.exec(clean.slice(i, i + 200));
     if (!attr) continue;
     const value = attr[1] ?? attr[2] ?? "";
     const hit = names.find((n) => value.split(/\s+/).includes(n));
-    if (hit) {
+    const mapLine = openMaps[openMaps.length - 1].line;
+    if (hit && !allowed(comments, [line, mapLine], "C3c")) {
       violations.push({
         rule: "C3c",
         file,
@@ -416,7 +424,10 @@ export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
     }
   }
 
-  return { violations };
+  return {
+    violations,
+    exemptions: comments.filter((c) => /^composition-lint-allow:/.test(c.text)).length,
+  };
 }
 
 export const RULES = {
