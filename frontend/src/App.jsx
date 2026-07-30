@@ -12,6 +12,7 @@ import SessionDetail from "./SessionDetail.jsx";
 import Landing from "./Landing.jsx";
 import { Shell, Header } from "./ui/Shell.jsx";
 import { Roundel, Wordmark } from "./brand.jsx";
+import { IconBack, IconForward } from "./ui/icons.jsx";
 import CommsView from "./systems/CommsView.jsx";
 import ManualsView from "./systems/ManualsView.jsx";
 import HangarView from "./systems/HangarView.jsx";
@@ -83,14 +84,12 @@ function ThemeToggle() {
   const OPTS = [{ k: "night", ic: "☾" }, { k: "day", ic: "☀" }];
   return (
     <div role="group" aria-label="Theme"
-         className="flex shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/60 p-0.5">
+         className="fdx-segmented shrink-0">
       {OPTS.map((o) => (
         <button key={o.k} type="button" aria-pressed={theme === o.k}
           aria-label={`${o.k === "day" ? "Day" : "Night"} mode`} title={`${o.k === "day" ? "Day" : "Night"} mode`}
           onClick={() => setTheme(o.k)}
-          className={`rounded-md px-2.5 py-1 text-sm leading-none transition-colors ${
-            theme === o.k ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400 hover:text-zinc-200"
-          }`}>
+          className="fdx-segmented-seg">
           {o.ic}
         </button>
       ))}
@@ -569,13 +568,11 @@ export default function App() {
   // Header subtitle. Both views reuse this identical header.
   const rangeControl = (
     <div role="group" aria-label="Time range"
-         className="flex shrink-0 rounded-lg border border-zinc-800 bg-zinc-900/60 p-0.5">
+         className="fdx-segmented shrink-0">
       {RANGES.map((r) => (
         <button key={r.k} type="button" aria-pressed={range === r.k}
           onClick={() => setRange(r.k)}
-          className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-            range === r.k ? "bg-emerald-500/15 text-emerald-400" : "text-zinc-400 hover:text-zinc-200"
-          }`}>
+          className="fdx-segmented-seg">
           {r.label}
         </button>
       ))}
@@ -849,14 +846,16 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button type="button" disabled={sessCurPage === 0}
                   onClick={() => setSessPage((p) => Math.max(0, p - 1))}
-                  className="rounded-md border border-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40">
-                  ← Prev
+                  className="fdx-button" data-variant="ghost" data-size="sm">
+                  <IconBack />
+                  <span>Prev</span>
                 </button>
                 <span className="font-mono text-xs text-zinc-400">{sessCurPage + 1} / {sessTotalPages}</span>
                 <button type="button" disabled={sessCurPage >= sessTotalPages - 1}
                   onClick={() => setSessPage((p) => Math.min(sessTotalPages - 1, p + 1))}
-                  className="rounded-md border border-zinc-800 px-2.5 py-1 text-xs font-medium text-zinc-400 transition-colors hover:text-zinc-200 disabled:pointer-events-none disabled:opacity-40">
-                  Next →
+                  className="fdx-button" data-variant="ghost" data-size="sm">
+                  <span>Next</span>
+                  <IconForward />
                 </button>
               </div>
             </div>

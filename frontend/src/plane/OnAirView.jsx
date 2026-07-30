@@ -19,6 +19,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { get, subscribe } from "../api.js";
+import { IconBack, IconTranscript } from "../ui/icons.jsx";
 
 const MUTED_KEY = "flightdeck.radio.muted";
 
@@ -183,10 +184,12 @@ function OnAir({ session, window: win, live }) {
           href={session ? `/#/session/${encodeURIComponent(session.session_id)}` : "/"}
           data-variant="primary"
         >
-          Open transcript
+          <IconTranscript />
+          <span>Open transcript</span>
         </a>
-        <a className="fdx-button" data-variant="secondary" href="/">
-          Back to deck
+        <a className="fdx-button" data-variant="ghost" href="/">
+          <IconBack />
+          <span>Back to deck</span>
         </a>
       </div>
     </section>

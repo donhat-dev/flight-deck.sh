@@ -426,7 +426,9 @@ table.rd-sxs {
   --fdx-action-face-active: #a92d16;
   --fdx-control-error-face: #b6354a;
   --fdx-depth-ink: #17120e;
-  --fdx-orange: #ff9a35;
+  /* One orange in the system: the primary action colour. Introducing a second
+     (a brighter amber) is what let Night's buttons drift off-palette. */
+  --fdx-orange: var(--fdx-action-face);
   --fdx-depth-muted: #4c4139;
   /* Control faces are decided per theme by what is VISIBLE against the canvas,
      which is why they are not a mirror of each other. Day follows the uisfx
@@ -437,8 +439,8 @@ table.rd-sxs {
      orange, dark enough to read as the body's shadow and light enough to survive
      the canvas. */
   --fdx-control-face: var(--fdx-orange);
-  --fdx-control-depth: color-mix(in srgb, var(--fdx-orange) 48%, #0b0705);
-  --fdx-control-label: #17120e;
+  --fdx-control-depth: color-mix(in srgb, var(--fdx-orange) 42%, #0b0705);
+  --fdx-control-label: #fff9f1;
   /* Pink is a CARD background and nothing else — never a shadow, never text. */
   --fdx-pink: #f47f96;
   --fdx-card-tint: color-mix(in srgb, var(--fdx-pink) 12%, var(--fdx-surface));
@@ -532,7 +534,7 @@ table.rd-sxs {
   --fdx-action-face-active: #98280f;
   --fdx-control-error-face: #a82e3d;
   --fdx-depth-ink: #1b120c;
-  --fdx-orange: #e2571a;
+  --fdx-orange: var(--fdx-action-face);
   --fdx-control-face: #241a13;
   --fdx-control-depth: var(--fdx-orange);
   --fdx-control-label: #f8f3e8;
@@ -955,6 +957,35 @@ table.rd-sxs {
   --fdx-button-face: color-mix(in srgb, var(--fdx-control-face) 92%, var(--fdx-control-label));
   transform: translate(-1px, -1px);
   box-shadow: var(--fdx-button-shadow-hover);
+}
+
+/* ONE edge treatment per control, and which one is decided by whether the control
+   has a face at all:
+     a face  → an offset shadow, no border  (the offset is the edge)
+     no face → a border, no offset          (an offset under nothing reads as a
+                                             shadow cast by a hole)
+   The reference does exactly this: its filled keys carry an offset and no border,
+   its link buttons carry a border and no offset. */
+.fdx-button[data-variant="ghost"],
+.fdx-icon-button[data-variant="ghost"] {
+  --fdx-button-face: transparent;
+  --fdx-button-label: var(--fdx-text);
+  border: 1px solid var(--fdx-rule-strong);
+  box-shadow: none;
+}
+
+.fdx-button[data-variant="ghost"]:hover:not(:disabled),
+.fdx-icon-button[data-variant="ghost"]:hover:not(:disabled) {
+  --fdx-button-label: var(--fdx-control-depth);
+  border-color: var(--fdx-control-depth);
+  transform: none;
+  box-shadow: none;
+}
+
+.fdx-button[data-variant="ghost"]:active:not(:disabled),
+.fdx-icon-button[data-variant="ghost"]:active:not(:disabled) {
+  transform: none;
+  box-shadow: none;
 }
 
 /* Secondary keeps the surface as its face, so it reads as quieter without

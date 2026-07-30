@@ -45,10 +45,12 @@ reference the original critique used. Six rules:
 
 | Rule | Implementation |
 |---|---|
-| Controls have **no border** | `border: 0`. The offset shadow is the entire edge treatment |
+| **One edge treatment per control**, chosen by whether it has a face | A face → an offset, no border. No face → a border, no offset (`data-variant="ghost"`). An offset under nothing reads as a shadow cast by a hole, which is why the two never combine |
 | **Blocks have no border either, by default** | Border is applied per designation, never as a blanket. On each screen exactly one region — the anchor — is designated |
 | **Day: near-black face, orange offset** | Straight from the reference screenshot: its primary button is a dark key with an orange offset on warm paper |
 | **Night: orange face** | Our own extrapolation, because uisfx ships **no dark mode** so there is no reference to follow. A near-black key on a near-black canvas read as "an orange shadow with no button attached"; the offset became a burnt orange, dark enough to read as the body's shadow and light enough to survive the canvas |
+| **One orange in the system** | `--fdx-orange` resolves to the primary action colour. Introducing a second (a brighter amber) is what let Night's buttons drift off-palette |
+| **Controls carry an icon, not only a label** | `ui/icons.jsx` — stroke icons in `currentColor`, so they inherit the label colour and need no per-theme variant. In a bank of same-sized keys the word is the only differentiator, and words read slower than shapes |
 | **Pink is a card background only** | `--fdx-pink` → `--fdx-card-tint`; never a shadow, never text |
 | **Corners are square** | `--fdx-radius-control: 0`, `--fdx-radius-block: 0` |
 | **One lift, and it belongs to the device** | `--fdx-shadow-block` is applied to the plane, not to its regions |
