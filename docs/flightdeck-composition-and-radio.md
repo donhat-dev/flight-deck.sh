@@ -251,20 +251,41 @@ Three things that fall out of the contract rather than from taste:
    per sheet, so merging `radio.css` and `spend-composed.css` would report C1
    immediately. The file layout is what makes "two anchors" impossible to add
    quietly.
-2. **The tabs are a bank of old radio preset keys** (`plane/RadioKey.jsx`) — line
-   art, not shading: one silhouette path plus the two seams where the top face,
-   the chamfer and the front lip meet. State is carried the way a key bank carries
-   it: the selected key is **down in its socket** (translated and clipped by the
-   same 3px, so its lip reads shorter), its top face takes the panel colour, and
-   the pressed key is the only one lit.
+2. **The tabs are a bank of old radio preset keys** (`plane/RadioKey.jsx`). Line
+   art, not shading: a cuboid in oblique 3/4 projection with the front-top edge
+   chamfered — a cube with one quadrant sliced in half, which is what a preset key
+   looks like when you look down at a radio deck. Four faces are drawn, and all
+   four are needed: the front lip, the chamfer, the top face where the label is
+   printed, and the right side, whose stepped profile is the only place the
+   chamfer's depth is legible.
+
+   State is carried the way a key bank carries it: the selected key is **down in
+   its socket** (translated and clipped by the same 4px, so its front lip reads
+   shorter), its top face takes the panel colour, and the pressed key is the only
+   one lit.
 
    That form costs **nothing** from the depth budget, which is the point. The
    three-dimensionality comes from drawn facets — §3's thesis frees print-like
    layering — while no key carries a depth *material* (`Xpx Ypx 0`). Giving every
    key a shadow instead would have been a fourth uniform-depth surface, the same
-   mistake the range control made. Because the key is drawn art at a fixed 120×48,
-   a tab label has to stay short (≤ 8 characters) — which is what a preset label
-   is anyway.
+   mistake the range control made.
+
+   Three things that had to be measured rather than guessed:
+
+   - **Face proportions come off the reference.** There they stand at 145 : 265 :
+     162 (top : chamfer : lip), so the *chamfer* is the largest face. Passes that
+     split the height evenly, or tapered a front-facing bevel, read as a ramp, a
+     monument, and a set of equal steps respectively.
+   - **The faces are filled with the canvas colour, not left transparent.** On the
+     page that looks identical, but it lets the keys **occlude** each other, which
+     is what turns overlapping boxes into a bank rather than floating slabs. The
+     overlap only ever falls on a side face, never on a top face or a label.
+   - **Size is legibility, not decoration.** At the first size the facets were too
+     small to read, which defeats the point of drawing them; the key is now 1.33×
+     that, at exactly the viewBox aspect so nothing stretches.
+
+   Because the key is drawn art at a fixed 132×60, a tab label has to stay short
+   (≤ 8 characters) — which is what a preset label is anyway.
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is
    dead on one tab is worse than one that comes and goes.

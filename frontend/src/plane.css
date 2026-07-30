@@ -156,10 +156,12 @@
 }
 
 .radio-key {
-  /* Exactly the SVG viewBox, so no facet is stretched. */
+  /* 1.33× the viewBox, keeping its 132:60 aspect exactly so no facet is
+     stretched. At 1× the facets were too small to read, and the drawn solid is
+     the point of the key. */
   position: relative;
-  width: 7.5rem;
-  height: 3rem;
+  width: 11rem;
+  height: 5rem;
   padding: 0;
   border: 0;
   background: transparent;
@@ -170,11 +172,25 @@
     color var(--fdx-motion-fast) var(--fdx-ease);
 }
 
+/* Keys overlap by the width of one right-side face, so each key's side is
+   covered by the next — a bank, not a row of floating slabs. The overlap only
+   ever falls on a side face, never on a top face or a label, so the part of a key
+   you aim at is never the part that is covered. */
+.radio-key + .radio-key {
+  margin-left: -61px;
+}
+
 .radio-key-art {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+}
+
+/* Opaque, but the same colour as the page: the fill exists for occlusion, not for
+   shading, so the key still reads as open line work. */
+.radio-key-face {
+  fill: var(--fdx-canvas);
 }
 
 .radio-key-edge,
@@ -185,21 +201,19 @@
   stroke-linejoin: miter;
 }
 
-/* Fill is state, not form: an unpressed key is open line work. */
-.radio-key-top {
-  fill: none;
-}
-
-/* The label lives on the top face (y 5–28 of 48), not in the middle of the box. */
+/* The label is printed on the TOP face, inside the parallelogram's usable width
+   at its vertical centre (x 35.6–117.6 of 132, centre y 16 of 60). Left
+   unskewed on purpose: matching the projection would be more correct and less
+   legible, and §3's limit puts legibility first. */
 .radio-key-label {
   position: absolute;
-  inset: 0 0 auto 0;
-  height: 69%;
+  inset: 0 11% auto 27%;
+  height: 53%;
   display: grid;
   place-items: center;
   font-family: var(--fdx-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.2em;
+  font-size: 11px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
 }
 
@@ -214,15 +228,15 @@
 
 /* Pressed, the way a latched preset key is pressed: the key sinks into its
    socket — moved down and clipped by the same amount, so the front lip reads
-   shorter — its top face takes the panel colour, and it is the one that is lit.
-   Nothing here uses an offset shadow, so the depth budget is untouched. */
+   shorter — its top face takes the panel colour, and the pressed key is the only
+   one lit. No offset shadow anywhere, so the depth budget is untouched. */
 .radio-key[aria-selected="true"] {
-  transform: translateY(3px);
+  transform: translateY(4px);
   color: var(--fdx-text);
 }
 
 .radio-key[aria-selected="true"] .radio-key-art {
-  clip-path: inset(0 0 3px 0);
+  clip-path: inset(0 0 4px 0);
 }
 
 .radio-key[aria-selected="true"] .radio-key-top {
