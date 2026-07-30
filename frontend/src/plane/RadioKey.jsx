@@ -17,18 +17,26 @@ import React from "react";
  * Proportions are measured off the reference rather than guessed. There the three
  * faces stand at 145 : 265 : 162 (top : chamfer : lip), so the CHAMFER is the
  * largest — a first pass gave all three the same depth and the key read as a set
- * of equal steps. Scaled to this box: 14 : 22 : 13.
+ * of equal steps. Scaled to this box: 14 : 24 : 14.
+ *
+ * The projection is close to perpendicular to the viewer. An earlier depth vector
+ * of (46,−26) leaned about 52° off vertical, which sheared the whole solid: the
+ * back of it appeared to slide up and to the right, so the key read as lying on a
+ * diagonal plane rather than facing you. The depth is now (16,−26) — roughly 23°
+ * off vertical — which keeps a side face narrow but present. Some horizontal shift
+ * is required: at zero the side face collapses, and with it the only view of how
+ * deep the chamfer cuts.
  *
  * Geometry derived rather than eyeballed: from the front-bottom-left corner, with
- * a depth vector of (46,−26) and the chamfer ending at 46% of the depth and 43% of
- * the height, every vertex is that corner plus some combination of width, height
- * and depth. All faces therefore stay parallel and the solid cannot look broken.
+ * the chamfer ending at 46% of the depth and 46% of the height, every vertex is
+ * that corner plus some combination of width, height and depth. All faces
+ * therefore stay parallel and the solid cannot look broken.
  *
- *     A(2,58)   B(84,58)     front-bottom edge
- *     C(2,45)   D(84,45)     the front lip is 13 tall
- *     E(23,23)  F(105,23)    where the chamfer meets the top face
- *     H(48,9)   G(130,9)     back-top edge
- *     B'(130,32)             back-bottom-right; B'→G is the FULL height (23),
+ *     A(2,70)   B(110,70)    front-bottom edge
+ *     C(2,56)   D(110,56)    the front lip is 14 tall
+ *     E(9,32)   F(117,32)    where the chamfer meets the top face
+ *     H(18,18)  G(126,18)    back-top edge
+ *     B'(126,44)             back-bottom-right; B'→G is the FULL height (26),
  *                            taller than the front lip because the chamfer only
  *                            removes material at the front
  *
@@ -42,17 +50,17 @@ import React from "react";
  * depth *material* (`Xpx Ypx 0`). State is which key is pressed, not which key has
  * a shadow.
  *
- * The art is fixed at 132×60 to match the CSS box exactly, so a label must stay
+ * The art is fixed at 128×72 to match the CSS box exactly, so a label must stay
  * short (≤ 8 characters) — which is what a preset label is anyway.
  */
 
-const SILHOUETTE = "M2,58 H84 L130,32 V9 H48 L23,23 L2,45 Z";
+const SILHOUETTE = "M2,70 H110 L126,44 V18 H18 L9,32 L2,56 Z";
 
 const FACES = {
-  front: "2,58 84,58 84,45 2,45",
-  chamfer: "2,45 84,45 105,23 23,23",
-  side: "84,58 130,32 130,9 105,23 84,45",
-  top: "23,23 105,23 130,9 48,9",
+  front: "2,70 110,70 110,56 2,56",
+  chamfer: "2,56 110,56 117,32 9,32",
+  side: "110,70 126,44 126,18 117,32 110,56",
+  top: "9,32 117,32 126,18 18,18",
 };
 
 export default function RadioKey({ label, selected, onSelect }) {
@@ -64,7 +72,7 @@ export default function RadioKey({ label, selected, onSelect }) {
       aria-selected={selected}
       onClick={onSelect}
     >
-      <svg className="radio-key-art" viewBox="0 0 132 60" aria-hidden="true">
+      <svg className="radio-key-art" viewBox="0 0 128 72" aria-hidden="true">
         {/* Opaque faces first — they occlude the key behind; the line work draws
             over them. */}
         <polygon className="radio-key-face" points={FACES.front} />
@@ -74,9 +82,9 @@ export default function RadioKey({ label, selected, onSelect }) {
 
         <path className="radio-key-edge" d={SILHOUETTE} />
         {/* The profile seam: front → chamfer → top, read off the right side. */}
-        <polyline className="radio-key-seam" points="84,58 84,45 105,23 130,9" />
-        <line className="radio-key-seam" x1="2" y1="45" x2="84" y2="45" />
-        <line className="radio-key-seam" x1="23" y1="23" x2="105" y2="23" />
+        <polyline className="radio-key-seam" points="110,70 110,56 117,32 126,18" />
+        <line className="radio-key-seam" x1="2" y1="56" x2="110" y2="56" />
+        <line className="radio-key-seam" x1="9" y1="32" x2="117" y2="32" />
       </svg>
       <span className="radio-key-label">{label}</span>
     </button>

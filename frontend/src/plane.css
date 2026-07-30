@@ -156,11 +156,10 @@
 }
 
 .radio-key {
-  /* 1.33× the viewBox, keeping its 132:60 aspect exactly so no facet is
-     stretched. At 1× the facets were too small to read, and the drawn solid is
-     the point of the key. */
+  /* Exactly the viewBox's 128:72 aspect, so no facet is stretched. Sized so the
+     facets are legible: the drawn solid is the point of the key. */
   position: relative;
-  width: 11rem;
+  width: 8.875rem;
   height: 5rem;
   padding: 0;
   border: 0;
@@ -177,7 +176,7 @@
    ever falls on a side face, never on a top face or a label, so the part of a key
    you aim at is never the part that is covered. */
 .radio-key + .radio-key {
-  margin-left: -61px;
+  margin-left: -18px;
 }
 
 .radio-key-art {
@@ -202,13 +201,13 @@
 }
 
 /* The label is printed on the TOP face, inside the parallelogram's usable width
-   at its vertical centre (x 35.6–117.6 of 132, centre y 16 of 60). Left
+   at its vertical centre (x 13.7–121.7 of 128, centre y 25 of 72). Left
    unskewed on purpose: matching the projection would be more correct and less
    legible, and §3's limit puts legibility first. */
 .radio-key-label {
   position: absolute;
-  inset: 0 11% auto 27%;
-  height: 53%;
+  inset: 0 5% auto 11%;
+  height: 69%;
   display: grid;
   place-items: center;
   font-family: var(--fdx-font-mono);

@@ -270,12 +270,18 @@ Three things that fall out of the contract rather than from taste:
    key a shadow instead would have been a fourth uniform-depth surface, the same
    mistake the range control made.
 
-   Three things that had to be measured rather than guessed:
+   Four things that had to be measured rather than guessed:
 
    - **Face proportions come off the reference.** There they stand at 145 : 265 :
      162 (top : chamfer : lip), so the *chamfer* is the largest face. Passes that
      split the height evenly, or tapered a front-facing bevel, read as a ramp, a
      monument, and a set of equal steps respectively.
+   - **The projection has to sit close to perpendicular to the viewer.** A depth
+     vector of (46,−26) leans about 52° off vertical and shears the whole solid:
+     its back appears to slide up and to the right, so the key reads as lying on a
+     diagonal plane rather than facing you. At (16,−26) — about 23° — it faces
+     front. The shift cannot go to zero: that collapses the side face, and with it
+     the only view of how deep the chamfer cuts.
    - **The faces are filled with the canvas colour, not left transparent.** On the
      page that looks identical, but it lets the keys **occlude** each other, which
      is what turns overlapping boxes into a bank rather than floating slabs. The
@@ -284,7 +290,7 @@ Three things that fall out of the contract rather than from taste:
      small to read, which defeats the point of drawing them; the key is now 1.33×
      that, at exactly the viewBox aspect so nothing stretches.
 
-   Because the key is drawn art at a fixed 132×60, a tab label has to stay short
+   Because the key is drawn art at a fixed 128×72, a tab label has to stay short
    (≤ 8 characters) — which is what a preset label is anyway.
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is
