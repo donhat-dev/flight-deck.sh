@@ -251,47 +251,28 @@ Three things that fall out of the contract rather than from taste:
    per sheet, so merging `radio.css` and `spend-composed.css` would report C1
    immediately. The file layout is what makes "two anchors" impossible to add
    quietly.
-2. **The tabs are a bank of old radio preset keys** (`plane/RadioKey.jsx`). Line
-   art, not shading: a cuboid in oblique 3/4 projection with the front-top edge
-   chamfered — a cube with one quadrant sliced in half, which is what a preset key
-   looks like when you look down at a radio deck. Four faces are drawn, and all
-   four are needed: the front lip, the chamfer, the top face where the label is
-   printed, and the right side, whose stepped profile is the only place the
-   chamfer's depth is legible.
+2. **The tabs are a bank of old radio preset keys** — rectangular caps, not a
+   drawn solid. An intermediate version rendered each key as a cuboid in oblique
+   3/4 projection with a chamfered front-top edge, matching a wireframe reference
+   exactly. It was accurate and wrong for the job: at tab size the facets fought
+   the 10px label, and a control plane's navigation should not be the most
+   illustrated thing on its own page. **Reverted to rectangles, with the period
+   feeling carried by moulding instead of by geometry:**
 
-   State is carried the way a key bank carries it: the selected key is **down in
-   its socket** (translated and clipped by the same 4px, so its front lip reads
-   shorter), its top face takes the panel colour, and the pressed key is the only
-   one lit.
+   | Detail | What it does |
+   |---|---|
+   | A slot rail under the bank, overhanging both ends | Gives the pressed key something to sink *into*. Without it a lowered key just looks misaligned |
+   | A 3px bottom border — the lip the cap stands on | What makes an unpressed key read as UP. Losing the lip is what makes the pressed one read as DOWN |
+   | A chamfer hairline inset from the top edge | All that survives of a bevel at this scale |
+   | Fluted plastic, `repeating-linear-gradient` at 6% alpha | At 45% over a 6px period it read as a speaker grille and fought the label |
+   | Pressed: `inset 0 2px 0` from the socket wall | An **inset** shadow, so it is a socket rather than a depth material |
 
-   That form costs **nothing** from the depth budget, which is the point. The
-   three-dimensionality comes from drawn facets — §3's thesis frees print-like
-   layering — while no key carries a depth *material* (`Xpx Ypx 0`). Giving every
-   key a shadow instead would have been a fourth uniform-depth surface, the same
-   mistake the range control made.
+   Two things this buys. First, **the depth budget stays at zero for this sheet** —
+   verified, not assumed: `plane.css` reports no depth-bearing element, because a
+   lip is a border and a socket is an inset. Second, a drop shadow on the selected
+   key would have said "floating", which is the opposite of a latched preset key;
+   the physical read and the contract happen to want the same thing here.
 
-   Four things that had to be measured rather than guessed:
-
-   - **Face proportions come off the reference.** There they stand at 145 : 265 :
-     162 (top : chamfer : lip), so the *chamfer* is the largest face. Passes that
-     split the height evenly, or tapered a front-facing bevel, read as a ramp, a
-     monument, and a set of equal steps respectively.
-   - **The projection has to sit close to perpendicular to the viewer.** A depth
-     vector of (46,−26) leans about 52° off vertical and shears the whole solid:
-     its back appears to slide up and to the right, so the key reads as lying on a
-     diagonal plane rather than facing you. At (16,−26) — about 23° — it faces
-     front. The shift cannot go to zero: that collapses the side face, and with it
-     the only view of how deep the chamfer cuts.
-   - **The faces are filled with the canvas colour, not left transparent.** On the
-     page that looks identical, but it lets the keys **occlude** each other, which
-     is what turns overlapping boxes into a bank rather than floating slabs. The
-     overlap only ever falls on a side face, never on a top face or a label.
-   - **Size is legibility, not decoration.** At the first size the facets were too
-     small to read, which defeats the point of drawing them; the key is now 1.33×
-     that, at exactly the viewBox aspect so nothing stretches.
-
-   Because the key is drawn art at a fixed 128×72, a tab label has to stay short
-   (≤ 8 characters) — which is what a preset label is anyway.
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is
    dead on one tab is worse than one that comes and goes.

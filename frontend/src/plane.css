@@ -11,11 +11,12 @@
    so merging the two into one file would report C1 immediately. The file layout
    is what makes "two anchors" impossible to introduce quietly.
 
-   The tabs are drawn as a bank of old radio preset keys (plane/RadioKey.jsx):
-   line-art slabs, state carried by which key is DOWN rather than by a depth
-   material. So this sheet spends nothing from the depth budget — a shadow on
-   every key would have been a fourth uniform-depth surface, the same mistake the
-   range control made.
+   The tabs are a bank of old radio preset keys: rectangular caps whose period
+   feeling comes from moulding — a slot rail, a chamfer hairline, fluted plastic,
+   and the lip a cap stands on. State is which key is DOWN, not which key has a
+   shadow, so this sheet spends nothing from the depth budget. A shadow on every
+   key would have been a fourth uniform-depth surface, the same mistake the range
+   control made.
    ============================================================ */
 
 .radio-plane {
@@ -138,6 +139,12 @@
 
 /* ---------- tab bar: a bank of radio preset keys ---------- */
 
+/* Back to rectangular caps. The drawn 3/4 solid was accurate and wrong for the
+   job: at tab size the facets fought the label, and a control plane's navigation
+   should not be the most illustrated thing on the page. The period feeling now
+   comes from MOULDING details on a rectangle — a slot rail, a chamfer hairline,
+   fluted plastic, a lip the cap stands on — none of which spend depth budget. */
+
 .radio-tabrow {
   display: flex;
   align-items: flex-end;
@@ -146,74 +153,66 @@
   padding: 0 var(--fdx-space-8);
 }
 
-/* Keys sit flush on the panel edge with a hairline gap, the way a preset bank
-   does — close enough to read as one instrument, separate enough to read as
-   discrete keys. */
+/* The bank sits in a slot. One rail runs under every key: unpressed keys stand on
+   it, and the pressed one sinks through it. Without the rail a "pressed" key just
+   looks misaligned, because nothing says what it is pressed INTO. */
 .radio-tabs {
+  position: relative;
   display: flex;
   align-items: flex-end;
   gap: 3px;
 }
 
+/* The keys STAND on the rail — no padding between them and it, or they float and
+   the pressed key has nothing to sink through. The rail overhangs the bank on both
+   sides so it reads as a slot in the panel rather than an underline. */
+.radio-tabs::after {
+  content: "";
+  position: absolute;
+  inset: auto -0.75rem 0 -0.75rem;
+  height: 1px;
+  background: var(--fdx-rule-strong);
+}
+
 .radio-key {
-  /* Exactly the viewBox's 128:72 aspect, so no facet is stretched. Sized so the
-     facets are legible: the drawn solid is the point of the key. */
   position: relative;
-  width: 8.875rem;
-  height: 5rem;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  min-width: 6.75rem;
+  padding: 0.6rem 1.1rem 0.5rem;
+  border: 1px solid var(--fdx-rule-strong);
+  /* The lip the cap stands on. It is what makes the key read as UP, and losing it
+     is what makes the pressed key read as DOWN — a drop shadow would have said
+     "floating" instead, which is the opposite of a latched preset key. */
+  border-bottom-width: 3px;
+  border-radius: 1px;
+  background-color: var(--fdx-canvas);
+  /* Fluted plastic. Very faint and widely spaced: at 45% over a 6px period it
+     read as a speaker grille and fought the label, which is the one thing on a
+     key that has to be read. */
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--fdx-rule) 26%, transparent) 0 1px,
+    transparent 1px 10px
+  );
   color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     transform var(--fdx-motion-fast) var(--fdx-ease),
-    color var(--fdx-motion-fast) var(--fdx-ease);
+    color var(--fdx-motion-fast) var(--fdx-ease),
+    border-bottom-width var(--fdx-motion-fast) var(--fdx-ease);
 }
 
-/* Keys overlap by the width of one right-side face, so each key's side is
-   covered by the next — a bank, not a row of floating slabs. The overlap only
-   ever falls on a side face, never on a top face or a label, so the part of a key
-   you aim at is never the part that is covered. */
-.radio-key + .radio-key {
-  margin-left: -18px;
-}
-
-.radio-key-art {
+/* The moulded chamfer, seen almost head-on: one hairline inset from the top edge,
+   which is all that survives of the bevel at this scale. */
+.radio-key::before {
+  content: "";
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-/* Opaque, but the same colour as the page: the fill exists for occlusion, not for
-   shading, so the key still reads as open line work. */
-.radio-key-face {
-  fill: var(--fdx-canvas);
-}
-
-.radio-key-edge,
-.radio-key-seam {
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.1;
-  stroke-linejoin: miter;
-}
-
-/* The label is printed on the TOP face, inside the parallelogram's usable width
-   at its vertical centre (x 13.7–121.7 of 128, centre y 25 of 72). Left
-   unskewed on purpose: matching the projection would be more correct and less
-   legible, and §3's limit puts legibility first. */
-.radio-key-label {
-  position: absolute;
-  inset: 0 5% auto 11%;
-  height: 69%;
-  display: grid;
-  place-items: center;
-  font-family: var(--fdx-font-mono);
-  font-size: 11px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+  inset: 3px 3px auto 3px;
+  height: 1px;
+  background: var(--fdx-rule);
 }
 
 .radio-key:hover {
@@ -225,25 +224,22 @@
   outline-offset: 2px;
 }
 
-/* Pressed, the way a latched preset key is pressed: the key sinks into its
-   socket — moved down and clipped by the same amount, so the front lip reads
-   shorter — its top face takes the panel colour, and the pressed key is the only
-   one lit. No offset shadow anywhere, so the depth budget is untouched. */
+/* Latched down: the cap drops through the rail, loses the lip it was standing on,
+   takes the panel colour, and the socket wall shadows its top edge. The shadow is
+   INSET, so it is a socket rather than a depth material — the depth budget stays
+   at zero for this sheet. */
 .radio-key[aria-selected="true"] {
-  transform: translateY(4px);
-  color: var(--fdx-text);
-}
-
-.radio-key[aria-selected="true"] .radio-key-art {
-  clip-path: inset(0 0 4px 0);
-}
-
-.radio-key[aria-selected="true"] .radio-key-top {
-  fill: var(--fdx-surface);
-}
-
-.radio-key[aria-selected="true"] .radio-key-label {
+  transform: translateY(3px);
+  border-bottom-width: 1px;
+  background-color: var(--fdx-surface);
+  background-image: none;
   color: var(--fdx-signal);
+  box-shadow: inset 0 2px 0 color-mix(in srgb, var(--fdx-depth-muted) 62%, transparent);
+}
+
+/* A key in its socket catches no light on the chamfer. */
+.radio-key[aria-selected="true"]::before {
+  opacity: 0;
 }
 
 /* View-scoped controls live beside the tabs, so a control that means nothing on
