@@ -75,7 +75,10 @@
   padding: var(--fdx-space-8);
   border: 1px solid var(--fdx-rule-strong);
   background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-print);
+  /* Block lift plus the hard print offset — see radio.css: soft says "panel",
+     offset says "anchor". */
+  border-radius: var(--fdx-radius-block);
+  box-shadow: var(--fdx-shadow-block), var(--fdx-shadow-print);
 }
 
 @media (max-width: 68rem) {
@@ -175,6 +178,20 @@
   grid-template-columns: minmax(0, 1.62fr) minmax(18rem, 0.52fr);
   gap: var(--fdx-space-8);
   padding: 0 var(--fdx-space-8);
+}
+
+/* Support blocks: border and a light lift, no offset. */
+.sc-dense > section,
+.sc-efficiency,
+.sc-footer {
+  border: 1px solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
+  background: var(--fdx-surface);
+  box-shadow: var(--fdx-shadow-block);
+}
+
+.sc-dense > section {
+  padding: var(--fdx-space-4);
 }
 
 @media (max-width: 68rem) {
@@ -359,8 +376,7 @@
   /* space-24 of emptiness, and three meters at most. Raising every region's
      spacing together would only move the flatness up a scale. */
   padding: var(--fdx-space-24) var(--fdx-space-8);
-  margin-top: var(--fdx-space-8);
-  border-top: 1px solid var(--fdx-rule);
+  margin: var(--fdx-space-8);
 }
 
 @media (max-width: 68rem) {
@@ -411,8 +427,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--fdx-space-8);
-  padding: var(--fdx-space-4) var(--fdx-space-8) var(--fdx-space-8);
-  border-top: 1px solid var(--fdx-rule-strong);
+  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
+  padding: var(--fdx-space-6) var(--fdx-space-8);
 }
 
 @media (max-width: 68rem) {

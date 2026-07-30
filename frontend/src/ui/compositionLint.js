@@ -16,7 +16,7 @@
      C4  asymmetry by default                         NOT checkable — a matrix
                                                       exemption is a content fact
      C5  metadata is distinct per region              NOT checkable here
-     C6a depth material never a fill or text colour   checkable
+     C6a the card tint is never a shadow or text      checkable
      C6b role token matches the selector's role       checkable, 3 directions
 
    The undecidable ones stay in review, not faked into a passing test.
@@ -30,10 +30,21 @@
 
 const MAX_VAR_HOPS = 8;
 
-/** Depth materials DESIGN.md §2 calls "depth materials, not additional
- *  accents". Ink and muted are deliberately absent: ink is the frame colour and
- *  muted is mass, so both are legitimate as fills (the toggle knob uses ink). */
-const DEPTH_MATERIALS = /--[\w]+-depth-(pink|orange)\b/;
+/** Pink is a CARD BACKGROUND and nothing else, so it must never appear in a
+ *  shadow or on text. This inverts the old rule: pink and orange used to be
+ *  depth-only materials banned from fills. Under the unified token style the
+ *  control face and its depth trade places by theme (Day: orange face, black
+ *  shadow; Night: black face, orange shadow), so orange is legitimately a fill —
+ *  and pink is the one material with a single home. */
+const CARD_ONLY = /--[\w-]*(pink|card-tint)\b/;
+
+/** A shadow declared through a `*-shadow-block` token is GROUND material — the
+ *  lift every panel has — not rationed control depth. The distinction is read off
+ *  the token name rather than guessed from magnitude, for the same reason the
+ *  composition markers exist: intent has to be stated, not inferred. Without it
+ *  the block recipe (a softened accent offset plus a soft ambient) would read as
+ *  a depth violation on every panel. */
+const BLOCK_MATERIAL = /--[\w-]*shadow-block\b/;
 
 /** Properties that put a colour on a surface or on glyphs. */
 const FILL_PROPS =
@@ -307,8 +318,16 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
     for (const decl of rule.decls) {
       const resolved = resolveValue(decl.value, vars);
 
-      // C3a / C3b — offset depth.
-      if (decl.prop === "box-shadow" && hasOffsetDepth(resolved)) {
+      // C3a / C3b — offset depth, excluding declared block material LAYER BY
+      // LAYER. Testing the whole declaration was wrong: both anchors write
+      // `var(--fdx-shadow-block), var(--fdx-shadow-print)`, so one block-material
+      // layer made the lint blind to the print offset beside it — re-opening
+      // exactly the blind spot the cross-file var fix closed.
+      const controlLayers =
+        decl.prop === "box-shadow"
+          ? splitTop(decl.value, ",").filter((layer) => !BLOCK_MATERIAL.test(layer))
+          : [];
+      if (controlLayers.some((layer) => hasOffsetDepth(resolveValue(layer, vars)))) {
         const base = baseClass(rule.selector);
         const atRest = !TRANSIENT.test(rule.selector) && !FRAME.test(rule.selector);
         if (atRest && !depthBases.has(base)) {
@@ -326,12 +345,12 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
         }
       }
 
-      // C6a — a depth material used as a fill or a text colour.
-      if (FILL_PROPS.test(decl.prop) && DEPTH_MATERIALS.test(decl.value)) {
+      // C6a — the card tint has exactly one home.
+      if (CARD_ONLY.test(decl.value) && (decl.prop === "box-shadow" || decl.prop === "color")) {
         push(
           "C6a",
           decl.line,
-          `\`${decl.prop}\` uses a depth material on \`${rule.selector}\`; Pink/Orange Depth are offset materials, never accents`,
+          `\`${decl.prop}\` uses the card tint on \`${rule.selector}\`; pink is a card background, never a shadow and never text`,
           rule.line,
         );
       }
@@ -431,7 +450,8 @@ export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
 }
 
 export const RULES = {
-  DEPTH_MATERIALS,
+  CARD_ONLY,
+  BLOCK_MATERIAL,
   FILL_PROPS,
   INTERACTIVE,
   FRAME,

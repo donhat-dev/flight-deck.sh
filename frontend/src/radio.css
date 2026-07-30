@@ -74,7 +74,11 @@
   padding: var(--fdx-space-8);
   border: 1px solid var(--fdx-rule-strong);
   background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-print);
+  /* Block lift PLUS the hard print offset. The soft shadow says "a panel on the
+     deck", which every block gets; the offset says "this is the anchor", which
+     only this one gets. Two different claims, so two different materials. */
+  border-radius: var(--fdx-radius-block);
+  box-shadow: var(--fdx-shadow-block), var(--fdx-shadow-print);
 }
 
 .radio-eyebrow {
@@ -160,9 +164,20 @@
 
 /* ---------- Channels — the dense pole (C2) ---------- */
 
+/* Support blocks: border and a light lift, no offset. */
+.radio-channels,
+.radio-signal,
+.radio-log {
+  border: 1px solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
+  background: var(--fdx-surface);
+  box-shadow: var(--fdx-shadow-block);
+}
+
 .radio-channels {
   display: grid;
   gap: var(--fdx-space-2);
+  padding: var(--fdx-space-4);
 }
 
 .radio-channels-head {
@@ -229,7 +244,8 @@
    rather than a second class, so no code path can render it unconditionally. */
 .radio-channel[data-selected="true"] {
   border-left-color: var(--fdx-signal);
-  background: var(--fdx-surface);
+  /* The one place pink appears: a card background. */
+  background: var(--fdx-card-tint);
   box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
@@ -291,6 +307,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: var(--fdx-space-16);
+  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
   /* space-24 of deliberate emptiness. Three meters at most: raising every
      region's spacing together would only move the flatness up a scale. */
   padding: var(--fdx-space-24) var(--fdx-space-8);
@@ -344,8 +361,8 @@
 .radio-log {
   display: grid;
   gap: 0;
-  padding: var(--fdx-space-4) var(--fdx-space-8) var(--fdx-space-8);
-  border-top: 1px solid var(--fdx-rule-strong);
+  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
+  padding: var(--fdx-space-4) var(--fdx-space-6) var(--fdx-space-6);
 }
 
 .radio-log-head {

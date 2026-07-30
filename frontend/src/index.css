@@ -425,10 +425,26 @@ table.rd-sxs {
   --fdx-action-face-hover: #bd351b;
   --fdx-action-face-active: #a92d16;
   --fdx-control-error-face: #b6354a;
-  --fdx-depth-ink: #211812;
-  --fdx-depth-pink: #f47f96;
-  --fdx-depth-orange: #ff9a35;
+  --fdx-depth-ink: #17120e;
+  --fdx-orange: #ff9a35;
   --fdx-depth-muted: #4c4139;
+  /* Control materials TRADE PLACES between themes: Night is a black key with an
+     orange shadow, Day is an orange key with a black shadow. One rule, two
+     readings, and the shadow is always the theme's opposite. */
+  --fdx-control-face: #17120e;
+  --fdx-control-depth: var(--fdx-orange);
+  --fdx-control-label: #f4ede0;
+  /* Pink is a CARD background and nothing else — never a shadow, never text. */
+  --fdx-pink: #f47f96;
+  --fdx-card-tint: color-mix(in srgb, var(--fdx-pink) 12%, var(--fdx-surface));
+  /* Block material, measured off uisfx/apps/showcase: a SOFTENED accent offset
+     plus a soft ambient lift. The offset is deliberately translucent and smaller
+     than a control's, so a panel reads as resting on the deck while a control
+     still reads as something you can press. The lint tells the two apart by this
+     token's NAME, layer by layer — see BLOCK_MATERIAL in compositionLint.js. */
+  --fdx-shadow-block:
+    0.2rem 0.2rem 0 color-mix(in srgb, var(--fdx-orange) 24%, transparent),
+    0 1.25rem 2.5rem -1.45rem color-mix(in srgb, var(--fdx-depth-ink) 65%, transparent);
   --fdx-control-edge-highlight: rgba(255, 249, 241, 0.26);
   --fdx-control-border-width: 2px;
   --fdx-control-depth-x: 4px;
@@ -457,25 +473,30 @@ table.rd-sxs {
   --fdx-radius-xs: 2px;
   --fdx-radius-sm: 5px;
   --fdx-radius-md: 10px;
+  /* Measured off uisfx/apps/showcase: controls 0.62–0.7rem, blocks 0.9–1.35rem.
+     The offset shadow is what makes the style brutal; the radius is what makes it
+     soft, and ours was far too tight for the offsets it carries. */
+  --fdx-radius-control: 0.65rem;
+  --fdx-radius-block: 0.9rem;
   --fdx-shadow-print: 4px 4px 0 var(--fdx-signal);
   --fdx-shadow-control:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-depth-pink);
+    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-control-depth);
   --fdx-shadow-control-hover:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    5px 5px 0 var(--fdx-depth-pink);
+    5px 5px 0 var(--fdx-control-depth);
   --fdx-shadow-control-pressed:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    1px 1px 0 var(--fdx-depth-pink);
+    1px 1px 0 var(--fdx-control-depth);
   --fdx-shadow-control-alert:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-depth-orange);
+    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-control-depth);
   --fdx-shadow-control-alert-hover:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    5px 5px 0 var(--fdx-depth-orange);
+    5px 5px 0 var(--fdx-control-depth);
   --fdx-shadow-control-alert-pressed:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
-    1px 1px 0 var(--fdx-depth-orange);
+    1px 1px 0 var(--fdx-control-depth);
   --fdx-shadow-control-muted:
     inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 44%, transparent),
     3px 3px 0 var(--fdx-depth-muted);
@@ -503,9 +524,12 @@ table.rd-sxs {
   --fdx-action-face-hover: #ad2f16;
   --fdx-action-face-active: #98280f;
   --fdx-control-error-face: #a82e3d;
-  --fdx-depth-ink: #241913;
-  --fdx-depth-pink: #e96884;
-  --fdx-depth-orange: #ed881f;
+  --fdx-depth-ink: #1b120c;
+  --fdx-orange: #e6821c;
+  --fdx-control-face: var(--fdx-orange);
+  --fdx-control-depth: #1b120c;
+  --fdx-control-label: #1b120c;
+  --fdx-pink: #e96884;
   --fdx-depth-muted: #aa9b87;
   --fdx-control-edge-highlight: rgba(255, 249, 241, 0.34);
   --fdx-critical: #a82e3d;
@@ -858,8 +882,8 @@ table.rd-sxs {
 .fdx-button,
 .fdx-icon-button {
   --fdx-button-face: var(--fdx-surface);
-  --fdx-button-frame: var(--fdx-text);
-  --fdx-button-depth: var(--fdx-depth-orange);
+  --fdx-button-label: var(--fdx-text);
+  --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: var(--fdx-surface-raised);
   --fdx-button-shadow: var(--fdx-shadow-control-alert);
   --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
@@ -870,9 +894,12 @@ table.rd-sxs {
   justify-content: center;
   gap: var(--fdx-space-3);
   min-height: 44px;
-  border: var(--fdx-control-border-width) solid var(--fdx-button-frame);
-  border-radius: var(--fdx-radius-xs);
-  color: var(--fdx-text);
+  /* No border. The offset shadow is the whole edge treatment: a frame plus an
+     offset drew the same boundary twice, and the shadow is the one that carries
+     the press. */
+  border: 0;
+  border-radius: var(--fdx-radius-control);
+  color: var(--fdx-button-label);
   background: var(--fdx-button-face);
   box-shadow: var(--fdx-button-shadow);
   font-family: var(--fdx-font-primary);
@@ -908,44 +935,42 @@ table.rd-sxs {
 }
 
 .fdx-button[data-variant="primary"] {
-  --fdx-button-face: var(--fdx-action-face);
-  --fdx-button-frame: var(--fdx-depth-ink);
-  --fdx-button-depth: var(--fdx-depth-pink);
-  --fdx-button-active-face: var(--fdx-action-face-active);
+  --fdx-button-face: var(--fdx-control-face);
+  --fdx-button-label: var(--fdx-control-label);
+  --fdx-button-depth: var(--fdx-control-depth);
+  --fdx-button-active-face: color-mix(in srgb, var(--fdx-control-face) 88%, var(--fdx-control-depth));
   --fdx-button-shadow: var(--fdx-shadow-control);
   --fdx-button-shadow-hover: var(--fdx-shadow-control-hover);
   --fdx-button-shadow-pressed: var(--fdx-shadow-control-pressed);
-  color: #fff9f1;
 }
 
 .fdx-button[data-variant="primary"]:hover:not(:disabled) {
-  --fdx-button-face: var(--fdx-action-face-hover);
+  --fdx-button-face: color-mix(in srgb, var(--fdx-control-face) 92%, var(--fdx-control-label));
   transform: translate(-1px, -1px);
   box-shadow: var(--fdx-button-shadow-hover);
 }
 
+/* Secondary keeps the surface as its face, so it reads as quieter without
+   inventing a second material. */
 .fdx-button[data-variant="secondary"],
 .fdx-icon-button[data-variant="quiet"] {
   --fdx-button-face: var(--fdx-surface);
-  --fdx-button-frame: var(--fdx-text);
-  --fdx-button-depth: var(--fdx-depth-orange);
+  --fdx-button-label: var(--fdx-text);
+  --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: var(--fdx-surface-raised);
-  color: var(--fdx-text);
 }
 
 .fdx-button[data-variant="secondary"]:hover:not(:disabled),
 .fdx-icon-button[data-variant="quiet"]:hover:not(:disabled) {
   --fdx-button-face: var(--fdx-surface-inverse);
-  --fdx-button-frame: var(--fdx-depth-ink);
-  color: var(--fdx-text-inverse);
+  --fdx-button-label: var(--fdx-text-inverse);
   transform: translate(-1px, -1px);
   box-shadow: var(--fdx-button-shadow-hover);
 }
 
 .fdx-button[data-variant="inverse"] {
   --fdx-button-face: var(--fdx-surface-inverse);
-  --fdx-button-frame: var(--fdx-depth-ink);
-  --fdx-button-depth: var(--fdx-depth-pink);
+  --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: var(--fdx-action-face-active);
   --fdx-button-shadow: var(--fdx-shadow-control);
   --fdx-button-shadow-hover: var(--fdx-shadow-control-hover);
@@ -955,8 +980,7 @@ table.rd-sxs {
 
 .fdx-button[data-variant="inverse"]:hover:not(:disabled) {
   --fdx-button-face: var(--fdx-action-face);
-  --fdx-button-frame: var(--fdx-depth-ink);
-  --fdx-button-depth: var(--fdx-depth-orange);
+  --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
   --fdx-button-shadow-pressed: var(--fdx-shadow-control-alert-pressed);
   color: #fff9f1;
@@ -967,13 +991,12 @@ table.rd-sxs {
 .fdx-button[data-variant="error"],
 .fdx-icon-button[data-variant="error"] {
   --fdx-button-face: var(--fdx-control-error-face);
-  --fdx-button-frame: var(--fdx-depth-ink);
-  --fdx-button-depth: var(--fdx-depth-orange);
+  --fdx-button-label: #fff;
+  --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: color-mix(in srgb, var(--fdx-control-error-face) 82%, var(--fdx-depth-ink));
   --fdx-button-shadow: var(--fdx-shadow-control-alert);
   --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
   --fdx-button-shadow-pressed: var(--fdx-shadow-control-alert-pressed);
-  color: #fff;
 }
 
 .fdx-button:active:not(:disabled),
@@ -986,8 +1009,7 @@ table.rd-sxs {
 .fdx-button[data-state="loading"],
 .fdx-icon-button[data-state="loading"] {
   --fdx-button-face: color-mix(in srgb, var(--fdx-action-face) 48%, var(--fdx-surface));
-  --fdx-button-frame: color-mix(in srgb, var(--fdx-depth-ink) 64%, var(--fdx-text-muted));
-  --fdx-button-depth: var(--fdx-depth-orange);
+  --fdx-button-depth: var(--fdx-control-depth);
   color: color-mix(in srgb, var(--fdx-text) 72%, var(--fdx-text-muted));
   cursor: progress;
   opacity: 1;
@@ -998,7 +1020,6 @@ table.rd-sxs {
 .fdx-button[data-state="disabled"],
 .fdx-icon-button[data-state="disabled"] {
   --fdx-button-face: var(--fdx-surface-raised);
-  --fdx-button-frame: var(--fdx-rule-strong);
   --fdx-button-depth: var(--fdx-depth-muted);
   color: var(--fdx-text-muted);
   cursor: not-allowed;
@@ -1678,7 +1699,7 @@ table.rd-sxs {
 
 .fdx-toggle[data-checked="true"] .fdx-toggle-track {
   background: var(--fdx-action-face);
-  box-shadow: 2px 2px 0 var(--fdx-depth-pink);
+  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-toggle[data-checked="true"] .fdx-toggle-track i {
@@ -1724,7 +1745,7 @@ table.rd-sxs {
   height: 1.45rem;
   border: var(--fdx-control-border-width) solid var(--fdx-depth-ink);
   background: var(--fdx-surface-inverse);
-  box-shadow: 2px 2px 0 var(--fdx-depth-orange);
+  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-check input:focus-visible + .fdx-check-mark {
@@ -1734,7 +1755,7 @@ table.rd-sxs {
 
 .fdx-check input:checked + .fdx-check-mark {
   background: var(--fdx-action-face);
-  box-shadow: 2px 2px 0 var(--fdx-depth-pink);
+  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-check input:checked + .fdx-check-mark::after {
@@ -2026,9 +2047,7 @@ table.rd-sxs {
 
 .fdx-depth-key i[data-layer="face"] { background: var(--fdx-action-face); }
 .fdx-depth-key i[data-layer="frame"] { background: var(--fdx-depth-ink); }
-/* composition-lint-allow: C6a — a legend swatch whose whole job is to display
-   the depth material itself; this is the one place it is not an accent */
-.fdx-depth-key i[data-layer="depth"] { background: var(--fdx-depth-pink); }
+.fdx-depth-key i[data-layer="depth"] { background: var(--fdx-control-depth); }
 
 .fdx-state-matrix > div {
   display: grid;

@@ -209,31 +209,46 @@ describe("C3b — the depth budget", () => {
 
 // ---------------------------------------------------------------- C6a
 
-describe("C6a — depth materials are not accents", () => {
-  it("FIRES when Pink Depth becomes a fill or a text colour", () => {
-    expect(ids(lintCss(`.chart-bar { background: var(--fdx-depth-pink); }`))).toEqual(["C6a"]);
-    expect(ids(lintCss(`.label { color: var(--fd2-depth-orange); }`))).toEqual(["C6a"]);
-    expect(ids(lintCss(`.pill { border-color: var(--fdx-depth-pink); }`))).toEqual(["C6a"]);
+describe("C6a — the card tint has one home", () => {
+  it("FIRES when pink becomes a shadow or text", () => {
+    expect(ids(lintCss(`.btn { box-shadow: 4px 4px 0 var(--fdx-pink); }`))).toEqual(["C6a"]);
+    expect(ids(lintCss(`.label { color: var(--fdx-card-tint); }`))).toEqual(["C6a"]);
   });
 
-  it("allows Pink Depth in the offset it exists for", () => {
-    expect(ids(lintCss(`.btn:hover { box-shadow: 4px 4px 0 var(--fdx-depth-pink); }`))).toEqual([]);
+  it("allows pink where it belongs — a card background", () => {
+    expect(ids(lintCss(`.row[data-selected="true"] { background: var(--fdx-card-tint); }`)))
+      .toEqual([]);
   });
 
-  it("leaves ink and muted alone — frame and mass are legitimate fills", () => {
-    // The toggle knob is filled with ink. Banning every --*-depth-* token would
-    // have flagged it, and 'fixing' it would have been a change for nothing.
-    expect(ids(lintCss(`.fdx-toggle-track i { background: var(--fdx-depth-ink); }`))).toEqual([]);
-    expect(ids(lintCss(`.bar { background: var(--fd2-depth-muted); }`))).toEqual([]);
+  it("leaves orange alone, because the token style makes it a face too", () => {
+    // Day is an orange key with a black shadow, Night the reverse, so orange is
+    // legitimately a fill. Banning it as "depth only" was the previous contract.
+    expect(ids(lintCss(`.btn { background: var(--fdx-orange); }`))).toEqual([]);
+    expect(ids(lintCss(`.btn:hover { box-shadow: 4px 4px 0 var(--fdx-orange); }`))).toEqual([]);
+  });
+
+  it("treats a declared block lift as ground material, not rationed depth", () => {
+    // The block recipe carries a softened accent offset. Read as control depth it
+    // would flag every panel on every screen; the token name is what says which
+    // it is.
+    const kit = `:root { --fdx-shadow-block: 0.2rem 0.2rem 0 rgba(0,0,0,.2), 0 1rem 2rem -1rem rgba(0,0,0,.3); }`;
+    const block = `.panel { box-shadow: var(--fdx-shadow-block); }`;
+    const vars = collectVars([kit]);
+    expect(ids(lintCss(block, { inheritedVars: vars }))).toEqual([]);
+    expect(lintCss(block, { inheritedVars: vars }).depthBases).toEqual([]);
+
+    // The same geometry written inline is still control depth, and still flagged.
+    const inline = `.panel { box-shadow: 0.2rem 0.2rem 0 rgba(0,0,0,.2); }`;
+    expect(ids(lintCss(inline))).toEqual(["C3a"]);
   });
 
   it("honours an exemption that carries a reason, and rejects one that does not", () => {
     const withReason = `/* composition-lint-allow: C6a — a legend swatch displays the material itself */
-      .depth-key i { background: var(--fdx-depth-pink); }`;
+      .depth-key i { color: var(--fdx-pink); }`;
     expect(ids(lintCss(withReason))).toEqual([]);
 
     const bare = `/* composition-lint-allow: C6a */
-      .depth-key i { background: var(--fdx-depth-pink); }`;
+      .depth-key i { color: var(--fdx-pink); }`;
     expect(ids(lintCss(bare))).toEqual(["C6a"]);
   });
 });

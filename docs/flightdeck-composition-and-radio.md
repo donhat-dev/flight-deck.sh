@@ -31,7 +31,49 @@ name: FlightDeck did not fail to adopt the reference's materials. It adopted the
 and then applied them *uniformly*, which cancels them out. Depth that every
 element has is not depth. Spacing that never varies is not rhythm.
 
-**Therefore this plan changes no tokens and rewrites no components.**
+**Therefore this plan changed no tokens and rewrote no components** — and held to
+that through stages 2–8. It stopped holding when the token style itself was
+decided; see §2b.
+
+---
+
+## 2b. The unified token style (decided after stage 8)
+
+The composition work deliberately touched no tokens. That constraint ended when
+the material language was settled, sourced from `uisfx/apps/showcase` — the same
+reference the original critique used. Six rules:
+
+| Rule | Implementation |
+|---|---|
+| Buttons have **no border** | `border: 0`. The offset shadow is the entire edge treatment; a frame plus an offset drew the same boundary twice |
+| **Day: orange face, black shadow** | `--fdx-control-face: var(--fdx-orange)`, `--fdx-control-depth: #1b120c` |
+| **Night: black face, orange shadow** | the same two tokens, values traded. One decision, two readings |
+| **Pink is a card background only** | `--fdx-pink` → `--fdx-card-tint`; never a shadow, never text |
+| **Blocks: border + a light lift** | `--fdx-shadow-block` — a softened accent offset plus a soft ambient, the showcase's panel recipe |
+| **The shell is inset from the screen** | body is the desk, the plane is the deck inset by `space-4`, panels sit on it. Three levels are what make it read as a device rather than a page |
+
+Two things this forced, both worth keeping:
+
+1. **The radius scale was the real gap.** The showcase runs 0.62–0.7rem on controls
+   and 0.9–1.35rem on blocks; ours topped out at 10px. The offset shadow is what
+   makes the style brutal, and the radius is what makes it *soft* — with our tight
+   radii the same offsets simply read as harsh. Added
+   `--fdx-radius-control` / `--fdx-radius-block`.
+2. **C6a inverted, and C3 learned to tell ground from figure.** Pink and orange
+   used to be depth-only materials banned from fills. Now the control face and its
+   depth trade places by theme, so orange is legitimately a fill, and pink is the
+   one material with a single home — the rule became "the card tint is never a
+   shadow and never text". And because the block recipe carries its own softened
+   offset, C3 would have flagged every panel on every screen; it now skips layers
+   declared through a `*-shadow-block` token. **The distinction is read off the
+   token name, not guessed from magnitude** — the same principle as the composition
+   markers: intent has to be stated.
+
+   That change bit immediately, and the test suite is why it was caught: both
+   anchors write `var(--fdx-shadow-block), var(--fdx-shadow-print)`, and testing
+   the *whole declaration* for the block token made the lint blind to the print
+   offset beside it — silently un-guarding the one region that matters most. The
+   exclusion is per **layer**, with a regression test named after the mistake.
 
 ---
 

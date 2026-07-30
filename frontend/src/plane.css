@@ -22,12 +22,24 @@
    Depth here: ONE element, the selected tab, gated on its ARIA state.
    ============================================================ */
 
+/* The plane is a device on a desk, not a page. Three levels do that work: the
+   BODY is the desk (canvas pushed toward ink), the plane is the deck inset from
+   every screen edge, and the views' panels are surfaces on top of it. Without the
+   inset the chrome runs to the viewport edge and reads as a web page. */
+body:has(.radio-plane) {
+  background: color-mix(in srgb, var(--fdx-canvas) 86%, var(--fdx-depth-ink));
+  padding: var(--fdx-space-4);
+}
+
 .radio-plane {
-  min-height: 100vh;
+  min-height: calc(100vh - 2 * var(--fdx-space-4));
   display: grid;
   grid-template-rows: auto 1fr;
   align-content: start;
+  border: 1px solid var(--fdx-rule-strong);
+  border-radius: var(--fdx-radius-block);
   background: var(--fdx-canvas);
+  box-shadow: var(--fdx-shadow-block);
   color: var(--fdx-text);
   font-family: var(--fdx-font-primary);
 }
