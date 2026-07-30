@@ -27,7 +27,10 @@ def test_handle_commits_after_every_call_even_on_error(wired):
     blocking an unrelated ALTER TABLE. handle() must commit after every call,
     success or error, or that connection outlives any single request."""
     calls = {"n": 0}
-    real_conn = wired._state["conn"]
+    # The connection is opened on demand now (it is released while idle), so take
+    # it the way production does instead of reading the slot, which is None until
+    # something asks for it.
+    real_conn = wired._conn()
 
     class Spy:
         def __getattr__(self, name):

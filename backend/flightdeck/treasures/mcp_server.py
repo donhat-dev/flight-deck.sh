@@ -13,6 +13,8 @@ request dict, which is what the tests exercise.
 import json
 import os
 import sys
+import threading
+import time
 from pathlib import Path
 
 # Allow `python .../treasures/mcp_server.py` from any cwd: backend/ is two
@@ -38,7 +40,21 @@ _FAVICON_BY_KIND = {
 }
 _DEFAULT_FAVICON = "\U0001F48E"   # 💎
 
-_state = {"cfg": None, "conn": None}
+_state = {"cfg": None, "conn": None, "used_at": 0.0}
+
+# An MCP server lives as long as its Claude Code session, which can be days, and
+# it used to hold its write connection for that whole time. Measured on a machine
+# with ~12 open sessions that was 12 idle PostgreSQL connections doing nothing —
+# not a leak (every process had a live parent) but a cost that grows with every
+# session and never shrinks.
+#
+# So the connection is now released after a period of inactivity and reopened on
+# the next call. A parked session settles at ZERO connections. The reaper has to
+# run on a timer rather than lazily: a parked process never calls again, which is
+# exactly the case worth reclaiming.
+_IDLE_TTL = float(os.environ.get("TREASURES_CONN_IDLE_TTL", "180"))
+_REAP_EVERY = 20.0
+_lock = threading.RLock()
 
 
 def _load_dotenv() -> None:
@@ -62,16 +78,67 @@ def configure(cfg: dict | None = None) -> None:
         cfg = config.load(os.environ.get(
             "TOKEN_AUDIT_CONFIG", str(BACKEND / "config.toml")))
     db.configure(cfg)
+    # Schema work needs a connection but not a lasting one, so this opens, migrates
+    # and closes. The serving connection is opened lazily by _conn().
     conn = db.open_write(cfg["db_path"])
-    store.init(conn)
-    _state["cfg"] = cfg
-    _state["conn"] = conn
+    try:
+        store.init(conn)
+    finally:
+        conn.close()
+    with _lock:
+        _state["cfg"] = cfg
+        _state["conn"] = None
+        _state["used_at"] = 0.0
+    _start_reaper()
 
 
 def _conn():
-    if _state["conn"] is None:
-        configure()
-    return _state["conn"]
+    """The write connection, opened on demand and kept only while in use."""
+    with _lock:
+        if _state["cfg"] is None:
+            configure()
+        if _state["conn"] is None:
+            _state["conn"] = db.open_write(_state["cfg"]["db_path"])
+        _state["used_at"] = time.monotonic()
+        return _state["conn"]
+
+
+def release_idle(ttl: float = None) -> bool:
+    """Close the write connection if it has been unused for `ttl` seconds.
+
+    Returns True when a connection was actually closed, so a test can assert the
+    reclaim happened rather than assuming the timer fired.
+    """
+    limit = _IDLE_TTL if ttl is None else ttl
+    with _lock:
+        conn = _state["conn"]
+        if conn is None or time.monotonic() - _state["used_at"] < limit:
+            return False
+        _state["conn"] = None
+        try:
+            conn.close()
+        except Exception:
+            # A connection the server can no longer close is already useless; the
+            # next call opens a fresh one, so this must not take the server down.
+            pass
+        return True
+
+
+def _start_reaper() -> None:
+    if _state.get("reaper"):
+        return
+
+    def loop():
+        while True:
+            time.sleep(_REAP_EVERY)
+            try:
+                release_idle()
+            except Exception:
+                pass
+
+    thread = threading.Thread(target=loop, name="treasures-conn-reaper", daemon=True)
+    _state["reaper"] = thread
+    thread.start()
 
 
 def t_wrap(title=None, content=None, source_path=None, source_format=None,
