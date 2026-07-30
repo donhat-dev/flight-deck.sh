@@ -453,6 +453,11 @@ table.rd-sxs {
     0.2rem 0.2rem 0 color-mix(in srgb, var(--fdx-orange) 24%, transparent),
     0 1.25rem 2.5rem -1.45rem color-mix(in srgb, var(--fdx-depth-ink) 65%, transparent);
   --fdx-control-edge-highlight: rgba(255, 249, 241, 0.26);
+  /* Menu and control labels. The reference uses ONLY 700/800/900 — there is no
+     light UI type in this style — so 700 is the floor for anything you click or
+     navigate by, not an emphasis. Satoshi is variable so it hits 700 exactly; the
+     mono 700 face is loaded rather than synthesised. */
+  --fdx-weight-label: 700;
   --fdx-control-border-width: 2px;
   --fdx-control-depth-x: 4px;
   --fdx-control-depth-y: 4px;
@@ -2943,6 +2948,7 @@ table.rd-sxs {
   color: var(--fdx-text-muted);
   font-family: var(--fdx-font-mono);
   font-size: 10px;
+  font-weight: var(--fdx-weight-label);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   cursor: pointer;

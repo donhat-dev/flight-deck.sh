@@ -6,6 +6,7 @@ import "./fonts.css";          // Satoshi, self-hosted
 import "@fontsource-variable/outfit";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/600.css";
+import "@fontsource/ibm-plex-mono/700.css";
 import App from "./App.jsx";
 import "./index.css";
 createRoot(document.getElementById("root")).render(<App />);

@@ -552,7 +552,7 @@ export default function App() {
         if (n.k === "loom") goLoom(); else goHome();
         setNavOpen(false);
       }}
-      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-bold transition-colors ${
         NAV_ACTIVE === n.k
           ? "bg-emerald-500/15 text-emerald-400"
           : "text-zinc-400 hover:bg-zinc-900/70 hover:text-zinc-200"
@@ -622,7 +622,7 @@ export default function App() {
         </button>
         <nav className="flex flex-col gap-1 px-3" aria-label="Views">
           {NAV.map(navBtn)}
-          <div className="mb-1 mt-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+          <div className="mb-1 mt-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-600">
             Systems
           </div>
           {SYS_NAV.map(navBtn)}
@@ -630,13 +630,13 @@ export default function App() {
               anchor rather than a setView button. Styled like navBtn on purpose:
               a link that looked different would read as broken, and the arrow is
               what signals it leaves the dashboard. */}
-          <div className="mb-1 mt-3 px-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-600">
+          <div className="mb-1 mt-3 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-zinc-600">
             Planes
           </div>
           <a
             href="/radio.html"
             onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm font-bold text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
           >
             <span className="w-4 text-center text-base leading-none opacity-80">◎</span>
             Radio

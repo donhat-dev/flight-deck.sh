@@ -4,6 +4,7 @@ import "./fonts.css";          // Satoshi, self-hosted
 import "@fontsource-variable/outfit";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource/ibm-plex-mono/600.css";
+import "@fontsource/ibm-plex-mono/700.css";
 import Plane from "./plane/Plane.jsx";
 import "./index.css";
 import "./plane.css";

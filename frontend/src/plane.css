@@ -71,6 +71,7 @@ body:has(.radio-plane) {
 .radio-wordmark {
   font-family: var(--fdx-font-mono);
   font-size: 11px;
+  font-weight: var(--fdx-weight-label);
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
@@ -78,7 +79,7 @@ body:has(.radio-plane) {
 
 .radio-wordmark b {
   color: var(--fdx-text);
-  font-weight: 600;
+  font-weight: 800;
 }
 
 /* The dial: a tick scale with one needle, reading burn rate against a 40 $/h full
@@ -133,6 +134,7 @@ body:has(.radio-plane) {
   gap: var(--fdx-space-2);
   font-family: var(--fdx-font-mono);
   font-size: 10px;
+  font-weight: var(--fdx-weight-label);
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
@@ -177,6 +179,7 @@ body:has(.radio-plane) {
   color: var(--fdx-text-muted);
   font-family: var(--fdx-font-mono);
   font-size: 10px;
+  font-weight: var(--fdx-weight-label);
   letter-spacing: 0.2em;
   text-transform: uppercase;
   cursor: pointer;
