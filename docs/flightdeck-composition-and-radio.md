@@ -45,7 +45,8 @@ reference the original critique used. Six rules:
 
 | Rule | Implementation |
 |---|---|
-| **One edge treatment per control**, chosen by whether it has a face | A face → an offset, no border. No face → a border, no offset (`data-variant="ghost"`). An offset under nothing reads as a shadow cast by a hole, which is why the two never combine |
+| **Every control carries an offset**; the face-vs-border split decides the offset's *material* | A face → the accent offset, no border. No face → a **grey** offset plus a border. Giving the outlined tier no shadow at all read as inert beside a primary that had travel; giving it the accent offset erased the tier. Grey at 3px against the primary's 4px makes the tier legible from the travel alone |
+| **One second-tier button, one definition** | `secondary` *is* the outlined tier. A separate `ghost` variant doing the same job was the drift this pass exists to remove, so it was retired and its three call sites moved |
 | **Blocks have no border either, by default** | Border is applied per designation, never as a blanket. On each screen exactly one region — the anchor — is designated |
 | **Day: near-black face, orange offset** | Straight from the reference screenshot: its primary button is a dark key with an orange offset on warm paper |
 | **Night: orange face** | Our own extrapolation, because uisfx ships **no dark mode** so there is no reference to follow. A near-black key on a near-black canvas read as "an orange shadow with no button attached"; the offset became a burnt orange, dark enough to read as the body's shadow and light enough to survive the canvas |
@@ -55,6 +56,12 @@ reference the original critique used. Six rules:
 | **Corners are square** | `--fdx-radius-control: 0`, `--fdx-radius-block: 0` |
 | **One lift, and it belongs to the device** | `--fdx-shadow-block` is applied to the plane, not to its regions |
 | **The shell is inset from the screen** | body is the desk, the plane is the deck inset by `space-4`, regions are areas of that face |
+
+**A verification pitfall, hit twice.** Reading computed styles immediately after a
+theme flip returns **mid-transition values** — `box-shadow` and `border-color` are
+both transitioned on `.fdx-button`, so the first read reported Night showing Day's
+colours and sent me looking for a cascade bug that did not exist. Read twice, or
+wait for `transitionend`, before believing a colour measurement.
 
 Two things this forced, both worth keeping:
 

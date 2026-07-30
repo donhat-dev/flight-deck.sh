@@ -846,14 +846,14 @@ export default function App() {
               <div className="flex items-center gap-2">
                 <button type="button" disabled={sessCurPage === 0}
                   onClick={() => setSessPage((p) => Math.max(0, p - 1))}
-                  className="fdx-button" data-variant="ghost" data-size="sm">
+                  className="fdx-button" data-variant="secondary" data-size="sm">
                   <IconBack />
                   <span>Prev</span>
                 </button>
                 <span className="font-mono text-xs text-zinc-400">{sessCurPage + 1} / {sessTotalPages}</span>
                 <button type="button" disabled={sessCurPage >= sessTotalPages - 1}
                   onClick={() => setSessPage((p) => Math.min(sessTotalPages - 1, p + 1))}
-                  className="fdx-button" data-variant="ghost" data-size="sm">
+                  className="fdx-button" data-variant="secondary" data-size="sm">
                   <span>Next</span>
                   <IconForward />
                 </button>

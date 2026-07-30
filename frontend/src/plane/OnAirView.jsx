@@ -187,7 +187,7 @@ function OnAir({ session, window: win, live }) {
           <IconTranscript />
           <span>Open transcript</span>
         </a>
-        <a className="fdx-button" data-variant="ghost" href="/">
+        <a className="fdx-button" data-variant="secondary" href="/">
           <IconBack />
           <span>Back to deck</span>
         </a>
