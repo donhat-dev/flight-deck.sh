@@ -428,19 +428,24 @@ table.rd-sxs {
   --fdx-depth-ink: #17120e;
   --fdx-orange: #ff9a35;
   --fdx-depth-muted: #4c4139;
-  /* Control materials TRADE PLACES between themes: Night is a black key with an
-     orange shadow, Day is an orange key with a black shadow. One rule, two
-     readings, and the shadow is always the theme's opposite. */
-  --fdx-control-face: #17120e;
-  --fdx-control-depth: var(--fdx-orange);
-  --fdx-control-label: #f4ede0;
+  /* Control faces are decided per theme by what is VISIBLE against the canvas,
+     which is why they are not a mirror of each other. Day follows the uisfx
+     reference exactly: a near-black key with an orange offset on warm paper.
+     Night has no reference — uisfx ships no dark mode — so it is our
+     extrapolation: an ORANGE key, because a near-black key on a near-black canvas
+     read as "an orange shadow with no button attached". Its offset is a burnt
+     orange, dark enough to read as the body's shadow and light enough to survive
+     the canvas. */
+  --fdx-control-face: var(--fdx-orange);
+  --fdx-control-depth: color-mix(in srgb, var(--fdx-orange) 48%, #0b0705);
+  --fdx-control-label: #17120e;
   /* Pink is a CARD background and nothing else — never a shadow, never text. */
   --fdx-pink: #f47f96;
   --fdx-card-tint: color-mix(in srgb, var(--fdx-pink) 12%, var(--fdx-surface));
-  /* Block material, measured off uisfx/apps/showcase: a SOFTENED accent offset
-     plus a soft ambient lift. The offset is deliberately translucent and smaller
-     than a control's, so a panel reads as resting on the deck while a control
-     still reads as something you can press. The lint tells the two apart by this
+  /* Reserved for the DEVICE as a whole — the one thing that sits on the desk.
+     Regions inside it do not lift: giving each panel a border, a radius and a
+     shadow turned the plane into a bento grid, when a radio is one face with
+     areas grooved into it. The lint tells this apart from control depth by the
      token's NAME, layer by layer — see BLOCK_MATERIAL in compositionLint.js. */
   --fdx-shadow-block:
     0.2rem 0.2rem 0 color-mix(in srgb, var(--fdx-orange) 24%, transparent),
@@ -473,11 +478,13 @@ table.rd-sxs {
   --fdx-radius-xs: 2px;
   --fdx-radius-sm: 5px;
   --fdx-radius-md: 10px;
-  /* Measured off uisfx/apps/showcase: controls 0.62–0.7rem, blocks 0.9–1.35rem.
-     The offset shadow is what makes the style brutal; the radius is what makes it
-     soft, and ours was far too tight for the offsets it carries. */
-  --fdx-radius-control: 0.65rem;
-  --fdx-radius-block: 0.9rem;
+  /* Square, per the reference screenshot: its primary button, code block, cards
+     and link buttons are all sharp-cornered. The rounded 0.62–1.35rem values in
+     the showcase CSS belong to its FLOATING chrome (the topbar, the volume pill),
+     not to controls or blocks. What makes the style read as soft is the warm
+     paper palette, not the corner. */
+  --fdx-radius-control: 0;
+  --fdx-radius-block: 0;
   --fdx-shadow-print: 4px 4px 0 var(--fdx-signal);
   --fdx-shadow-control:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
@@ -525,10 +532,10 @@ table.rd-sxs {
   --fdx-action-face-active: #98280f;
   --fdx-control-error-face: #a82e3d;
   --fdx-depth-ink: #1b120c;
-  --fdx-orange: #e6821c;
-  --fdx-control-face: var(--fdx-orange);
-  --fdx-control-depth: #1b120c;
-  --fdx-control-label: #1b120c;
+  --fdx-orange: #e2571a;
+  --fdx-control-face: #241a13;
+  --fdx-control-depth: var(--fdx-orange);
+  --fdx-control-label: #f8f3e8;
   --fdx-pink: #e96884;
   --fdx-depth-muted: #aa9b87;
   --fdx-control-edge-highlight: rgba(255, 249, 241, 0.34);

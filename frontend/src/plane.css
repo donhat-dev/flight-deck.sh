@@ -36,6 +36,8 @@ body:has(.radio-plane) {
   display: grid;
   grid-template-rows: auto 1fr;
   align-content: start;
+  /* The device: the only thing here that sits ON something, so the only thing
+     that lifts. Its regions are flush areas of this face. */
   border: 1px solid var(--fdx-rule-strong);
   border-radius: var(--fdx-radius-block);
   background: var(--fdx-canvas);

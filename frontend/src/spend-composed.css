@@ -180,18 +180,10 @@
   padding: 0 var(--fdx-space-8);
 }
 
-/* Support blocks: border and a light lift, no offset. */
-.sc-dense > section,
+/* Areas on the device face, not tiles — see radio.css. A groove separates them. */
 .sc-efficiency,
 .sc-footer {
-  border: 1px solid var(--fdx-rule);
-  border-radius: var(--fdx-radius-block);
-  background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-block);
-}
-
-.sc-dense > section {
-  padding: var(--fdx-space-4);
+  border-top: 1px solid var(--fdx-rule);
 }
 
 @media (max-width: 68rem) {
@@ -376,7 +368,7 @@
   /* space-24 of emptiness, and three meters at most. Raising every region's
      spacing together would only move the flatness up a scale. */
   padding: var(--fdx-space-24) var(--fdx-space-8);
-  margin: var(--fdx-space-8);
+  margin-top: var(--fdx-space-8);
 }
 
 @media (max-width: 68rem) {
@@ -427,8 +419,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--fdx-space-8);
-  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
-  padding: var(--fdx-space-6) var(--fdx-space-8);
+  padding: var(--fdx-space-6) var(--fdx-space-8) var(--fdx-space-8);
 }
 
 @media (max-width: 68rem) {

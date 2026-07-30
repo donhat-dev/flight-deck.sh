@@ -45,21 +45,31 @@ reference the original critique used. Six rules:
 
 | Rule | Implementation |
 |---|---|
-| Buttons have **no border** | `border: 0`. The offset shadow is the entire edge treatment; a frame plus an offset drew the same boundary twice |
-| **Day: orange face, black shadow** | `--fdx-control-face: var(--fdx-orange)`, `--fdx-control-depth: #1b120c` |
-| **Night: black face, orange shadow** | the same two tokens, values traded. One decision, two readings |
+| Controls have **no border** | `border: 0`. The offset shadow is the entire edge treatment |
+| **Blocks have no border either, by default** | Border is applied per designation, never as a blanket. On each screen exactly one region — the anchor — is designated |
+| **Day: near-black face, orange offset** | Straight from the reference screenshot: its primary button is a dark key with an orange offset on warm paper |
+| **Night: orange face** | Our own extrapolation, because uisfx ships **no dark mode** so there is no reference to follow. A near-black key on a near-black canvas read as "an orange shadow with no button attached"; the offset became a burnt orange, dark enough to read as the body's shadow and light enough to survive the canvas |
 | **Pink is a card background only** | `--fdx-pink` → `--fdx-card-tint`; never a shadow, never text |
-| **Blocks: border + a light lift** | `--fdx-shadow-block` — a softened accent offset plus a soft ambient, the showcase's panel recipe |
-| **The shell is inset from the screen** | body is the desk, the plane is the deck inset by `space-4`, panels sit on it. Three levels are what make it read as a device rather than a page |
+| **Corners are square** | `--fdx-radius-control: 0`, `--fdx-radius-block: 0` |
+| **One lift, and it belongs to the device** | `--fdx-shadow-block` is applied to the plane, not to its regions |
+| **The shell is inset from the screen** | body is the desk, the plane is the deck inset by `space-4`, regions are areas of that face |
 
 Two things this forced, both worth keeping:
 
-1. **The radius scale was the real gap.** The showcase runs 0.62–0.7rem on controls
-   and 0.9–1.35rem on blocks; ours topped out at 10px. The offset shadow is what
-   makes the style brutal, and the radius is what makes it *soft* — with our tight
-   radii the same offsets simply read as harsh. Added
-   `--fdx-radius-control` / `--fdx-radius-block`.
-2. **C6a inverted, and C3 learned to tell ground from figure.** Pink and orange
+1. **The radius was a wrong turn, corrected by looking at the rendered site.**
+   Reading the showcase CSS suggested a generous 0.62–1.35rem scale, so "soft
+   neo-brutalism" looked like it meant soft corners. The reference screenshot says
+   otherwise: its primary button, code block, cards and link buttons are all
+   **sharp**. Those rounded values belong to the *floating* chrome — the topbar and
+   the volume pill — which is the one thing that hovers. What makes the style read
+   as soft is the **warm paper palette**, not the corner. Reading a stylesheet told
+   me which values exist; only the screenshot told me which ones apply where.
+2. **Regions became areas, not tiles.** Giving every block a border, a radius and a
+   lift produced a bento grid. A radio is *one face* with areas grooved into it, so
+   support regions are now flush and separated by a hairline; the anchor keeps the
+   single designated border and the single offset; and the only thing that lifts is
+   the device itself, because it is the only thing sitting on something.
+3. **C6a inverted, and C3 learned to tell ground from figure.** Pink and orange
    used to be depth-only materials banned from fills. Now the control face and its
    depth trade places by theme, so orange is legitimately a fill, and pink is the
    one material with a single home — the rule became "the card tint is never a

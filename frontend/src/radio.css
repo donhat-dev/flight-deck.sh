@@ -164,20 +164,19 @@
 
 /* ---------- Channels — the dense pole (C2) ---------- */
 
-/* Support blocks: border and a light lift, no offset. */
-.radio-channels,
+/* Support regions are AREAS ON THE DEVICE FACE, not tiles. No border, no radius,
+   no lift, no separate background — a border and a shadow on each one turned the
+   plane into a bento grid. A hairline groove is what separates them, the way a
+   panel is silk-screened rather than assembled. Border is available per case
+   (see the anchor), never as the default. */
 .radio-signal,
 .radio-log {
-  border: 1px solid var(--fdx-rule);
-  border-radius: var(--fdx-radius-block);
-  background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-block);
+  border-top: 1px solid var(--fdx-rule);
 }
 
 .radio-channels {
   display: grid;
   gap: var(--fdx-space-2);
-  padding: var(--fdx-space-4);
 }
 
 .radio-channels-head {
@@ -307,7 +306,6 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: var(--fdx-space-16);
-  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
   /* space-24 of deliberate emptiness. Three meters at most: raising every
      region's spacing together would only move the flatness up a scale. */
   padding: var(--fdx-space-24) var(--fdx-space-8);
@@ -361,8 +359,7 @@
 .radio-log {
   display: grid;
   gap: 0;
-  margin: 0 var(--fdx-space-8) var(--fdx-space-8);
-  padding: var(--fdx-space-4) var(--fdx-space-6) var(--fdx-space-6);
+  padding: var(--fdx-space-4) var(--fdx-space-8) var(--fdx-space-8);
 }
 
 .radio-log-head {
