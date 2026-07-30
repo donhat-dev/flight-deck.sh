@@ -251,32 +251,29 @@ Three things that fall out of the contract rather than from taste:
    per sheet, so merging `radio.css` and `spend-composed.css` would report C1
    immediately. The file layout is what makes "two anchors" impossible to add
    quietly.
-2. **The tabs are soft neo-brutalist keys, built from the kit's control tokens**
-   — face / frame / depth per `DESIGN.md` §5, the same recipe `.fdx-button` uses.
-   An unselected key stands 4px off the panel; the selected one is the kit's
-   pressed state made persistent: travelled 3px in, offset collapsed to 1px, face
-   switched to Action. **The depth material never changes between states — only
-   the travel does**, so state is read as "held down" rather than as "a different
-   colour of shadow".
+2. **The tab bar is flat: only the selected tab stands proud.** One depth element,
+   gated on its ARIA state.
 
-   Two earlier attempts gave the tabs their own physical vocabulary — a drawn 3/4
-   cuboid, then moulded caps with a slot rail — and both put a *second* idiom in a
-   chrome row that already had one. Using the kit's controls is what makes the row
-   read as one instrument.
+   Three richer treatments were tried and reverted, in this order: a drawn cuboid
+   in oblique 3/4 projection with a chamfered corner; rectangular moulded caps with
+   a slot rail, fluted plastic and a chamfer hairline; and soft neo-brutalist keys
+   built from the kit's control tokens. Each was more illustrated than the last,
+   and each read as *navigation asking for more attention than navigation earns* on
+   a page whose anchor is supposed to carry it.
 
-   **What it costs, measured on the page rather than assumed.** Counting elements
-   with a hard offset on the Spend tab: two tabs + the range segment + the Burn
-   anchor = **4**, and **5** once a signal is selected — over C3's ceiling. So the
-   range segment gave up its 2px offset and now shows selection with fill and the
-   coral label alone. Re-measured: **3** at rest, 4 with a signal selected, inside
-   budget. The segment was the second physical idiom in that row anyway.
+   Worth keeping from that detour, since none of it depended on the look:
 
-   **The override is recorded, not hidden.** C3c reads "every key has depth" as
-   depth-per-list-row and fires. It is a real override, so it carries a
-   `composition-lint-allow: C3c` marker with its reason in `Plane.jsx`, and the
-   ratchet ceiling rose 3 → 4 as a decision. The exemption mechanism was extended
-   to JSX for this, with the reason still mandatory: a marker without one is
-   still a violation.
+   - The neo-brutalist version cost two of the screen's four depth slots. Measured
+     on the page — 4 rendered hard-offset elements, 5 with a signal selected — not
+     argued about. That measurement is the reason the treatment was expensive, and
+     it is the same method §6 now uses to check any screen.
+   - C3c fired on it correctly (every key in a bank stands proud, which the rule
+     reads as depth per list row), which is how the exemption mechanism grew a JSX
+     half: markers scoped to the `.map(` line, reason still mandatory, negative
+     tests both ways. That mechanism is kept and tested; it currently has no user,
+     and the ratchet ceiling went back to 3 when the override was removed.
+   - Comments are now stripped before the JSX scan, so a `.map(` inside a comment
+     no longer counts as a list.
 
 3. **The range control appears on SPEND and is absent on ON AIR.** A time range
    means nothing beside "what is running now", and a permanent control that is

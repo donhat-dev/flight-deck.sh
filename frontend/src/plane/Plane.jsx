@@ -120,11 +120,6 @@ export default function Plane() {
 
         <div className="radio-tabrow">
           <div className="radio-tabs" role="tablist" aria-label="Plane views">
-            {/* composition-lint-allow: C3c — every key in a preset bank stands
-                proud; that is the neo-brutalist idiom, not a list of raised rows.
-                TABS is a module constant of two entries, so the count is bounded
-                by a code change rather than by data. Costs 2 of the screen's 4
-                depth slots — the trade is recorded in the plan's §3. */}
             {TABS.map((t) => (
               <button
                 key={t.k}

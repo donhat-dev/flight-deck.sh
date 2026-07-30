@@ -11,10 +11,15 @@
    so merging the two into one file would report C1 immediately. The file layout
    is what makes "two anchors" impossible to introduce quietly.
 
-   The tabs are soft neo-brutalist keys built from the kit's control tokens
-   (face / frame / depth, DESIGN.md §5) rather than from a bespoke vocabulary. They
-   do spend depth budget — one base class, and two rendered elements — which is a
-   deliberate trade recorded in docs/flightdeck-composition-and-radio.md §3.
+   The tab bar is back to its original presentation: flat, quiet keys where only
+   the SELECTED one stands proud. Three richer treatments were tried and reverted —
+   a drawn 3/4 cuboid, moulded caps with a slot rail, and neo-brutalist keys from
+   the kit's control tokens. Each was more illustrated than the last, and each put
+   more weight on navigation than navigation earns on a page whose anchor is
+   supposed to carry it. The exploration is recorded in
+   docs/flightdeck-composition-and-radio.md §3.
+
+   Depth here: ONE element, the selected tab, gated on its ARIA state.
    ============================================================ */
 
 .radio-plane {
@@ -135,17 +140,7 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
 }
 
-/* ---------- tab bar: soft neo-brutalist keys ---------- */
-
-/* The tabs now speak the component kit's control language instead of a bespoke
-   one: face / frame / depth per DESIGN.md §5, built from the same tokens
-   `.fdx-button` uses. Two earlier attempts made the tabs their own idiom — a drawn
-   3/4 solid, then moulded caps with a slot rail — and both put a second physical
-   vocabulary in a chrome row that already had one.
-
-   The depth MATERIAL is constant across states; only the offset changes. A key
-   standing out is 4px from the panel, a latched key is 1px into it. State is the
-   travel, not the colour of the shadow. */
+/* ---------- tab bar ---------- */
 
 .radio-tabrow {
   display: flex;
@@ -157,61 +152,38 @@
 
 .radio-tabs {
   display: flex;
-  align-items: flex-end;
-  /* Room for the 4px offset of the last key, so the bank is not clipped by the
-     row's edge. */
-  gap: var(--fdx-space-3);
-  padding: 0 var(--fdx-space-1) var(--fdx-space-2);
+  gap: var(--fdx-space-2);
 }
 
 .radio-tab {
-  --key-face: var(--fdx-surface);
-  --key-frame: var(--fdx-text);
-  min-height: 2.375rem;
-  padding: 0 var(--fdx-space-4);
-  border: var(--fdx-control-border-width) solid var(--key-frame);
-  border-radius: var(--fdx-radius-xs);
-  background: var(--key-face);
-  box-shadow: var(--fdx-shadow-control-alert);
-  color: var(--fdx-text);
+  padding: var(--fdx-space-2) var(--fdx-space-4);
+  border: 1px solid transparent;
+  border-bottom: 0;
+  background: transparent;
+  color: var(--fdx-text-muted);
   font-family: var(--fdx-font-mono);
   font-size: 10px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   cursor: pointer;
-  transition:
-    color var(--fdx-motion-fast) var(--fdx-ease),
-    background-color var(--fdx-motion-fast) var(--fdx-ease),
-    border-color var(--fdx-motion-fast) var(--fdx-ease),
-    box-shadow var(--fdx-motion-fast) var(--fdx-ease),
-    transform var(--fdx-motion-fast) var(--fdx-ease);
-  touch-action: manipulation;
+  transition: color var(--fdx-motion-fast) var(--fdx-ease);
 }
 
-/* Lift on hover, exactly as the kit's controls do — and only for a key that is
-   not already down, or hovering would appear to un-press it. */
-.radio-tab:not([aria-selected="true"]):hover {
-  --key-face: var(--fdx-surface-inverse);
-  --key-frame: var(--fdx-depth-ink);
-  color: var(--fdx-text-inverse);
-  transform: translate(-1px, -1px);
-  box-shadow: var(--fdx-shadow-control-alert-hover);
+.radio-tab:hover {
+  color: var(--fdx-text);
 }
 
 .radio-tab:focus-visible {
   outline: var(--fdx-focus-width) solid var(--fdx-focus);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
-/* Latched down: the kit's pressed state made persistent. The key travels the full
-   3px into the panel and its offset collapses to 1px, so it reads as held rather
-   than as merely coloured. */
+/* Only the selected tab stands proud. */
 .radio-tab[aria-selected="true"] {
-  --key-face: var(--fdx-action-face);
-  --key-frame: var(--fdx-depth-ink);
-  color: #fff9f1;
-  transform: translate(3px, 3px);
-  box-shadow: var(--fdx-shadow-control-alert-pressed);
+  border-color: var(--fdx-rule-strong);
+  background: var(--fdx-surface);
+  color: var(--fdx-signal);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 /* View-scoped controls live beside the tabs, so a control that means nothing on

@@ -390,10 +390,10 @@ describe("the real stylesheets satisfy the contract", () => {
     // lint would be to keep adding markers until it guards nothing. Lowering
     // this number is a normal part of stage 3+; raising it needs a decision.
     //
-    // Raised from 3 to 4 when the plane's tabs became neo-brutalist keys: every
-    // key in a preset bank stands proud, which C3c reads as depth per list row.
-    // That override is deliberate and its reason is in Plane.jsx.
-    const CEILING = 4;
+    // Went 3 → 4 while the plane's tabs were neo-brutalist keys, then back to 3
+    // when that treatment was reverted. The mechanism the raise needed — JSX
+    // exemptions — is kept and still tested; it just has no live user.
+    const CEILING = 3;
     const cssMarkers = sheets.reduce((sum, name) => sum + lintCss(read(name)).exemptions, 0);
     const jsxMarkers = walkJsx().reduce(
       (sum, file) => sum + lintJsx(fs.readFileSync(file, "utf8"), [".x"]).exemptions,

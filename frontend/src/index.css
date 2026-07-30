@@ -2911,12 +2911,8 @@ table.rd-sxs {
   outline-offset: -2px;
 }
 
-/* Fill and colour only, no offset. Measured reason: once the plane's tabs became
-   neo-brutalist keys they spend two of the screen's four depth slots, and with a
-   signal selected on Spend the count reached five — over C3's ceiling. The
-   segment was also the second physical idiom in a chrome row that now has a key
-   bank in it. Selection still reads: panel fill plus the coral label. */
 .fdx-segmented-seg[aria-pressed="true"] {
   background: var(--fdx-surface);
   color: var(--fdx-signal);
+  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
