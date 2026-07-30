@@ -45,7 +45,7 @@ reference the original critique used. Six rules:
 
 | Rule | Implementation |
 |---|---|
-| **Every control carries an offset**; the face-vs-border split decides the offset's *material* | A face → the accent offset, no border. No face → a **grey** offset plus a border. Giving the outlined tier no shadow at all read as inert beside a primary that had travel; giving it the accent offset erased the tier. Grey at 3px against the primary's 4px makes the tier legible from the travel alone |
+| **Every control carries an offset**; the face-vs-border split decides the offset's *material* | A face → the accent offset, no border. No face → a **grey** offset plus a border. Giving the outlined tier no shadow at all read as inert beside a primary that had travel; giving it the accent offset erased the tier. Both tiers share the **same offset geometry**; only the material differs. A first pass used 3px against the primary's 4px so the tier would be legible from the travel alone, and side by side that failed — two buttons in one row with unequal offsets have bottom edges that do not line up, which reads as a mistake rather than as a tier |
 | **One second-tier button, one definition** | `secondary` *is* the outlined tier. A separate `ghost` variant doing the same job was the drift this pass exists to remove, so it was retired and its three call sites moved |
 | **Blocks have no border either, by default** | Border is applied per designation, never as a blanket. On each screen exactly one region — the anchor — is designated |
 | **Day: near-black face, orange offset** | Straight from the reference screenshot: its primary button is a dark key with an orange offset on warm paper |

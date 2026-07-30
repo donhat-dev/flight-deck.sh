@@ -506,18 +506,18 @@ table.rd-sxs {
   --fdx-shadow-control-alert-pressed:
     inset 0 1px 0 var(--fdx-control-edge-highlight),
     1px 1px 0 var(--fdx-control-depth);
-  /* Second-tier controls: a light grey hard offset. Deliberately 3px against the
-     primary's 4px, so the tier is legible from the travel alone. Its own token
-     rather than reusing -muted, which means "disabled". */
-  --fdx-shadow-control-quiet:
-    inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 40%, transparent),
-    3px 3px 0 var(--fdx-depth-muted);
-  --fdx-shadow-control-quiet-hover:
-    inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 46%, transparent),
-    4px 4px 0 var(--fdx-depth-muted);
-  --fdx-shadow-control-quiet-pressed:
-    inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 34%, transparent),
-    1px 1px 0 var(--fdx-depth-muted);
+  /* Second-tier controls: the SAME offset geometry as the primary, in grey.
+     An earlier pass used 3px against the primary's 4px so the tier would be
+     legible from the travel alone. Measured side by side that failed: two buttons
+     in one row with unequal offsets have bottom edges that do not line up, which
+     reads as a mistake rather than as a tier. Geometry is shared; the material
+     alone carries the tier.
+
+     No inset highlight either — an edge highlight lights the top of a FACE, and
+     this tier has none, so it was drawing a faint line over nothing. */
+  --fdx-shadow-control-quiet: 4px 4px 0 var(--fdx-depth-muted);
+  --fdx-shadow-control-quiet-hover: 5px 5px 0 var(--fdx-depth-muted);
+  --fdx-shadow-control-quiet-pressed: 1px 1px 0 var(--fdx-depth-muted);
   --fdx-shadow-control-muted:
     inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 44%, transparent),
     3px 3px 0 var(--fdx-depth-muted);
