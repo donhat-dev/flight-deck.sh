@@ -82,8 +82,8 @@
 }
 
 .radio-eyebrow {
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
   letter-spacing: 0.24em;
   text-transform: uppercase;
   color: var(--fdx-signal);
@@ -143,8 +143,8 @@
 }
 
 .radio-fact dt {
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(9px * var(--fdx-size-label));
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
@@ -189,8 +189,8 @@
 }
 
 .radio-count {
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
   letter-spacing: 0.18em;
   color: var(--fdx-text-muted);
 }
@@ -259,8 +259,8 @@
 
 .radio-channel-meta {
   display: block;
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
   color: var(--fdx-text-muted);
 }
 
@@ -320,8 +320,8 @@
 }
 
 .radio-meter dt {
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(9px * var(--fdx-size-label));
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
@@ -372,8 +372,8 @@
   gap: var(--fdx-space-3);
   padding: var(--fdx-space-2) 0;
   border-bottom: 1px solid var(--fdx-rule);
-  font-family: var(--fdx-font-mono);
-  font-size: 11px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(11px * var(--fdx-size-label));
 }
 
 .radio-log-item time {

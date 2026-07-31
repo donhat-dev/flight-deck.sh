@@ -12,10 +12,12 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        // display / UI / headings
-        sans: ['"Outfit Variable"', "ui-sans-serif", "system-ui", "sans-serif"],
-        // instrument labels + all numeric values (tabular)
-        mono: ['"IBM Plex Mono"', "ui-monospace", "SFMono-Regular", "monospace"],
+        // Bound to the Appearance tokens rather than to a literal stack. Before
+        // this, 377 `font-mono` usages in the dashboard could never follow the
+        // config — only the ~61 rules reading var(--fdx-font-*) did, which is why
+        // changing the family appeared to do nothing outside the Radio plane.
+        sans: ["var(--fdx-font-primary)"],
+        mono: ["var(--fdx-font-mono)"],
       },
       colors: {
         // neutral ground -> text. Bound to CSS channel vars so the app can

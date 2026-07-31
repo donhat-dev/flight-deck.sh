@@ -48,8 +48,8 @@
 }
 
 .sc-eyebrow {
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
   letter-spacing: 0.22em;
   text-transform: uppercase;
   color: var(--fdx-signal);
@@ -145,8 +145,8 @@
 }
 
 .sc-fact dt {
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(9px * var(--fdx-size-label));
   letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
@@ -204,8 +204,8 @@
 }
 
 .sc-meta {
-  font-family: var(--fdx-font-mono);
-  font-size: 10px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
   color: var(--fdx-text-muted);
 }
 
@@ -338,8 +338,8 @@
 }
 
 .sc-signal-value {
-  font-family: var(--fdx-font-mono);
-  font-size: 11px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(11px * var(--fdx-size-label));
   font-variant-numeric: tabular-nums;
 }
 
@@ -354,8 +354,8 @@
   padding: 2px 7px;
   border: 1px solid var(--fdx-rule);
   border-radius: 999px;
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(9px * var(--fdx-size-label));
   color: var(--fdx-text-muted);
 }
 
@@ -379,8 +379,8 @@
 }
 
 .sc-meter dt {
-  font-family: var(--fdx-font-mono);
-  font-size: 9px;
+  font-family: var(--fdx-font-label);
+  font-size: calc(9px * var(--fdx-size-label));
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);

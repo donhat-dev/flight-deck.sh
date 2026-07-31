@@ -12,7 +12,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FONTS, ROLES, byId, defaults, normalise } from "./appearance.js";
+import { FONTS, ROLES, byId, defaults, isSame, normalise, sizeValue } from "./appearance.js";
 
 const SRC = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const fontsCss = fs.readFileSync(path.join(SRC, "fonts.css"), "utf8");
@@ -65,12 +65,42 @@ describe("every offered weight is real", () => {
       expect(f.weights.length, `${f.id} has no weights`).toBeGreaterThan(0);
     }
   });
+
+  it("gives every role a size list containing its own default", () => {
+    for (const r of ROLES) {
+      expect(r.sizes.length, `${r.id} has no sizes`).toBeGreaterThan(0);
+      expect(r.sizes, `${r.id} default not offered`).toContain(r.fallback.size);
+      expect(["px", "scale"]).toContain(r.sizeKind);
+    }
+  });
 });
 
 describe("normalise keeps a choice renderable", () => {
   it("keeps an exact weight the face carries", () => {
-    expect(normalise({ primary: { font: "satoshi", weight: 500 } }).primary)
-      .toEqual({ font: "satoshi", weight: 500 });
+    expect(normalise({ primary: { font: "satoshi", weight: 500, size: 15 } }).primary)
+      .toEqual({ font: "satoshi", weight: 500, size: 15 });
+  });
+
+  it("snaps a size to the role's own list", () => {
+    // Body takes px, labels take a multiplier — different lists, same coercion.
+    expect(normalise({ primary: { font: "satoshi", weight: 400, size: 99 } }).primary.size)
+      .toBe(17);
+    expect(normalise({ label: { font: "ibm-plex-mono", weight: 700, size: 5 } }).label.size)
+      .toBe(1.35);
+  });
+
+  it("renders a size as px or as a bare multiplier, per role", () => {
+    // A scale must NOT carry a unit: the stylesheets feed it into calc(9px * n).
+    const body = ROLES.find((r) => r.id === "primary");
+    const label = ROLES.find((r) => r.id === "label");
+    expect(sizeValue(body, 15)).toBe("15px");
+    expect(sizeValue(label, 1.1)).toBe("1.1");
+  });
+
+  it("treats an equivalent choice as unchanged", () => {
+    expect(isSame(defaults(), normalise(defaults()))).toBe(true);
+    const other = { ...defaults(), label: { ...defaults().label, size: 1.2 } };
+    expect(isSame(defaults(), other)).toBe(false);
   });
 
   it("moves to the NEAREST weight rather than to a default", () => {
@@ -93,6 +123,7 @@ describe("normalise keeps a choice renderable", () => {
       expect(Object.keys(out).sort()).toEqual(ROLES.map((r) => r.id).sort());
       for (const r of ROLES) {
         expect(byId(out[r.id].font).weights).toContain(out[r.id].weight);
+        expect(r.sizes, `${r.id} size`).toContain(out[r.id].size);
       }
     }
   });

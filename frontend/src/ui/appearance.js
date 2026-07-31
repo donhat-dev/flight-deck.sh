@@ -109,33 +109,51 @@ export const ROLES = [
     id: "primary",
     token: "--fdx-font-primary",
     weightToken: "--fdx-weight-body",
+    sizeToken: "--fdx-size-body",
+    // Absolute: this is the root of the prose scale, so a px value is the honest
+    // control. Headings stay relative to it.
+    sizeKind: "px",
+    sizes: [12, 13, 14, 15, 16, 17],
     label: "UI & prose",
     describes: "Titles, body copy, buttons — everything read as language.",
     weightNote:
       "Sets the BODY weight. Titles and buttons keep their own scale on purpose — " +
       "one number cannot own a type hierarchy.",
+    sizeNote: "Body size in px. Headings scale from it.",
     sample: "FlightDeck Implement · Nghiên cứu công cụ",
-    fallback: { font: "satoshi", weight: 400 },
+    fallback: { font: "satoshi", weight: 400, size: 14 },
   },
   {
     id: "label",
     token: "--fdx-font-label",
     weightToken: "--fdx-weight-label",
+    sizeToken: "--fdx-size-label",
+    // A SCALE, not a size. Labels run 9/10/11px on purpose; one absolute value
+    // would flatten that, so every label site multiplies its own size by this.
+    sizeKind: "scale",
+    sizes: [0.85, 0.9, 1, 1.1, 1.2, 1.35],
     label: "Menus & labels",
     describes: "Tabs, eyebrows, segmented controls — small caps you navigate by.",
     weightNote: "Applied at every label site, so this one number owns them all.",
+    sizeNote: "A multiplier — the 9/10/11px steps keep their relationship.",
     sample: "ON AIR · SPEND · QUOTA HEADROOM",
-    fallback: { font: "ibm-plex-mono", weight: 700 },
+    fallback: { font: "ibm-plex-mono", weight: 700, size: 1 },
   },
   {
     id: "mono",
     token: "--fdx-font-mono",
     weightToken: "--fdx-weight-figure",
+    sizeToken: "--fdx-size-figure",
+    // A SCALE for the same reason, harder: figures run from a 10px meta line to a
+    // 6rem display numeral. An absolute size would destroy one of the two.
+    sizeKind: "scale",
+    sizes: [0.9, 0.95, 1, 1.05, 1.1],
     label: "Figures",
     describes: "Every number, with tabular figures so columns line up.",
     weightNote: "Applied to figures via [data-num].",
+    sizeNote: "A multiplier — mono faces often run small beside the sans.",
     sample: "$82.53 · 474 turns · 96.8%",
-    fallback: { font: "ibm-plex-mono", weight: 400 },
+    fallback: { font: "ibm-plex-mono", weight: 400, size: 1 },
   },
 ];
 
@@ -145,64 +163,94 @@ export function defaults() {
   return Object.fromEntries(ROLES.map((r) => [r.id, { ...r.fallback }]));
 }
 
-/** Coerce one role to something renderable: a face that exists, and a weight that
- *  face really carries. A weight it does not carry is silently rounded by the
- *  browser, which is exactly the kind of "looks slightly wrong, no error" this
- *  whole catalogue exists to prevent. */
+/** The CSS value for a size, which differs by role: px is a length, a scale is a
+ *  bare multiplier the stylesheets feed into calc(). */
+export function sizeValue(role, size) {
+  return role.sizeKind === "px" ? `${size}px` : String(size);
+}
+
+/** Coerce one role to something renderable: a face that exists, a weight that face
+ *  really carries, and a size from the role's own list. An unavailable weight is
+ *  silently rounded by the browser — the exact "looks slightly wrong, no error"
+ *  failure this catalogue exists to prevent. */
 function coerce(role, value) {
   const font = byId(value?.font) || byId(role.fallback.font);
-  const wanted = Number(value?.weight) || role.fallback.weight;
+  const wantedWeight = Number(value?.weight) || role.fallback.weight;
   // Exact if the face has it, otherwise the NEAREST it does have. Falling back to
-  // the role default instead would throw away the intent: switching Satoshi 900 to
-  // IBM Plex Mono should land on 700, not on 400 — the user asked for heavy.
-  const weight = font.weights.includes(wanted)
-    ? wanted
+  // the role default would throw away the intent: switching Satoshi 900 to IBM Plex
+  // Mono should land on 700, not on 400 — the user asked for heavy.
+  const weight = font.weights.includes(wantedWeight)
+    ? wantedWeight
     : font.weights.reduce((best, w) =>
-        Math.abs(w - wanted) < Math.abs(best - wanted) ? w : best);
-  return { font: font.id, weight };
+        Math.abs(w - wantedWeight) < Math.abs(best - wantedWeight) ? w : best);
+  const wantedSize = Number(value?.size) || role.fallback.size;
+  const size = role.sizes.includes(wantedSize)
+    ? wantedSize
+    : role.sizes.reduce((best, v) =>
+        Math.abs(v - wantedSize) < Math.abs(best - wantedSize) ? v : best);
+  return { font: font.id, weight, size };
 }
 
 export function normalise(raw) {
   return Object.fromEntries(ROLES.map((r) => [r.id, coerce(r, raw?.[r.id])]));
 }
 
+export function isSame(a, b) {
+  return JSON.stringify(normalise(a)) === JSON.stringify(normalise(b));
+}
+
 export function loadCached() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (!saved) return null;
     // The pre-weight shape stored a bare font id per role. Migrate rather than
     // discard, so an existing choice is not silently reset.
-    if (saved && typeof Object.values(saved)[0] === "string") {
+    if (typeof Object.values(saved)[0] === "string") {
       return normalise(Object.fromEntries(
-        ROLES.map((r) => [r.id, { font: saved[r.id], weight: r.fallback.weight }])));
+        ROLES.map((r) => [r.id, { font: saved[r.id], ...r.fallback }])));
     }
-    return saved ? normalise(saved) : defaults();
+    return normalise(saved);
   } catch {
-    return defaults();
+    return null;
   }
 }
 
 function cache(choice) {
   try {
-    localStorage.setItem(KEY, JSON.stringify(choice));
+    if (choice) localStorage.setItem(KEY, JSON.stringify(choice));
+    else localStorage.removeItem(KEY);
   } catch {
     /* a blocked store must not stop the choice from applying */
   }
 }
 
-/** Write the choice onto <html>. Everything else reads the tokens, so nothing has
- *  to re-render for the change to land. */
+/**
+ * Write the choice onto <html>, or REMOVE the overrides when given null.
+ *
+ * Removing is what "reset to source style" means: with no inline properties the
+ * stylesheets' own values apply again. Writing the current design's values instead
+ * would look identical today and silently pin the app to them the moment a
+ * stylesheet changed.
+ */
 export function apply(choice) {
   if (typeof document === "undefined") return choice;
   const root = document.documentElement;
   for (const r of ROLES) {
+    if (!choice) {
+      root.style.removeProperty(r.token);
+      root.style.removeProperty(r.weightToken);
+      root.style.removeProperty(r.sizeToken);
+      continue;
+    }
     const value = choice[r.id];
     root.style.setProperty(r.token, byId(value.font).stack);
     root.style.setProperty(r.weightToken, String(value.weight));
+    root.style.setProperty(r.sizeToken, sizeValue(r, value.size));
   }
   return choice;
 }
 
-/** Persist to the server, and only cache what the server accepted. Caching the
+/** Persist to the server, and only cache what the server accepted — caching the
  *  request instead would let a rejected value look saved until the next reload. */
 export async function save(choice) {
   const body = normalise(choice);
@@ -218,9 +266,20 @@ export async function save(choice) {
     cache(saved);
     return { ok: true, choice: saved };
   } catch (e) {
-    // Applied locally but not persisted: the page looks right and the next load
-    // would silently revert, so the caller has to be able to say so.
     return { ok: false, error: String(e), choice: body };
+  }
+}
+
+/** Drop the stored config so the stylesheets' own values apply again. */
+export async function clear() {
+  apply(null);
+  cache(null);
+  try {
+    const res = await fetch("/api/appearance", { method: "DELETE" });
+    if (!res.ok) throw new Error(`DELETE /api/appearance: ${res.status}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
   }
 }
 
@@ -229,22 +288,23 @@ export async function save(choice) {
  *
  * Called by every entry before React mounts. The cache makes the first paint
  * correct; the fetch makes it *true*, because the server is where the config lives.
+ * With nothing stored anywhere, no property is written at all and the source style
+ * stands.
  */
 export function init() {
-  const cached = apply(loadCached());
+  const cached = loadCached();
+  apply(cached);
   if (typeof fetch === "undefined") return cached;
   fetch("/api/appearance")
     .then((r) => (r.ok ? r.json() : null))
     .then((body) => {
-      if (!body?.appearance) return;
-      const server = normalise(body.appearance);
-      if (JSON.stringify(server) !== JSON.stringify(cached)) {
-        apply(server);
-        cache(server);
-      }
+      const server = body?.appearance ? normalise(body.appearance) : null;
+      if (JSON.stringify(server) === JSON.stringify(cached)) return;
+      apply(server);
+      cache(server);
     })
     .catch(() => {
-      /* offline or starting up — the cache is already applied */
+      /* offline or starting up — whatever was cached is already applied */
     });
   return cached;
 }

@@ -27,6 +27,9 @@ KEY = "appearance"
 class RoleChoice(BaseModel):
     font: str = Field(min_length=1, max_length=64)
     weight: int = Field(ge=100, le=900)
+    # A size is either a px length or a bare multiplier depending on the role, so
+    # the range has to admit both. The frontend owns which kind each role takes.
+    size: float = Field(gt=0, le=64)
 
 
 class Appearance(BaseModel):
@@ -69,3 +72,20 @@ def write_appearance(body: Appearance, request: Request):
     finally:
         conn.close()
     return {"appearance": body.model_dump()}
+
+
+@router.delete("/api/appearance")
+def clear_appearance(request: Request):
+    """Drop the stored config so the stylesheets' own values apply again.
+
+    Deleting the row is what "reset to source style" has to mean. Writing today's
+    design values instead would look identical now and silently pin the install to
+    them the moment a stylesheet changed.
+    """
+    conn = db.open_write(request.app.state.cfg["db_path"])
+    try:
+        conn.execute("DELETE FROM settings WHERE key = ?", (KEY,))
+        conn.commit()
+    finally:
+        conn.close()
+    return {"appearance": None}

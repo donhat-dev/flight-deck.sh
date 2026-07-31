@@ -726,7 +726,7 @@ export default function App() {
           <MissionsView />
         </Shell>
       ) : view === "appearance" ? (
-        <Shell variant="contained" header={<Header title="Appearance" subtitle="Face and weight for each kind of text — saved for the whole install" />}>
+        <Shell variant="contained" header={<Header title="Appearance" subtitle="Face, weight and size for each kind of text — saved for the whole install" />}>
           <AppearanceView />
         </Shell>
       ) : view === "treasures" ? (
