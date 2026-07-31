@@ -12,7 +12,9 @@ template dir is copied into the caller's workdir before invoking it.
 import os
 import re
 import shutil
+import base64
 import subprocess
+from html import escape as html_escape
 from pathlib import Path
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
@@ -166,3 +168,157 @@ def render(source_text: str, *, source_format: str, title: str,
         warnings.append(
             f"rendered size {size / 1048576:.1f} MiB approaches the 16 MiB cap")
     return {"html": html, "bytes": size, "warnings": warnings}
+
+
+# ---------------------------------------------------------------- fragment mode
+
+# Selectors the token sheet aims at the document root or at <body>. In a fragment
+# neither element belongs to us: the Artifact frame supplies <body>, and we cannot
+# put a class on it. Each one moves to the wrapper.
+_FRAGMENT_SELECTOR_MAP = (
+    ("html, body { background: #fff; }", ".doc-root { background: #fff; }"),
+    ("html { background: var(--paper); }",
+     # `isolation: isolate` is load-bearing, not decoration. The sheet layers the
+     # paper on <html> and keeps <body> transparent so the `z-index:-1` aurora can
+     # sit between them, and that works only because the ROOT element's background
+     # is painted as the canvas — before any negative-z descendant. A plain <div>
+     # has no such privilege: its background is painted with the in-flow blocks,
+     # i.e. AFTER negative-z children, which would bury the aurora underneath it.
+     # Making the wrapper its own stacking context restores the order
+     # (own background -> negative-z children -> content) with one element instead
+     # of two. Measured, not assumed: without it the wash is invisible.
+     ".doc-root { background: var(--paper); isolation: isolate; }"),
+    ("body::before", ".doc-root::before"),
+    ("body::after", ".doc-root::after"),
+    ("body.font-", ".doc-root.font-"),
+    ("body {", ".doc-root {"),
+)
+
+
+def _inline_fonts(css: str) -> str:
+    """Replace `url('fonts/x.woff2')` with a data: URI.
+
+    `--embed-resources` does this for us in document mode, but it only applies to a
+    stylesheet pandoc itself pulls in via `-c`, and a fragment has no <head> to link
+    from. Without this the fonts would be the one external reference left in an
+    artifact that claims to be self-contained.
+    """
+    def sub(m):
+        name = m.group("name")
+        data = (FONTS_DIR / name).read_bytes()
+        return ("url('data:font/woff2;base64,"
+                + base64.b64encode(data).decode("ascii") + "')")
+
+    return re.sub(r"""url\(\s*['"]fonts/(?P<name>[\w.-]+\.woff2)['"]\s*\)""", sub, css)
+
+
+def fragment_css() -> str:
+    """The token sheet, rewritten so it can live inside someone else's page."""
+    css = TOKENS_CSS.read_text(encoding="utf-8")
+
+    # `body { background: transparent }` is deliberate in the document build — it
+    # is what lets the aurora show through to the paper on <html>. With both
+    # elements collapsed into one wrapper it becomes a self-override: the body
+    # block comes second and would erase the paper the html block just set, which
+    # is exactly what left the wrapper transparent the first time. The assertion
+    # guards the assumption that there is only one such declaration to remove.
+    assert css.count("background: transparent;") == 1, (
+        "tokens.css gained another `background: transparent` — check which rule "
+        "it belongs to before removing it here")
+    css = css.replace("  background: transparent;\n", "")
+    # Comments go first, for two reasons: they are dead weight in a published
+    # artifact, and the sheet explains its own document-mode decisions in prose that
+    # mentions `<html>` and `<body>` — which made the frame check below cry wolf.
+    # Stripping before the fonts are inlined keeps the regex away from base64 (`*`
+    # is not in the base64 alphabet, but there is no reason to run it over 140 KB of
+    # payload either).
+    css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
+    css = _inline_fonts(css)
+
+    # The scroll-progress bar is driven by `animation-timeline: scroll(root)`, so in
+    # a fragment it would report the HOST page's scroll, not the document's. Dropped
+    # rather than re-pointed: there is no element in a fragment that owns the
+    # document's own scroll.
+    css = re.sub(r"html::before\s*\{[^}]*\}", "", css)
+    css = re.sub(r"@keyframes fd-scroll-progress\s*\{(?:[^{}]*\{[^{}]*\})*[^{}]*\}", "", css)
+
+    for old, new in _FRAGMENT_SELECTOR_MAP:
+        css = css.replace(old, new)
+
+    # Tokens move OFF :root and onto the wrapper, then are repeated under both theme
+    # attributes. On the wrapper they already beat anything an ancestor sets, because
+    # a custom property declared closer to the element wins for its subtree. The two
+    # repeats exist for the aggressive host rule — `[data-theme="dark"] .doc-root`
+    # (0,2,0) outranks a bare `.doc-root` (0,1,0), so without them a viewer in dark
+    # mode could still recolour the document.
+    css = css.replace(
+        ":root {",
+        '.doc-root,\n[data-theme="light"] .doc-root,\n[data-theme="dark"] .doc-root {\n'
+        "  /* Pinned light. The house look has no dark variant, and a viewer's dark\n"
+        "     mode would otherwise repaint form controls and the canvas around type\n"
+        "     that stayed dark-on-light. */\n"
+        "  color-scheme: light;",
+        1)
+    return css
+
+
+def render_fragment(source_text: str, *, source_format: str, title: str,
+                    kind: str = "report", status: str = "draft",
+                    font: str | None = None, workdir: str) -> dict:
+    """Render body-only HTML for a host that owns the page frame.
+
+    The Artifact tool supplies `<!doctype>`, `<head>` and `<body>` and takes only
+    what goes INSIDE the body, so a full document loses three things at once: the
+    `<body class>` every typography rule hangs off, the page background, and the
+    colour mode. This mode hands all three to a wrapper we do control.
+    """
+    font = font or "space-grotesk"
+    if font not in FONTS:
+        raise ValueError(f"unknown font {font!r} — one of {', '.join(FONTS)}")
+
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
+
+    ext = "md" if source_format == "markdown" else "html"
+    src = work / f"source.{ext}"
+    body = _strip_frontmatter(source_text) if source_format == "markdown" else source_text
+    src.write_text(body, encoding="utf-8")
+
+    argv = [pandoc_path(), src.name]
+    argv += ["-f", "html"] if source_format == "html" else \
+            ["-f", "markdown-yaml_metadata_block"]
+    # No --standalone and no --template: those are what produce the frame we must
+    # not emit. --embed-resources still inlines images referenced from the content.
+    argv += ["--embed-resources", "--wrap=none", "-t", "html5"]
+    proc = subprocess.run(argv, cwd=str(work), capture_output=True,
+                          text=True, timeout=120)
+    if proc.returncode != 0:
+        raise RuntimeError(f"pandoc failed: {proc.stderr.strip()[:500]}")
+
+    inner = proc.stdout.strip()
+    css = fragment_css()
+    html = (
+        f"<style>\n{css}\n</style>\n"
+        f'<div class="doc-root kind-{kind} font-{font}">\n'
+        f'<nav>\n  <span class="brand">{html_escape(title)}</span>\n'
+        f'  <span class="tag tag-{status}">{html_escape(status)}</span>\n</nav>\n'
+        f'<main class="doc">\n{inner}\n</main>\n'
+        f"</div>\n"
+    )
+
+    warnings = []
+    if proc.stderr.strip():
+        warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
+    # Only the MARKUP can carry a frame; the embedded CSS legitimately contains the
+    # strings. Checking the whole output reported a frame that was not there.
+    markup = html[html.index("</style>"):].lower()
+    for tag in ("<!doctype", "<html", "<head", "<body"):
+        if tag in markup:
+            warnings.append(f"fragment still contains {tag} — the host owns that")
+    leftovers = EXTERNAL_REF_RE.findall(html)
+    if leftovers:
+        warnings.append(
+            f"{len(leftovers)} external reference(s) survived — NOT self-contained: "
+            f"{leftovers[:3]}")
+    return {"html": html, "warnings": warnings,
+            "render_bytes": len(html.encode("utf-8"))}

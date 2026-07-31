@@ -55,22 +55,41 @@ def test_description_is_trimmed_to_about_160_chars(wired):
     assert prep["description"].endswith("...")
 
 
-def test_size_ok_false_over_the_16mib_cap(wired, monkeypatch):
+def test_the_cap_checked_against_is_the_claude_ai_one(wired):
+    assert mcp_server._CLAUDE_AI_ARTIFACT_MAX_BYTES == 16 * 1024 * 1024
+
+
+def test_size_ok_false_once_the_render_passes_the_cap(wired, monkeypatch):
+    # The measured bytes are now the FRAGMENT's, and it is rebuilt on every call
+    # — so writing a fat artifact.html no longer affects the verdict, which is
+    # what this test used to do. Lowering the cap exercises the same comparison
+    # without pushing 16 MiB through pandoc; the real value is asserted above.
     wrapped = _call(wired, "treasure_wrap",
                     {"title": "Big", "content": "# Big\n\nBody.\n"})
-    # Force the on-disk artifact past the 16 MiB claude.ai cap without
-    # re-rendering a real oversized document.
-    from pathlib import Path
-    art_path = Path(wrapped["artifact_path"])
-    art_path.write_text("x" * (16 * 1024 * 1024 + 1), encoding="utf-8")
+    monkeypatch.setattr(mcp_server, "_CLAUDE_AI_ARTIFACT_MAX_BYTES", 1024)
     prep = _call(wired, "treasure_publish_prepare", {"ident": wrapped["id"]})
+    assert prep["render_bytes"] > 1024
     assert prep["size_ok"] is False
-    assert prep["render_bytes"] > 16 * 1024 * 1024
 
 
-def test_publish_prepare_flags_missing_artifact_file(wired):
+def test_a_missing_standalone_document_no_longer_blocks_publishing(wired):
+    # The fragment is built from the source, so a deleted artifact.html is now
+    # only a reporting detail — publishing still works.
     wrapped = _call(wired, "treasure_wrap", {"title": "Gone", "content": "# Gone\n"})
     from pathlib import Path
     Path(wrapped["artifact_path"]).unlink()
     prep = _call(wired, "treasure_publish_prepare", {"ident": wrapped["id"]})
-    assert prep["artifact_exists"] is False
+    assert prep["document_exists"] is False
+    assert Path(prep["file_path"]).is_file()
+    assert prep["size_ok"] is True
+
+
+def test_a_missing_source_is_an_error_not_a_traceback(wired):
+    # The source IS what a fragment needs, so its absence must fail closed
+    # through the tool's error channel rather than raise out of the MCP call.
+    wrapped = _call(wired, "treasure_wrap", {"title": "Sourceless",
+                                             "content": "# Sourceless\n"})
+    from pathlib import Path
+    Path(wrapped["source_path"]).unlink()
+    prep = _call(wired, "treasure_publish_prepare", {"ident": wrapped["id"]})
+    assert "source file missing" in prep["error"]

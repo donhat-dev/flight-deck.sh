@@ -186,8 +186,11 @@ def test_publish_prepare_returns_existing_path_and_verdict(wired):
                     {"title": "Publish Me", "kind": "report",
                      "content": "# Publish Me\n\nThis is the summary line.\n"})
     prep = _call(wired, "treasure_publish_prepare", {"ident": wrapped["id"]})
-    assert prep["artifact_path"] == wrapped["artifact_path"]
-    assert prep["artifact_exists"] is True
+    # `file_path` is the FRAGMENT — what the Artifact tool can actually take —
+    # while the standalone document is reported separately for local use.
+    assert prep["file_path"].endswith("fragment.html")
+    assert prep["document_path"] == wrapped["artifact_path"]
+    assert prep["document_exists"] is True
     assert prep["title"] == "Publish Me"
     assert prep["description"].startswith("This is the summary line")
     assert prep["favicon"] == "\U0001F4CA"       # report -> 📊

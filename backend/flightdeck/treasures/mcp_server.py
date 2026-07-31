@@ -253,27 +253,43 @@ def _description_from_source(source: str, title: str) -> str:
 
 
 def t_publish_prepare(ident):
-    """Gather everything an agent needs to hand the artifact to the claude.ai
-    `Artifact` tool, which is the only way to publish — this tool
-    deliberately does not attempt to publish by itself."""
+    """Export a publish-ready FRAGMENT and return what the claude.ai `Artifact`
+    tool needs. Publishing itself stays with the agent — this tool deliberately
+    does not attempt it.
+
+    `file_path` points at a freshly exported `fragment.html`, not at the
+    standalone `artifact.html`. The Artifact tool supplies the doctype, <head>
+    and <body> itself, so handing it the full document lost three things at
+    once: the `<body class>` every typography rule hangs off, the page
+    background (painted on <html>), and the colour mode. The fragment moves all
+    three onto a wrapper we own, which is what makes a hand-edit unnecessary.
+
+    `document_path` is still reported, for opening or sending the file locally.
+    """
     conn = _conn()
-    row = service.get(conn, ident, include_source=True)
+    row = service.get(conn, ident)
     if row is None:
         return {"error": f"not found: {ident}"}
-    artifact_path = Path(row["artifact_path"])
-    exists = artifact_path.is_file()
-    render_bytes = artifact_path.stat().st_size if exists else (row.get("render_bytes") or 0)
+    try:
+        frag = service.export_fragment(conn, row["id"])
+    except (LookupError, ValueError, RuntimeError, OSError) as e:
+        return {"error": f"fragment export failed: {e}"}
+    render_bytes = frag["render_bytes"]
     return {
-        "artifact_path": str(artifact_path),
-        "artifact_exists": exists,
+        "file_path": frag["fragment_path"],
+        "fragment_path": frag["fragment_path"],
+        "document_path": row["artifact_path"],
+        "document_exists": Path(row["artifact_path"]).is_file(),
         "title": row["title"],
-        "description": _description_from_source(row.get("source") or "", row["title"]),
+        "description": _description_from_source(frag["source"], row["title"]),
         "favicon": _FAVICON_BY_KIND.get(row["kind"], _DEFAULT_FAVICON),
         "render_bytes": render_bytes,
         "size_ok": render_bytes <= _CLAUDE_AI_ARTIFACT_MAX_BYTES,
+        "warnings": frag["warnings"],
         "next_step": (
-            "Publish this file with the Artifact tool "
-            f"(file_path={artifact_path}, title={row['title']!r}), then call "
+            "Publish this file AS IS with the Artifact tool "
+            f"(file_path={frag['fragment_path']}, title={row['title']!r}) — it is "
+            "already body-only and self-contained, so do not edit it. Then call "
             "treasure_link_source with ident="
             f"{row['id']!r} and published_url set to the URL it returns."),
     }

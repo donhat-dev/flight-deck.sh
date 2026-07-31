@@ -211,6 +211,55 @@ def get(conn, ident, *, include_source=False, include_html=False,
     return out
 
 
+_VDIR = re.compile(r"^v(\d+)$")
+
+
+def version_dir(row: dict, version: int) -> Path:
+    """The directory holding one specific version of an artifact."""
+    return Path(row["dir_path"]) / f"v{int(version)}"
+
+
+def versions(conn, ident):
+    """Every retained version of an artifact, newest first.
+
+    Derived from disk, never stored. Each save writes a fresh `v<N>/` and the
+    previous ones are left in place, so the directory listing IS the history — a
+    versions table would be a second source of truth that goes wrong the moment a
+    directory is added or removed outside this process.
+
+    `written_at` is the artifact file's mtime, which for an immutable version
+    directory is when that version was produced. It is deliberately not called
+    `created_at`: nothing records the creation event, so the name should not claim
+    one. Only the current version's `updated_at` on the row is an actual record.
+    """
+    row = store.get(conn, ident)
+    if row is None:
+        raise LookupError(ident)
+    ext = "md" if row["source_format"] == "markdown" else "html"
+    base = Path(row["dir_path"])
+    out = []
+    for entry in (sorted(base.iterdir()) if base.is_dir() else []):
+        m = _VDIR.match(entry.name)
+        if not m or not entry.is_dir():
+            continue
+        src, art = entry / f"source.{ext}", entry / "artifact.html"
+        # A version whose artifact.html is gone can still be read as source, so
+        # report both independently rather than hiding the row.
+        stamp = art if art.is_file() else src
+        out.append({
+            "version": int(m.group(1)),
+            "source_bytes": src.stat().st_size if src.is_file() else None,
+            "render_bytes": art.stat().st_size if art.is_file() else None,
+            "written_at": (datetime.fromtimestamp(stamp.stat().st_mtime,
+                                                  timezone.utc)
+                           .isoformat(timespec="seconds")
+                           if stamp.is_file() else None),
+            "has_artifact": art.is_file(),
+            "is_current": int(m.group(1)) == row["version"],
+        })
+    return sorted(out, key=lambda v: v["version"], reverse=True)
+
+
 def list_rows(conn, **filters):
     """Rows with their file paths and tags attached.
 
@@ -430,6 +479,49 @@ def stale(conn, ident) -> dict:
             "origin_path": origin_path,
             "stored_checksum": row["source_checksum"],
             "origin_checksum": current}
+
+
+
+def export_fragment(conn, ident) -> dict:
+    """Write a body-only copy of the current version, for a host page that owns
+    the document frame (claude.ai's `Artifact` tool being the one that matters).
+
+    Derived, not stored as its own version: the fragment is a pure function of
+    the source plus this version's metadata, so keeping it as a sibling file
+    that must be kept in step with `artifact.html` would buy nothing and add a
+    staleness pair. It is regenerated on each publish instead.
+
+    It lands beside the standalone document as `fragment.html` rather than
+    replacing it. Both are wanted: the standalone one is what you open locally
+    or send as a file, and only the fragment can be pasted into a page whose
+    <body> belongs to someone else.
+    """
+    row = get(conn, ident)
+    if row is None:
+        raise LookupError(f"not found: {ident}")
+    # Read the source explicitly rather than via include_source=True, so a
+    # missing file is a LookupError the caller can report instead of a
+    # FileNotFoundError traceback out of an MCP tool. The fragment is built from
+    # the SOURCE, so the source is the file whose absence actually blocks a
+    # publish — `artifact.html` going missing no longer does.
+    src = Path(row["source_path"])
+    if not src.is_file():
+        raise LookupError(f"source file missing for {row['id']} v{row['version']}: {src}")
+    row["source"] = src.read_text(encoding="utf-8")
+    out_path = Path(row["dir_path"]) / f"v{row['version']}" / "fragment.html"
+    with tempfile.TemporaryDirectory(prefix="treasure-fragment-") as workdir:
+        rendered = render.render_fragment(
+            row["source"], source_format=row["source_format"],
+            title=row["title"], kind=row["kind"], status=row["status"],
+            font=row["font"], workdir=workdir)
+    out_path.write_text(rendered["html"], encoding="utf-8")
+    # The source comes back with it: the caller wants it for the publish
+    # description, and reading the file twice would give the guard above a
+    # second, unguarded path to slip past.
+    return {"id": row["id"], "version": row["version"],
+            "fragment_path": str(out_path), "source": row["source"],
+            "render_bytes": rendered["render_bytes"],
+            "warnings": rendered["warnings"]}
 
 
 def rerender(conn, ident) -> dict:
