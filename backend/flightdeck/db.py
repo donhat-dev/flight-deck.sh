@@ -148,6 +148,13 @@ CREATE TABLE IF NOT EXISTS session_meta (
   title_source TEXT   -- 'custom' (user rename / fork) wins over 'ai' (auto)
 );
 
+-- App settings that must outlive a browser profile. Appearance lives here rather
+-- than in localStorage so the choice is the SYSTEM's, not one browser's.
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS tool_calls (
   id TEXT PRIMARY KEY,
   session_id TEXT,
@@ -198,6 +205,11 @@ CREATE TABLE IF NOT EXISTS session_meta (
   session_id text PRIMARY KEY,
   title text,
   title_source text
+);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key text PRIMARY KEY,
+  value text NOT NULL
 );
 
 CREATE UNLOGGED TABLE IF NOT EXISTS tool_calls (

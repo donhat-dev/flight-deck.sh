@@ -18,7 +18,7 @@ from flightdeck.hub.nodes import load as hub_load
 from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.routers import (charts, core, diff, hub, missions, sessions,
-                               stream, treasures)
+                               stream, treasures, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -71,6 +71,7 @@ def create_app() -> FastAPI:
     app.include_router(diff.router)
     app.include_router(hub.router)
     app.include_router(stream.router)
+    app.include_router(appearance.router)
     app.include_router(treasures.router)
     # Systems views (Comms / Manuals / Hangar) + AG-UI Relay stream: already
     # their own routers, read-only surface.

@@ -462,6 +462,11 @@ table.rd-sxs {
      navigate by, not an emphasis. Satoshi is variable so it hits 700 exactly; the
      mono 700 face is loaded rather than synthesised. */
   --fdx-weight-label: 700;
+  /* Body prose and figures. Deliberately NOT one weight for all of "UI & prose":
+     titles and buttons keep their own scale, because a type hierarchy is not one
+     number. Appearance says as much next to the picker. */
+  --fdx-weight-body: 400;
+  --fdx-weight-figure: 400;
   --fdx-control-border-width: 2px;
   --fdx-control-depth-x: 4px;
   --fdx-control-depth-y: 4px;
@@ -2976,4 +2981,14 @@ table.rd-sxs {
   background: var(--fdx-surface);
   color: var(--fdx-signal);
   box-shadow: 2px 2px 0 var(--fdx-depth-muted);
+}
+
+/* Appearance's figure and body weights. Scoped to the roles they name so a change
+   on the Appearance page lands without any view re-rendering. */
+[data-num] {
+  font-weight: var(--fdx-weight-figure);
+}
+
+body {
+  font-weight: var(--fdx-weight-body);
 }
