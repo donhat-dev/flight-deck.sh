@@ -409,6 +409,10 @@ table.rd-sxs {
 :root {
   --fdx-font-primary: "Satoshi", "Helvetica Neue", "Outfit Variable", sans-serif;
   --fdx-font-mono: "IBM Plex Mono", ui-monospace, monospace;
+  /* Menu and control labels. Split out from --fdx-font-mono so the Appearance
+     page can set figures and labels independently: a column of numbers and a row
+     of buttons are different jobs that happened to share a face. */
+  --fdx-font-label: var(--fdx-font-mono);
   --fdx-canvas: #080807;
   --fdx-surface: #11110f;
   --fdx-surface-raised: #191815;
@@ -2946,7 +2950,7 @@ table.rd-sxs {
   border-right: 1px solid var(--fdx-rule);
   background: transparent;
   color: var(--fdx-text-muted);
-  font-family: var(--fdx-font-mono);
+  font-family: var(--fdx-font-label);
   font-size: 10px;
   font-weight: var(--fdx-weight-label);
   letter-spacing: 0.12em;

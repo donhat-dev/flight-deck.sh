@@ -102,25 +102,30 @@ fonts-verify:               ## prove each family covers Latin AND Vietnamese
 	print('  TOTAL %.1f KB' % sum(r[1] for r in rows))"
 	cd backend && ../.venv/bin/python -m pytest tests/test_treasures_render.py -q -k font
 
-# Satoshi — FlightDeck's primary typeface, self-hosted so rendering never depends
-# on the network. The VARIABLE cut: one file for wght 300-900, because the kit
-# uses 600 and the static cuts have no 600 (a missing weight is silently rounded).
-# Verifies the binary after fetching, since a font that downloads but has no ASCII
-# glyphs is exactly how a previous font bug hid for weeks.
+# Satoshi — FlightDeck's primary typeface, built from the VIETNAMIZED "MJ Satoshi"
+# TTFs in fonts/. Not fetched from Fontshare: that cut carries only 26 of 74
+# Vietnamese precomposed characters, and session titles here are often Vietnamese.
+# No network needed — the sources are in the repo.
 satoshi:
 	@mkdir -p frontend/src/fonts
-	@UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/120 Safari/537.36"; \
-	url=$$(curl -s --max-time 20 -A "$$UA" \
-	  "https://api.fontshare.com/v2/css?f[]=satoshi@1&display=swap" \
-	  | grep -oE "//cdn\.fontshare\.com/[^']+\.woff2" | head -1); \
-	test -n "$$url" || { echo "could not resolve the Satoshi woff2 URL"; exit 1; }; \
-	curl -sL --max-time 30 -A "$$UA" "https:$$url" -o frontend/src/fonts/satoshi-variable.woff2
-	@.venv/bin/python -c "from fontTools.ttLib import TTFont; \
-f=TTFont('frontend/src/fonts/satoshi-variable.woff2'); \
-ax=[(a.axisTag,a.minValue,a.maxValue) for a in f['fvar'].axes]; \
-cm=f.getBestCmap(); n=sum(1 for c in range(0x20,0x7f) if c in cm); \
-assert ax==[('wght',300.0,900.0)], f'unexpected axes {ax}'; \
-assert n==95, f'ASCII coverage {n}/95 — refusing a font that cannot render Latin'; \
-print(f'satoshi ok: axes {ax}, {len(f.getGlyphOrder())} glyphs, ASCII {n}/95')"
+	@.venv/bin/python -c "\
+from fontTools.ttLib import TTFont; \
+import pathlib; \
+dest = pathlib.Path('frontend/src/fonts'); \
+weights = {'Light': 300, 'Regular': 400, 'Medium': 500, 'Bold': 700, 'Black': 900}; \
+[ (lambda f, out: (setattr(f, 'flavor', 'woff2'), f.save(out), print(f'  {out.name}')))\
+   (TTFont(f'fonts/MJ Satoshi-{n}.ttf'), dest / f'satoshi-{w}.woff2') \
+  for n, w in weights.items() ]"
+	@.venv/bin/python -c "\
+from fontTools.ttLib import TTFont; \
+import glob; \
+vn = 'ăâêôơưđáàảãạắằẳẵặấầẩẫậếềểễệốồổỗộớờởỡợứừửữự'; \
+[ (lambda f, cm: (\
+    __import__('sys').exit(f'{f}: ASCII {sum(1 for c in range(32,127) if c in cm)}/95') \
+      if sum(1 for c in range(32,127) if c in cm) != 95 else \
+    __import__('sys').exit(f'{f}: Vietnamese {sum(1 for ch in vn if ord(ch) in cm)}/{len(vn)}') \
+      if sum(1 for ch in vn if ord(ch) in cm) != len(vn) else None)) \
+  (f, TTFont(f).getBestCmap()) for f in sorted(glob.glob('frontend/src/fonts/satoshi-*.woff2')) ]; \
+print('satoshi ok: 5 weights, ASCII 95/95, Vietnamese complete')"
 
 .PHONY: satoshi

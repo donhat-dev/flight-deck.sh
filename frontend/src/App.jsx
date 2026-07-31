@@ -18,6 +18,7 @@ import ManualsView from "./systems/ManualsView.jsx";
 import HangarView from "./systems/HangarView.jsx";
 import RelayView from "./agui/RelayView.jsx";
 import MissionsView from "./systems/MissionsView.jsx";
+import AppearanceView from "./systems/AppearanceView.jsx";
 import TreasuresView from "./treasures/TreasuresView.jsx";
 // Lazy: TreasureDetail pulls in Milkdown (WYSIWYG editor), a sizeable
 // dependency only ever needed on the single #/treasure/<id> route — keeping
@@ -154,6 +155,7 @@ const SYS_NAV = [
   { k: "hangar", label: "Hangar", icon: "⌂" },
   { k: "relay", label: "Relay", icon: "⇌" },
   { k: "missions", label: "Missions", icon: "▲" },
+  { k: "appearance", label: "Appearance", icon: "Aa" },
 ];
 const RANGES = [
   { k: "today", label: "Today" },
@@ -718,6 +720,10 @@ export default function App() {
       ) : view === "missions" ? (
         <Shell variant="contained" header={<Header title="Missions" subtitle="Personal TODO and notes, shared across agent sessions" />}>
           <MissionsView />
+        </Shell>
+      ) : view === "appearance" ? (
+        <Shell variant="contained" header={<Header title="Appearance" subtitle="Which face each kind of text uses" />}>
+          <AppearanceView />
         </Shell>
       ) : view === "treasures" ? (
         <Shell variant="contained" header={<Header title="Treasures" subtitle="Artifact library — wrap, preview, provenance" />}>
