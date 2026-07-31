@@ -1,143 +1,42 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { get, post, subscribe } from "../api.js";
 
-/* ---- Treasures: the artifact library ------------------------------------
- * Data: GET /api/treasures (+ status/language/query filters), POST
- * /api/treasures/discover (dry run, then an explicit import). Row detail
- * lives at its own route (#/treasure/<id> -> TreasureDetail.jsx) — this view
- * is list-only: summary strip, filters, search, discover, and the table.
+import { get, post, subscribe } from "../api.js";
+import LibraryHeader from "./library/LibraryHeader.jsx";
+import LibrarySearch from "./library/LibrarySearch.jsx";
+import { TreasureListRow, TreasureMobileCard, kb } from "./library/TreasureRow.jsx";
+
+/**
+ * Treasures library.
  *
- * Presentational atoms deliberately mirror ManualsView (Eyebrow, StatCell,
- * Chip, relTime, Skeleton) so this view reads as a sibling, not a one-off.
- * All color flows through the zinc (neutral) / emerald (signal) / amber
- * (Vietnamese-language flag) ramps + FlightDeck tokens.
+ * Data: GET /api/treasures (status/language/tag/query filters), GET
+ * /api/treasure-tags, POST /api/treasures (create), POST
+ * /api/treasures/discover. Row detail lives at #/treasure/<id>.
+ *
+ * Two fetch shapes, deliberately separate:
+ *  - the FILTERED list, which every filter and (debounced) keystroke re-requests;
+ *  - the BASELINE counts and the tag list, which only change when the library
+ *    itself changes.
+ * They used to be one call, so typing a five-letter query pulled the 1000-row
+ * baseline and the tag list five times over. Nothing in the summary line depends
+ * on the query, so nothing in it should be refetched by typing.
  */
 
-const SAFETY_POLL_MS = 60000; // fallback only — SSE (subscribe) drives real refresh
+const SAFETY_POLL_MS = 60000; // fallback only — SSE drives the real refresh
 const DISCOVER_MAX_FILES = 400;
+const QUERY_DEBOUNCE_MS = 250;
 
-/* ---- small presentational atoms (SpendView / ManualsView language) ------- */
-function Eyebrow({ children }) {
-  return (
-    <div className="font-mono text-[10px] uppercase leading-tight tracking-[0.17em] text-zinc-500">
-      {children}
-    </div>
-  );
-}
-
-function StatCell({ label, value, tone = "text-zinc-100", sub }) {
-  return (
-    <div className="px-5 py-4">
-      <Eyebrow>{label}</Eyebrow>
-      <div className={`mt-2 font-mono text-[26px] leading-none tracking-[-0.02em] ${tone}`}>
-        {value}
-      </div>
-      {sub && <div className="mt-1.5 text-[10px] text-zinc-500">{sub}</div>}
-    </div>
-  );
-}
-
-function Chip({ active, onClick, children, count }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
-        active
-          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-          : "border-[color:var(--fd-hair-2)] text-zinc-400 hover:bg-zinc-500/5"
-      }`}
-    >
-      {children}
-      {count != null && <span className="text-zinc-500">{count}</span>}
-    </button>
-  );
-}
-
-function relTime(ts) {
-  if (!ts) return "—";
-  const t = Date.parse(ts);
-  if (Number.isNaN(t)) return ts;
-  const diff = Date.now() - t;
-  const minute = 60000, hour = 3600000, day = 86400000;
-  if (diff < minute) return "just now";
-  if (diff < hour) return `${Math.round(diff / minute)}m ago`;
-  if (diff < day) return `${Math.round(diff / hour)}h ago`;
-  const d = Math.floor(diff / day);
-  if (d < 30) return `${d}d ago`;
-  if (d < 365) return `${Math.floor(d / 30)}mo ago`;
-  return `${Math.floor(d / 365)}y ago`;
-}
-
-function kb(bytes) {
-  if (!bytes && bytes !== 0) return "—";
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-const STATUS_TONE = {
-  draft: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
-  published: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-  archived: "border-zinc-700/40 bg-zinc-800/20 text-zinc-600",
-};
-function StatusBadge({ status }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide ${STATUS_TONE[status] || STATUS_TONE.draft}`}>
-      {status}
-    </span>
-  );
-}
-
-function LanguageBadge({ language }) {
-  const vi = language === "vi";
-  return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ${
-      vi ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
-    }`}>
-      {language}
-    </span>
-  );
-}
-
-function ProvenanceButton({ originId, onOpenSession }) {
-  if (!originId) {
-    return <span className="text-[10px] italic text-zinc-600">no source</span>;
-  }
-  return (
-    <button
-      type="button"
-      onClick={(e) => { e.stopPropagation(); onOpenSession?.(originId); }}
-      title={`Open originating session ${originId}`}
-      className="rounded-md border border-[color:var(--fd-hair-2)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-zinc-400 transition-colors hover:border-emerald-500/40 hover:text-emerald-300"
-    >
-      → session
-    </button>
-  );
-}
-
-/* ---- loading skeleton (ManualsView pattern) ------------------------------ */
 function Skeleton() {
   return (
     <div className="space-y-4">
-      <div className="fd-shell">
-        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-zinc-800/80 lg:grid-cols-5">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="px-5 py-4">
-              <div className="h-2.5 w-16 rounded bg-zinc-800" />
-              <div className="mt-3 h-6 w-14 rounded bg-zinc-800/70" />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="fd-shell">
-        <div className="fd-core p-5">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-4 py-3">
-              <div className="h-3 w-48 rounded bg-zinc-800" />
-              <div className="h-3 w-16 rounded bg-zinc-800/70" />
-              <div className="h-3 flex-1 rounded bg-zinc-800/40" />
-            </div>
-          ))}
-        </div>
+      <div className="h-9 w-48 rounded bg-zinc-800/70" />
+      <div className="h-11 w-full rounded-lg bg-zinc-800/40" />
+      <div className="overflow-hidden rounded-xl border border-[color:var(--fd-hair-2)]">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="space-y-2 border-b border-[color:var(--fd-hair-2)] px-5 py-4 last:border-b-0">
+            <div className="h-3.5 w-1/2 rounded bg-zinc-800/70" />
+            <div className="h-2.5 w-1/3 rounded bg-zinc-800/40" />
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -145,34 +44,40 @@ function Skeleton() {
 
 function ErrorPanel({ message, onRetry }) {
   return (
-    <div className="fd-shell rounded-2xl">
-      <div className="fd-core p-6 text-sm">
-        <div className="font-mono text-[11px] uppercase tracking-wide text-rose-400">
-          Failed to load Treasures
-        </div>
-        <div className="mt-2 text-zinc-400">{message}</div>
-        <button
-          type="button"
-          onClick={onRetry}
-          className="mt-4 rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-zinc-300 hover:bg-zinc-500/5"
-        >
-          Retry
-        </button>
-      </div>
+    <div className="space-y-3 rounded-xl border border-rose-500/30 bg-rose-500/5 p-5">
+      <p className="text-sm text-rose-300">Could not load the library: {message}</p>
+      <button type="button" onClick={onRetry} className="fdx-button" data-variant="secondary" data-size="sm">
+        <span>Try again</span>
+      </button>
     </div>
   );
 }
 
-/* ---- Treasures view (list only — detail lives at #/treasure/<id>) -------- */
+function EmptyState({ filtered, onClear }) {
+  return (
+    <div className="space-y-3 px-5 py-16 text-center">
+      <p className="text-[15px] text-zinc-300">
+        {filtered ? "No artifacts match these filters." : "No artifacts yet."}
+      </p>
+      <p className="text-[13px] text-zinc-500">
+        {filtered
+          ? "Clear the filters, or widen the search."
+          : "Create one from a file on this machine, or scan your sessions for drafts."}
+      </p>
+      {filtered && (
+        <button type="button" onClick={onClear} className="fdx-button" data-variant="secondary" data-size="sm">
+          <span>Clear filters</span>
+        </button>
+      )}
+    </div>
+  );
+}
 
 /**
- * Create a treasure from the dashboard.
- *
- * Two intake paths, and they are NOT equivalent — which is why the file path is
- * the default rather than the paste box. With a path the server reads the file
- * itself, so the stored checksum describes what is on disk: the row stays
- * refreshable and a later edit is detectable. Pasted text hashes whatever
- * arrived, so it can never gain that property.
+ * Create a treasure. Two intake paths, and the file path is the default because
+ * they are not equivalent: with a path the server reads the file itself, so the
+ * stored checksum describes what is on disk and the row stays refreshable.
+ * Pasted text hashes whatever arrived and can never gain that property.
  */
 function CreatePanel({ onCreated, onCancel }) {
   const [mode, setMode] = useState("path");
@@ -187,371 +92,321 @@ function CreatePanel({ onCreated, onCancel }) {
     setBusy(true);
     setError(null);
     try {
-      const body = mode === "path"
-        ? { source_path: path.trim() }
-        : { title: title.trim(), content };
+      const body = mode === "path" ? { source_path: path.trim() } : { title: title.trim(), content };
       const list = tags.split(",").map((t) => t.trim()).filter(Boolean);
       if (list.length) body.tags = list;
       onCreated(await post("/api/treasures", body));
     } catch (e) {
-      // The server's `detail` is the service's own validation text.
       setError(e.detail || e.message || String(e));
     } finally {
       setBusy(false);
     }
   };
 
-  const ready = mode === "path" ? path.trim().length > 0
+  const ready = mode === "path"
+    ? path.trim().length > 0
     : title.trim().length > 0 && content.trim().length > 0;
-
-  const input = "w-full rounded-md border border-[color:var(--fd-hair-2)] bg-transparent px-3 py-2 font-mono text-[11px] text-zinc-200 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none";
+  const input =
+    "w-full min-h-[44px] rounded-lg border border-[color:var(--fd-hair-2)] bg-transparent px-3.5 text-[14px] text-zinc-100 placeholder:text-zinc-600 focus:border-[color:var(--fd-coral)]/50 focus:outline-none";
 
   return (
-    <section className="fd-shell">
-      <div className="fd-core space-y-3 px-5 py-4">
-        <div className="flex items-center justify-between gap-3">
-          <Eyebrow>New treasure</Eyebrow>
-          <div className="fdx-segmented" role="group" aria-label="Source">
-            <button type="button" className="fdx-segmented-seg"
-                    aria-pressed={mode === "path"} onClick={() => setMode("path")}>
-              From file
-            </button>
-            <button type="button" className="fdx-segmented-seg"
-                    aria-pressed={mode === "paste"} onClick={() => setMode("paste")}>
-              Paste
-            </button>
-          </div>
+    <section className="space-y-3 rounded-xl border border-[color:var(--fd-hair)] bg-zinc-500/[0.03] p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h3 className="text-[15px] font-semibold text-zinc-100">New treasure</h3>
+        <div className="fdx-segmented" role="group" aria-label="Source">
+          <button type="button" className="fdx-segmented-seg" aria-pressed={mode === "path"} onClick={() => setMode("path")}>
+            From file
+          </button>
+          <button type="button" className="fdx-segmented-seg" aria-pressed={mode === "paste"} onClick={() => setMode("paste")}>
+            Paste
+          </button>
         </div>
+      </div>
 
-        {mode === "path" ? (
-          <>
-            <input className={input} value={path} onChange={(e) => setPath(e.target.value)}
-                   placeholder="/home/…/docs/report.md" autoFocus />
-            <p className="text-[10px] leading-[1.5] text-zinc-500">
-              Preferred: the server reads the file, so this stays refreshable and an
-              edit on disk is detectable. Paths are limited to the configured read
-              roots.
-            </p>
-          </>
-        ) : (
-          <>
-            <input className={input} value={title} onChange={(e) => setTitle(e.target.value)}
-                   placeholder="Title (required — nothing to derive it from)" autoFocus />
-            <textarea className={`${input} min-h-[9rem]`} value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      placeholder="# Markdown…" />
-          </>
-        )}
-
-        <input className={input} value={tags} onChange={(e) => setTags(e.target.value)}
-               placeholder="tags, comma separated (optional)" />
-
-        {error && (
-          <p className="rounded-md border border-rose-500/30 bg-rose-500/5 px-3 py-2 text-[11px] text-rose-300">
-            {error}
+      {mode === "path" ? (
+        <div className="space-y-2">
+          <label htmlFor="new-path" className="block text-[12px] font-semibold text-zinc-400">
+            File on this machine
+          </label>
+          <input id="new-path" className={input} value={path} onChange={(e) => setPath(e.target.value)}
+                 placeholder="/home/…/docs/report.md" autoFocus />
+          <p className="text-[12px] leading-relaxed text-zinc-500">
+            Preferred: the server reads the file, so this stays refreshable and an edit on
+            disk is detectable. Paths are limited to the configured read roots.
           </p>
-        )}
-
-        <div className="flex items-center gap-2">
-          <button type="button" className="fdx-button" data-variant="primary" data-size="sm"
-                  disabled={!ready || busy} onClick={submit}>
-            <span>{busy ? "Creating…" : "Create"}</span>
-          </button>
-          <button type="button" className="fdx-button" data-variant="secondary"
-                  data-size="sm" onClick={onCancel}>
-            <span>Cancel</span>
-          </button>
         </div>
+      ) : (
+        <div className="space-y-2">
+          <label htmlFor="new-title" className="block text-[12px] font-semibold text-zinc-400">
+            Title <span className="font-normal text-zinc-500">— required, there is nothing to derive it from</span>
+          </label>
+          <input id="new-title" className={input} value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+          <label htmlFor="new-body" className="block pt-1 text-[12px] font-semibold text-zinc-400">Markdown</label>
+          <textarea id="new-body" className={`${input} min-h-[10rem] py-3`} value={content}
+                    onChange={(e) => setContent(e.target.value)} placeholder="# Heading…" />
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <label htmlFor="new-tags" className="block text-[12px] font-semibold text-zinc-400">
+          Tags <span className="font-normal text-zinc-500">— optional, comma separated</span>
+        </label>
+        <input id="new-tags" className={input} value={tags} onChange={(e) => setTags(e.target.value)} />
+      </div>
+
+      {error && (
+        <p className="rounded-lg border border-rose-500/30 bg-rose-500/5 px-3.5 py-2.5 text-[13px] text-rose-300">
+          {error}
+        </p>
+      )}
+
+      <div className="flex items-center gap-2">
+        <button type="button" className="fdx-button" data-variant="primary" data-size="sm"
+                disabled={!ready || busy} onClick={submit}>
+          <span>{busy ? "Creating…" : "Create"}</span>
+        </button>
+        <button type="button" className="fdx-button" data-variant="secondary" data-size="sm" onClick={onCancel}>
+          <span>Cancel</span>
+        </button>
       </div>
     </section>
   );
 }
 
+function DiscoverResult({ result, onImport, importing, newCount }) {
+  return (
+    <section className="space-y-3 rounded-xl border border-[color:var(--fd-hair)] bg-zinc-500/[0.03] p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-[15px] text-zinc-100">
+          <span className="font-mono">{newCount}</span> new document{newCount === 1 ? "" : "s"} found
+          <span className="px-2 text-zinc-700">·</span>
+          <span className="text-[13px] text-zinc-500">
+            {result.candidates.length - newCount} already imported
+          </span>
+        </p>
+        <button type="button" onClick={onImport} disabled={importing || newCount === 0}
+                className="fdx-button" data-variant="primary" data-size="sm">
+          <span>{importing ? "Importing…" : `Import all ${newCount}`}</span>
+        </button>
+      </div>
+      {/* Candidates listed by name and path, not by scan parameters. Selecting
+          individual ones needs an API that accepts a subset — the endpoint is
+          all-or-nothing today. */}
+      <ul className="divide-y divide-[color:var(--fd-hair-2)] overflow-hidden rounded-lg border border-[color:var(--fd-hair-2)]">
+        {result.candidates.slice(0, 8).map((c) => (
+          <li key={c.path} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
+            <span className="min-w-0 space-y-0.5">
+              <span className="block truncate text-[14px] text-zinc-200">{c.title || c.path.split("/").pop()}</span>
+              <span className="block truncate font-mono text-[11px] text-zinc-600">{c.path}</span>
+            </span>
+            <span className="text-[12px] text-zinc-500">
+              {c.already_imported ? "imported" : `${kb(c.bytes)} · new`}
+            </span>
+          </li>
+        ))}
+      </ul>
+      {result.candidates.length > 8 && (
+        <p className="text-[12px] text-zinc-500">
+          Showing 8 of {result.candidates.length}. Import brings in all new ones.
+        </p>
+      )}
+    </section>
+  );
+}
+
 export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
-  const [allRows, setAllRows] = useState(null); // unfiltered baseline, drives the summary strip
-  const [rows, setRows] = useState([]);         // current filtered/searched view
+  const [rows, setRows] = useState(null);
+  const [baseline, setBaseline] = useState(null);
+  const [tags, setTags] = useState([]);
   const [error, setError] = useState(null);
-  const [filter, setFilter] = useState("all");  // all | draft | published | en | vi
-  const [query, setQuery] = useState("");
   const [live, setLive] = useState(false);
-  const [tag, setTag] = useState(null);       // active tag chip, null = no tag filter
-  const [tags, setTags] = useState([]);       // every tag in use, with counts
+
+  const [query, setQuery] = useState("");
+  const [debounced, setDebounced] = useState("");
+  const [status, setStatus] = useState(null);
+  const [language, setLanguage] = useState(null);
+  const [tag, setTag] = useState(null);
+  const [sort, setSort] = useState("updated");
 
   const [creating, setCreating] = useState(false);
-  const [discoverBusy, setDiscoverBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [discoverResult, setDiscoverResult] = useState(null);
   const [discoverError, setDiscoverError] = useState(null);
-  const [importBusy, setImportBusy] = useState(false);
+  const [importing, setImporting] = useState(false);
 
-  // The safety-net poll + the SSE refetch both read the latest filter/query
-  // via a ref, same pattern App.jsx uses for its range-aware SSE callback.
-  const stateRef = useRef({ filter, query, tag });
-  useEffect(() => { stateRef.current = { filter, query, tag }; }, [filter, query, tag]);
+  // Typing must not fetch on every character. The filtered list follows the
+  // debounced value; the raw value drives the input so it stays responsive.
+  useEffect(() => {
+    const id = setTimeout(() => setDebounced(query), QUERY_DEBOUNCE_MS);
+    return () => clearTimeout(id);
+  }, [query]);
 
-  const load = useCallback(async () => {
-    const { filter: f, query: q, tag: t } = stateRef.current;
-    const params = new URLSearchParams();
-    if (f === "draft" || f === "published") params.set("status", f);
-    if (f === "en" || f === "vi") params.set("language", f);
-    if (q) params.set("query", q);
+  const filterRef = useRef({ status, language, tag, debounced });
+  useEffect(() => {
+    filterRef.current = { status, language, tag, debounced };
+  }, [status, language, tag, debounced]);
+
+  const loadList = useCallback(async () => {
+    const { status: s, language: l, tag: t, debounced: q } = filterRef.current;
+    const params = new URLSearchParams({ limit: "200" });
+    if (s) params.set("status", s);
+    if (l) params.set("language", l);
     if (t) params.set("tag", t);
-    params.set("limit", "200");
+    if (q) params.set("query", q);
     try {
-      const [full, filtered] = await Promise.all([
-        get(`/api/treasures?limit=1000`),
-        get(`/api/treasures?${params.toString()}`),
-      ]);
-      setAllRows(full.treasures);
-      setRows(filtered.treasures);
+      setRows((await get(`/api/treasures?${params.toString()}`)).treasures);
       setError(null);
-      // Chips come from the server so a tag added by an agent shows up here
-      // without a reload, and the counts stay honest.
-      get("/api/treasure-tags").then((r) => setTags(r.tags || [])).catch(() => {});
     } catch (e) {
-      setError(String(e.message || e));
+      setError(e.detail || e.message || String(e));
     }
   }, []);
 
-  useEffect(() => { load(); }, [load, filter, query, tag]);
-  // Live refresh: re-fetch when the backend pings over SSE (a parallel change
-  // is wiring the filestore into this same `summary-updated` feed). `live`
-  // reflects the real connection state so the label below is truthful.
-  useEffect(() => subscribe(load, setLive), [load]);
-  // One slow safety-net poll in case the SSE connection is down and silently
-  // not reconnecting — not the primary refresh path.
-  useEffect(() => {
-    const id = setInterval(load, SAFETY_POLL_MS);
-    return () => clearInterval(id);
-  }, [load]);
+  const loadBaseline = useCallback(async () => {
+    try {
+      const [all, tagList] = await Promise.all([
+        get("/api/treasures?limit=1000"),
+        get("/api/treasure-tags"),
+      ]);
+      setBaseline(all.treasures);
+      setTags(tagList.tags || []);
+    } catch {
+      /* the filtered list carries the error; the summary line can wait */
+    }
+  }, []);
 
-  const stats = useMemo(() => {
-    const list = allRows || [];
-    return {
-      total: list.length,
-      drafts: list.filter((r) => r.status === "draft").length,
-      published: list.filter((r) => r.status === "published").length,
-      en: list.filter((r) => r.language === "en").length,
-      vi: list.filter((r) => r.language === "vi").length,
-    };
-  }, [allRows]);
+  const refreshAll = useCallback(() => { loadList(); loadBaseline(); }, [loadList, loadBaseline]);
+
+  useEffect(() => { loadList(); }, [loadList, status, language, tag, debounced]);
+  useEffect(() => { loadBaseline(); }, [loadBaseline]);
+  useEffect(() => subscribe(refreshAll, setLive), [refreshAll]);
+  useEffect(() => {
+    const id = setInterval(refreshAll, SAFETY_POLL_MS);
+    return () => clearInterval(id);
+  }, [refreshAll]);
+
+  const summary = useMemo(() => {
+    const list = baseline || [];
+    return { total: list.length, published: list.filter((r) => r.status === "published").length };
+  }, [baseline]);
+
+  const sorted = useMemo(() => {
+    const list = [...(rows || [])];
+    if (sort === "title") list.sort((a, b) => (a.title || "").localeCompare(b.title || ""));
+    else if (sort === "size") list.sort((a, b) => (b.render_bytes || 0) - (a.render_bytes || 0));
+    else list.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+    return list;
+  }, [rows, sort]);
+
+  const activeCount = [status, language, tag].filter(Boolean).length;
+  const clearAll = () => { setStatus(null); setLanguage(null); setTag(null); };
+  const newCount = discoverResult
+    ? discoverResult.candidates.filter((c) => !c.already_imported).length
+    : 0;
 
   const runDiscover = async (doImport) => {
-    if (doImport) setImportBusy(true); else setDiscoverBusy(true);
+    if (doImport) setImporting(true); else setScanning(true);
     setDiscoverError(null);
     try {
       const result = await post(
         `/api/treasures/discover?do_import=${doImport ? "true" : "false"}&max_files=${DISCOVER_MAX_FILES}`);
       setDiscoverResult(result);
-      if (doImport) load(); // newly imported rows should show up immediately
+      if (doImport) refreshAll();
     } catch (e) {
-      setDiscoverError(String(e.message || e));
+      setDiscoverError(e.detail || e.message || String(e));
     } finally {
-      if (doImport) setImportBusy(false); else setDiscoverBusy(false);
+      if (doImport) setImporting(false); else setScanning(false);
     }
   };
 
-  const newCandidateCount = discoverResult
-    ? discoverResult.candidates.filter((c) => !c.already_imported).length
-    : 0;
-
-  if (error && !allRows) {
-    return <ErrorPanel message={error} onRetry={load} />;
-  }
-  if (!allRows) {
-    return <Skeleton />;
-  }
+  if (error && rows === null) return <ErrorPanel message={error} onRetry={refreshAll} />;
+  if (rows === null) return <Skeleton />;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {error && (
-        <div className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-300">
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-3 text-sm text-rose-300">
           Could not reach the API ({error}). Showing the last good data; retrying on the next update.
-        </div>
+        </p>
       )}
 
-      {/* Summary strip */}
-      <section className="fd-shell">
-        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-[color:var(--fd-hair-2)] sm:grid-cols-3 lg:grid-cols-5">
-          <StatCell label="Artifacts" value={stats.total} />
-          <StatCell label="Draft" value={stats.drafts} tone="text-zinc-300" />
-          <StatCell label="Published" value={stats.published} tone="text-emerald-400" />
-          <StatCell label="EN" value={stats.en} />
-          <StatCell label="VI" value={stats.vi} tone="text-amber-400" />
-        </div>
-      </section>
+      <LibraryHeader
+        total={summary.total}
+        published={summary.published}
+        live={live}
+        onRefresh={refreshAll}
+        onNew={() => setCreating((v) => !v)}
+        creating={creating}
+        onScan={() => runDiscover(false)}
+        scanning={scanning}
+      />
 
-      {/* Controls: filter chips + search + refresh + discover */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Chip active={filter === "all"} onClick={() => setFilter("all")} count={stats.total}>All</Chip>
-          <Chip active={filter === "draft"} onClick={() => setFilter("draft")} count={stats.drafts}>Draft</Chip>
-          <Chip active={filter === "published"} onClick={() => setFilter("published")} count={stats.published}>Published</Chip>
-          <Chip active={filter === "en"} onClick={() => setFilter("en")} count={stats.en}>EN</Chip>
-          <Chip active={filter === "vi"} onClick={() => setFilter("vi")} count={stats.vi}>VI</Chip>
-          {/* Tag chips sit alongside the status/language ones because they
-              compose with them server-side: tag AND status are separate WHERE
-              clauses, so picking both narrows rather than replaces. Clicking an
-              active tag clears it. */}
-          {tags.length > 0 && <span className="mx-1 text-zinc-700">|</span>}
-          {tags.map((t) => (
-            <Chip
-              key={t.tag}
-              active={tag === t.tag}
-              onClick={() => setTag(tag === t.tag ? null : t.tag)}
-              count={t.count}
-            >
-              #{t.tag}
-            </Chip>
-          ))}
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="search title / slug…"
-            className="rounded-full border border-[color:var(--fd-hair-2)] bg-transparent px-3 py-1 font-mono text-[10px] text-zinc-300 placeholder:text-zinc-600 focus:border-emerald-500/40 focus:outline-none"
-          />
-        </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="inline-flex items-center gap-1.5 font-mono text-[9px] uppercase tracking-wide text-zinc-500">
-            <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-live-pulse bg-emerald-400" : "bg-zinc-600"}`} />
-            {live ? "live" : "auto 60s"}
-          </span>
-          <button
-            type="button"
-            onClick={() => setCreating((v) => !v)}
-            aria-expanded={creating}
-            className="fdx-button"
-            data-variant={creating ? "secondary" : "primary"}
-            data-size="sm"
-          >
-            <span>{creating ? "Close" : "New treasure"}</span>
-          </button>
-          <button
-            type="button"
-            onClick={load}
-            className="rounded-full border border-[color:var(--fd-hair-2)] px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/5"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={() => runDiscover(false)}
-            disabled={discoverBusy}
-            className="rounded-full border border-[color:var(--fd-hair-2)] px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/5 disabled:pointer-events-none disabled:opacity-50"
-          >
-            {discoverBusy ? "Scanning…" : "Discover drafts"}
-          </button>
-          {discoverResult && (
-            <button
-              type="button"
-              onClick={() => runDiscover(true)}
-              disabled={importBusy || newCandidateCount === 0}
-              className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-mono text-[10px] uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-40"
-            >
-              {importBusy ? "Importing…" : `Import ${newCandidateCount} new`}
-            </button>
-          )}
-        </div>
-      </div>
+      <LibrarySearch
+        query={query} onQuery={setQuery}
+        status={status} onStatus={setStatus}
+        language={language} onLanguage={setLanguage}
+        tag={tag} onTag={setTag} tags={tags}
+        sort={sort} onSort={setSort}
+        activeCount={activeCount} onClearAll={clearAll}
+      />
 
       {creating && (
         <CreatePanel
           onCancel={() => setCreating(false)}
-          onCreated={(row) => {
-            setCreating(false);
-            load();
-            onOpenTreasure?.(row.id);
-          }}
+          onCreated={(row) => { setCreating(false); refreshAll(); onOpenTreasure?.(row.id); }}
         />
       )}
 
       {discoverError && (
-        <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-2.5 text-[11px] text-rose-300">
-          Discover failed: {discoverError}
-        </div>
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/5 px-4 py-2.5 text-[13px] text-rose-300">
+          Scan failed: {discoverError}
+        </p>
       )}
-
       {discoverResult && (
-        <div className="rounded-xl border border-[color:var(--fd-hair-2)] bg-zinc-500/[0.03] px-4 py-2.5 text-[10px] text-zinc-400">
-          <span className="font-mono text-zinc-300">{discoverResult.candidates.length}</span> candidate
-          {discoverResult.candidates.length === 1 ? "" : "s"} found
-          <span className="px-1.5 text-zinc-700">·</span>
-          <span className="font-mono text-zinc-300">
-            {discoverResult.candidates.length - newCandidateCount}
-          </span> already imported
-          <span className="px-1.5 text-zinc-700">·</span>
-          scanned <span className="font-mono text-zinc-300">{discoverResult.scanned}</span> files
-          <span className="px-1.5 text-zinc-700">·</span>
-          bounds: max_files={discoverResult.bounds?.max_files},
-          min_bytes={discoverResult.bounds?.min_bytes}
-          {discoverResult.bounds?.max_age_days != null && `, max_age_days=${discoverResult.bounds.max_age_days}`}
-          {discoverResult.skipped && (
-            <>
-              <span className="px-1.5 text-zinc-700">·</span>
-              skipped: {Object.entries(discoverResult.skipped).map(([k, v]) => `${k}=${v}`).join(", ")}
-            </>
-          )}
-        </div>
+        <DiscoverResult result={discoverResult} newCount={newCount}
+                        importing={importing} onImport={() => runDiscover(true)} />
       )}
 
-      {/* List */}
-      <section className="fd-shell">
-        <div className="fd-core overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="font-mono text-[9px] uppercase text-zinc-500">
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 pl-5 text-left font-medium">Title</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-left font-medium">Kind</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-left font-medium">Status</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-left font-medium">Lang</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Ver</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Size</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Updated</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Source</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-zinc-500">
-                    No artifacts match this filter.
-                  </td>
-                </tr>
-              )}
-              {rows.map((r) => (
-                <tr
-                  key={r.id}
-                  role="link"
-                  tabIndex={0}
-                  onClick={() => onOpenTreasure?.(r.id)}
-                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpenTreasure?.(r.id); } }}
-                  className="cursor-pointer border-b border-[color:var(--fd-hair-2)] transition-colors last:border-b-0 hover:bg-zinc-500/5"
-                >
-                  <td className="px-4 py-2.5 pl-5 align-top">
-                    <span className="text-[11px] font-semibold text-zinc-100">{r.title}</span>
-                    <div className="font-mono text-[9px] text-zinc-600">{r.slug}</div>
-                  </td>
-                  <td className="px-4 py-2.5 align-top text-[11px] text-zinc-400">{r.kind}</td>
-                  <td className="px-4 py-2.5 align-top"><StatusBadge status={r.status} /></td>
-                  <td className="px-4 py-2.5 align-top"><LanguageBadge language={r.language} /></td>
-                  <td className="px-4 py-2.5 text-right align-top font-mono text-[11px] text-zinc-300">v{r.version}</td>
-                  <td className="px-4 py-2.5 text-right align-top font-mono text-[11px] text-zinc-400">{kb(r.render_bytes)}</td>
-                  <td className="px-4 py-2.5 text-right align-top font-mono text-[11px] text-zinc-400">{relTime(r.updated_at)}</td>
-                  <td className="px-4 py-2.5 text-right align-top">
-                    <ProvenanceButton originId={r.origin_id} onOpenSession={onOpenSession} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      <section className="overflow-hidden rounded-xl border border-[color:var(--fd-hair-2)]">
+        <div className="hidden grid-cols-[minmax(0,1fr)_150px_190px_28px] gap-3 border-b border-[color:var(--fd-hair-2)] px-5 py-2.5 text-[12px] font-semibold tracking-[0.04em] text-zinc-500 md:grid">
+          <span>Title / source</span>
+          <span>Status</span>
+          <span>Updated</span>
+          <span />
         </div>
+
+        {sorted.length === 0 ? (
+          <EmptyState filtered={activeCount > 0 || debounced.length > 0} onClear={clearAll} />
+        ) : (
+          <>
+            <div className="hidden md:block">
+              {sorted.map((r) => (
+                <TreasureListRow key={r.id} row={r} onOpen={onOpenTreasure} />
+              ))}
+            </div>
+            <div className="md:hidden">
+              {sorted.map((r) => (
+                <TreasureMobileCard key={r.id} row={r} onOpen={onOpenTreasure} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {sorted.length > 0 && (
+          <div className="flex items-center justify-between gap-3 border-t border-[color:var(--fd-hair-2)] px-5 py-3">
+            <span className="font-mono text-[12px] text-zinc-500">
+              {sorted.length} of {summary.total}
+            </span>
+            {onOpenSession && (
+              <span className="text-[12px] text-zinc-600">Open a row to see its provenance</span>
+            )}
+          </div>
+        )}
       </section>
 
-      <div className="text-[9px] leading-[1.5] text-zinc-500">
-        Artifacts wrapped via the Treasures MCP or harvested by Discover from ~/.claude/projects.
+      <p className="text-[12px] leading-relaxed text-zinc-500">
         Markdown stays the source of truth — editing writes a new version rather than mutating the
         rendered HTML. Published copies are read-only here; claude.ai has no update API.
-      </div>
+      </p>
     </div>
   );
 }
