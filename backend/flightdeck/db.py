@@ -115,6 +115,63 @@ class _PgConn:
         return getattr(self._c, name)
 
 
+class _PgWriteConn(_PgConn):
+    """The long-lived write connection, able to replace itself once.
+
+    Reads survive Postgres restarting because they come from a pool that discards
+    dead connections. Writes did not: `open_write()` handed back one raw
+    connection held for the whole process lifetime by `Runtime.write_conn` and
+    `app.state.write_conn`. When Postgres was shut down (`AdminShutdown`), that
+    connection died and stayed dead — 2,608 `OperationalError: the connection is
+    closed` over 26 hours, freezing ingest and breaking the missions/hub write
+    endpoints, while the process stayed alive so systemd reported it healthy.
+
+    Self-healing here rather than a size-1 write pool because ownership is spread
+    across ten-plus call sites (`app.state.write_conn` in two routers, three
+    `*_store.init()` calls, `Runtime`): a pool would mean a checkout/return
+    protocol at every one of them, where this changes none.
+
+    Retry-once is safe because the ledger is rebuildable — messages / files /
+    tool_calls are UNLOGGED for exactly that reason, and the periodic sweep
+    re-ingests. A transaction lost with the dead connection was already lost.
+    """
+
+    def _dead_connection_errors(self):
+        # Resolved lazily to keep psycopg an optional import (SQLite-only
+        # installs never load it). AdminShutdown — what a Postgres shutdown
+        # raises — is an OperationalError; InterfaceError is a separate branch
+        # covering "connection already closed". ProgrammingError and
+        # IntegrityError are deliberately NOT here: retrying a genuine SQL fault
+        # would hide a bug and run the statement twice.
+        import psycopg
+        return (psycopg.OperationalError, psycopg.InterfaceError)
+
+    def _reconnect(self):
+        try:
+            self._c.close()
+        except Exception:
+            pass   # already dead; releasing it is best-effort
+        self._c = _pg_connect(autocommit=False)
+
+    def _retry_once(self, op):
+        try:
+            return op()
+        except self._dead_connection_errors():
+            self._reconnect()
+            # Deliberately not a loop: a server that is genuinely down must
+            # surface the error to the caller instead of spinning on it.
+            return op()
+
+    def execute(self, sql, params=()):
+        return self._retry_once(lambda: _PgConn.execute(self, sql, params))
+
+    def executescript(self, script):
+        return self._retry_once(lambda: _PgConn.executescript(self, script))
+
+    def commit(self):
+        return self._retry_once(lambda: _PgConn.commit(self))
+
+
 # --- schemas -----------------------------------------------------------------
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
@@ -256,7 +313,9 @@ def open_write(db_path: str):
     PostgreSQL: a dedicated connection (explicit commit). SQLite: WAL + bounded
     busy-timeout so readers never block on the writer."""
     if is_postgres():
-        return _PgConn(_pg_connect(autocommit=False))
+        # _PgWriteConn, not _PgConn: this connection outlives Postgres restarts,
+        # so it has to be able to replace itself. See its docstring.
+        return _PgWriteConn(_pg_connect(autocommit=False))
     conn = sqlite3.connect(db_path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

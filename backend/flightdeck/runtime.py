@@ -34,6 +34,79 @@ DEBOUNCE_SECONDS = 2.0
 # drive a re-ingest.
 TREASURES_DEBOUNCE_SECONDS = 1.0
 
+# Watchdog event types that mean the bytes on disk changed.
+#
+# An ALLOWLIST, deliberately, not a denylist of the read-ish types. The watchers
+# used to filter by FILENAME only (`p.endswith(".jsonl")`), so `opened` and
+# `closed_no_write` — what a READ emits — drove re-ingest. Since `build_snapshot`
+# reads the very tree it watches (metrics.sessions -> transcript.subagent_usage
+# -> open()), the watcher fed itself: 167-423 events/s measured with zero HTTP
+# requests and zero modified events, against 0.15/s with the service stopped.
+# A denylist would let the next event type watchdog adds back into that loop.
+#
+# `closed` (close-after-write) is excluded even though it does follow a real
+# write: `modified` already covers that write, and taking both would fire the
+# debounce twice per append.
+_CONTENT_EVENTS = frozenset({"modified", "created", "moved", "deleted"})
+
+
+def is_content_event(event) -> bool:
+    """True only for events that mean new bytes, never for a read."""
+    return getattr(event, "event_type", None) in _CONTENT_EVENTS
+
+
+class Debouncer:
+    """Trailing-edge debounce backed by ONE long-lived thread.
+
+    Replaces a `threading.Timer` per event. `Timer.__init__` constructs a Thread
+    and `.start()` spawns a real OS thread, so cancelling the previous timer
+    never undid the spawn — the watcher created one thread per filesystem event.
+    The logged thread numbers went 1,427,661 -> 8,283,284 in 25.4 hours (~78/s),
+    costing ~14.5% of a core continuously. One worker waiting on an Event costs
+    one thread for the process lifetime, whatever the event rate.
+
+    `poke()` is what a watcher calls; the callback runs once the pokes stop for
+    `delay` seconds. Same trailing-edge semantics as the timer version, and the
+    same wait-with-timeout shape the poll/reingest loops below already use.
+    """
+
+    def __init__(self, delay: float, fn, name: str):
+        self._delay = delay
+        self._fn = fn
+        self._wake = threading.Event()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._run, name=name, daemon=True)
+        self._thread.start()
+
+    def poke(self) -> None:
+        self._wake.set()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._wake.set()   # release the worker if it is parked on wait()
+
+    def _run(self) -> None:
+        while not self._stop.is_set():
+            self._wake.wait()                 # park until the first event
+            if self._stop.is_set():
+                return
+            # Extend the quiet period for as long as events keep arriving, so the
+            # callback is measured from the LAST event, not the first.
+            while True:
+                self._wake.clear()
+                if self._stop.wait(self._delay):
+                    return
+                if not self._wake.is_set():
+                    break
+            try:
+                self._fn()
+            except Exception:
+                # The worker must outlive a failing callback. A dead debounce
+                # thread would freeze the snapshot with no error anywhere — the
+                # same silent-failure shape as a write connection that never
+                # reconnects.
+                traceback.print_exc()
+
 
 def since(range_key: str):
     """Translate a UI range into an ISO date cutoff (calendar-based). None = all."""
@@ -72,17 +145,15 @@ class Runtime:
         # concurrently on it.
         self.write_conn = write_conn
         self.lock = threading.Lock()
-        self.debounce_lock = threading.Lock()
-        self.debounce_timer: dict = {"timer": None}
         # Changed .jsonl paths collected by the watcher between debounced flushes,
         # so a flush ingests only what changed (delta) instead of re-globbing.
         self.pending_paths: set = set()
         self.pending_lock = threading.Lock()
-        # Debounce state for the Treasures filestore watch (separate from the
-        # transcript watch above — it only ever fires an SSE ping, never an
-        # ingest, so it needs none of the pending_paths delta bookkeeping).
-        self.treasures_debounce_lock = threading.Lock()
-        self.treasures_debounce_timer: dict = {"timer": None}
+        # Debouncers are created by `lifespan` (they need the callbacks, which
+        # close over the event loop) and stopped on shutdown. One thread each,
+        # not one per filesystem event — see Debouncer.
+        self.reingest_debounce: Debouncer | None = None
+        self.treasures_debounce: Debouncer | None = None
 
     def read_conn(self):
         # Fresh short-lived connection, owned by exactly one thread; caller
@@ -177,15 +248,8 @@ async def lifespan(app: FastAPI):
             rt.reingest()              # safety fallback (no paths captured)
         loop.call_soon_threadsafe(_updated.set)
 
-    def _schedule_reingest():
-        with rt.debounce_lock:
-            existing = rt.debounce_timer["timer"]
-            if existing is not None:
-                existing.cancel()
-            timer = threading.Timer(DEBOUNCE_SECONDS, _debounced_reingest)
-            timer.daemon = True
-            rt.debounce_timer["timer"] = timer
-            timer.start()
+    rt.reingest_debounce = Debouncer(
+        DEBOUNCE_SECONDS, _debounced_reingest, name="fd-reingest-debounce")
 
     # Watcher can be disabled (TOKEN_AUDIT_WATCH=0) to rely on the periodic
     # sweep + manual /api/reingest only - useful when the mount is slow and
@@ -198,11 +262,18 @@ async def lifespan(app: FastAPI):
 
             class Handler(FileSystemEventHandler):
                 def on_any_event(self, event):
+                    # The event TYPE gate comes first, and it is the whole fix:
+                    # this handler used to accept any event on a `.jsonl` path,
+                    # so FlightDeck's own reads of the tree (build_snapshot ->
+                    # metrics.sessions -> transcript.subagent_usage -> open())
+                    # re-triggered ingest, which read again. A closed loop.
+                    if not is_content_event(event):
+                        return
                     p = str(event.src_path)
                     if p.endswith(".jsonl"):
                         with rt.pending_lock:
                             rt.pending_paths.add(p)
-                        _schedule_reingest()
+                        rt.reingest_debounce.poke()
 
             observer = Observer()
             observer.schedule(Handler(), rt.cfg["projects_dir"], recursive=True)
@@ -239,15 +310,9 @@ async def lifespan(app: FastAPI):
                     print(f"[treasures] origin watch rebuild failed: {e}")
             loop.call_soon_threadsafe(_updated.set)
 
-        def _schedule_treasures_ping():
-            with rt.treasures_debounce_lock:
-                existing = rt.treasures_debounce_timer["timer"]
-                if existing is not None:
-                    existing.cancel()
-                timer = threading.Timer(TREASURES_DEBOUNCE_SECONDS, _treasures_ping)
-                timer.daemon = True
-                rt.treasures_debounce_timer["timer"] = timer
-                timer.start()
+        rt.treasures_debounce = Debouncer(
+            TREASURES_DEBOUNCE_SECONDS, _treasures_ping,
+            name="fd-treasures-debounce")
 
         # --- origin watch -------------------------------------------------
         # Also watch the SOURCE documents artifacts were wrapped from, so a
@@ -281,9 +346,16 @@ async def lifespan(app: FastAPI):
 
         class OriginHandler(_Handler):
             def on_any_event(self, event):
+                # Same gate as the transcript watch. This one matters twice over:
+                # `_refreshable_origins()` reads the origin documents to compute
+                # staleness, and the origin watch is aimed at their PARENT
+                # directories — so an unfiltered handler turns every staleness
+                # check into another ping.
+                if not is_content_event(event):
+                    return
                 if str(getattr(event, "src_path", "")) in origin_watch["paths"] \
                    or str(getattr(event, "dest_path", "")) in origin_watch["paths"]:
-                    _schedule_treasures_ping()
+                    rt.treasures_debounce.poke()
 
         origin_handler = OriginHandler()
         origin_watches: list = []
@@ -313,7 +385,9 @@ async def lifespan(app: FastAPI):
 
         class TreasuresHandler(_Handler):
             def on_any_event(self, event):
-                _schedule_treasures_ping()
+                if not is_content_event(event):
+                    return
+                rt.treasures_debounce.poke()
 
         treasures_observer = _Observer()
         treasures_observer.schedule(TreasuresHandler(), str(froot), recursive=True)
@@ -370,14 +444,9 @@ async def lifespan(app: FastAPI):
         yield
     finally:
         poll_stop.set()
-        with rt.debounce_lock:
-            existing = rt.debounce_timer["timer"]
-            if existing is not None:
-                existing.cancel()
-        with rt.treasures_debounce_lock:
-            existing = rt.treasures_debounce_timer["timer"]
-            if existing is not None:
-                existing.cancel()
+        for d in (rt.reingest_debounce, rt.treasures_debounce):
+            if d is not None:
+                d.stop()
         if observer is not None:
             observer.stop()
             observer.join(timeout=2)
