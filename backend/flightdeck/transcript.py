@@ -272,76 +272,141 @@ def _dispatch_text(turns) -> str:
     return ""
 
 
-def subagent_usage(projects_dir: str, session_id: str) -> list[dict]:
+def subagent_files_by_session(projects_dir: str) -> dict[str, list[str]]:
+    """Every subagent transcript in the tree, grouped by parent session, in ONE
+    tree walk.
+
+    `find_subagent_files` runs a recursive `**` glob per session, so the sessions
+    list paid for 100 walks of the whole tree — 202ms measured, against 3ms for a
+    single walk that finds all 285 files. Four snapshot ranges made that 808ms
+    per rebuild, for a result that is identical every time.
+
+    The session id is the directory two levels above `subagents/`, which is the
+    same layout `find_subagent_files` encodes; workflow agents nest deeper under
+    `subagents/workflows/<wf_id>/` and still resolve to the same parent.
+    """
+    root = os.path.expanduser(projects_dir)
+    out: dict[str, list[str]] = {}
+    for path in glob.glob(os.path.join(root, "**", "subagents", "**",
+                                       "agent-*.jsonl"), recursive=True):
+        # .../<session_id>/subagents/[workflows/<wf>/]agent-x.jsonl
+        parts = path.split(os.sep)
+        try:
+            sid = parts[parts.index("subagents") - 1]
+        except (ValueError, IndexError):
+            continue
+        out.setdefault(sid, []).append(path)
+    for paths in out.values():
+        paths.sort()
+    return out
+
+
+# Parsed subagent files, keyed by path and invalidated by (mtime_ns, size). A
+# finished agent's transcript never changes again, so re-reading it on every
+# snapshot was 173ms of pure repetition per range. Bounded by the number of agent
+# files on disk, and an entry is replaced rather than added when a file changes.
+_SUBAGENT_CACHE: dict[str, tuple[tuple[int, int], dict]] = {}
+
+
+def _parse_subagent_file(path: str) -> dict | None:
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    stamp = (st.st_mtime_ns, st.st_size)
+    hit = _SUBAGENT_CACHE.get(path)
+    if hit is not None and hit[0] == stamp:
+        return hit[1]
+    parsed = _read_subagent_file(path)
+    if parsed is not None:
+        _SUBAGENT_CACHE[path] = (stamp, parsed)
+    return parsed
+
+
+def _read_subagent_file(path: str) -> dict | None:
+    """Parse one subagent transcript. None when it cannot be opened."""
+    agent_id = os.path.basename(path)[len("agent-"):-len(".jsonl")]
+    agent_type = model = first_ts = last_ts = dispatch = None
+    turns = 0
+    comp = {"input_tokens": 0, "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0, "output_tokens": 0}
+    try:
+        fh = open(path, "r", encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    with fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if agent_type is None and obj.get("attributionAgent"):
+                agent_type = obj["attributionAgent"]
+            ts = obj.get("timestamp")
+            if ts:
+                if first_ts is None or ts < first_ts:
+                    first_ts = ts
+                if last_ts is None or ts > last_ts:
+                    last_ts = ts
+            if obj.get("type") != "assistant":
+                if dispatch is None and obj.get("type") == "user":
+                    raw = (obj.get("message") or {}).get("content")
+                    if isinstance(raw, str):
+                        txt = raw
+                    elif isinstance(raw, list):
+                        txt = " ".join(
+                            b.get("text", "") for b in raw
+                            if isinstance(b, dict) and b.get("type") == "text")
+                    else:
+                        txt = ""
+                    if txt and not _is_meta_text(txt):
+                        dispatch = txt[:300]
+                continue
+            turns += 1
+            msg = obj.get("message") or {}
+            model = msg.get("model") or model
+            u = msg.get("usage") or {}
+            for k in comp:
+                comp[k] += u.get(k, 0)
+    return {
+        "agent_id": agent_id,
+        "agent_type": agent_type,
+        "model": model,
+        "turns": turns,
+        "input_tokens": comp["input_tokens"],
+        "cache_read": comp["cache_read_input_tokens"],
+        "cache_create_5m": comp["cache_creation_input_tokens"],
+        "cache_create_1h": 0,
+        "output": comp["output_tokens"],
+        "first_ts": first_ts,
+        "last_ts": last_ts,
+        "dispatch": dispatch or "",
+    }
+
+
+def subagent_usage(projects_dir: str, session_id: str,
+                   files: list[str] | None = None) -> list[dict]:
     """Lightweight per-subagent stats for the sessions LIST (no full turn
     normalization): usage components, turn count, agent type, dispatch prompt.
     Cost is computed by the caller (metrics) so this stays pricing-free.
 
-    These rows are a *breakdown* of the parent — the SQLite ledger already
-    attributes subagent usage to the parent session_id, so the parent's totals
-    already include them."""
+    These rows are a *breakdown* of the parent — the ledger already attributes
+    subagent usage to the parent session_id, so the parent's totals include them.
+
+    `files` lets a caller that already walked the tree (see
+    `subagent_files_by_session`) skip this session's own recursive glob. Passing
+    an empty list means "this session has none", which is why the default is None
+    rather than [].
+    """
+    paths = find_subagent_files(projects_dir, session_id) if files is None else files
     out = []
-    for sp in find_subagent_files(projects_dir, session_id):
-        agent_id = os.path.basename(sp)[len("agent-"):-len(".jsonl")]
-        agent_type = model = first_ts = last_ts = dispatch = None
-        turns = 0
-        comp = {"input_tokens": 0, "cache_read_input_tokens": 0,
-                "cache_creation_input_tokens": 0, "output_tokens": 0}
-        try:
-            fh = open(sp, "r", encoding="utf-8", errors="replace")
-        except OSError:
-            continue
-        with fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if agent_type is None and obj.get("attributionAgent"):
-                    agent_type = obj["attributionAgent"]
-                ts = obj.get("timestamp")
-                if ts:
-                    if first_ts is None or ts < first_ts:
-                        first_ts = ts
-                    if last_ts is None or ts > last_ts:
-                        last_ts = ts
-                if obj.get("type") != "assistant":
-                    if dispatch is None and obj.get("type") == "user":
-                        raw = (obj.get("message") or {}).get("content")
-                        if isinstance(raw, str):
-                            txt = raw
-                        elif isinstance(raw, list):
-                            txt = " ".join(
-                                b.get("text", "") for b in raw
-                                if isinstance(b, dict) and b.get("type") == "text")
-                        else:
-                            txt = ""
-                        if txt and not _is_meta_text(txt):
-                            dispatch = txt[:300]
-                    continue
-                turns += 1
-                msg = obj.get("message") or {}
-                model = msg.get("model") or model
-                u = msg.get("usage") or {}
-                for k in comp:
-                    comp[k] += u.get(k, 0)
-        out.append({
-            "agent_id": agent_id,
-            "agent_type": agent_type,
-            "model": model,
-            "turns": turns,
-            "input_tokens": comp["input_tokens"],
-            "cache_read": comp["cache_read_input_tokens"],
-            "cache_create_5m": comp["cache_creation_input_tokens"],
-            "cache_create_1h": 0,
-            "output": comp["output_tokens"],
-            "first_ts": first_ts,
-            "last_ts": last_ts,
-            "dispatch": dispatch or "",
-        })
+    for sp in paths:
+        parsed = _parse_subagent_file(sp)
+        if parsed is not None:
+            out.append(parsed)
     return out
 
 

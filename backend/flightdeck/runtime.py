@@ -167,17 +167,24 @@ class Runtime:
         # / GIL contention with the watcher). One read connection for all computes.
         c = self.read_conn()
         try:
+            # ONE aggregation for all four ranges. The ranges nest
+            # (today < 7d < 30d < all), so the widest grain contains every
+            # narrower one and `slice_grain` filters it in memory — 12 full-table
+            # scans become one GROUP BY. See metrics.rollup for why filtering a
+            # whole (day, model, session) cell is exact rather than approximate.
+            grain = metrics.rollup(c)
             snap = {}
             for rng in _RANGES:
                 s = since(rng)
                 snap[rng] = {
                     "summary": metrics.summary(
                         c, self.cfg["subscription_monthly_usd"],
-                        self.app.state.rtk_savings, since=s),
-                    "daily": metrics.daily(c, since=s),
+                        self.app.state.rtk_savings, since=s, grain=grain),
+                    "daily": metrics.daily(c, since=s, grain=grain),
                     "sessions": metrics.sessions(
-                        c, 100, 0, since=s, projects_dir=self.cfg["projects_dir"]),
-                    "by_model": metrics.by_model(c, since=s),
+                        c, 100, 0, since=s, projects_dir=self.cfg["projects_dir"],
+                        grain=grain),
+                    "by_model": metrics.by_model(c, since=s, grain=grain),
                 }
             return snap
         finally:
