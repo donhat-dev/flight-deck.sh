@@ -1,0 +1,130 @@
+/* ============================================================
+   Radar — the blip index.
+
+   composition: screen
+
+   The one view that is a working surface rather than something to read: facets on
+   the left, rows on the right. Its anchor is the table, because the question here
+   is "which blips need attention" and the answer is a set of rows, not a shape.
+
+   The facet counts are derived in the component from the same rows the table
+   renders, so this sheet never has to make a number look authoritative that the
+   table could contradict.
+
+   Depth: none. A table lifted off the page reads as a card, and a card invites you
+   to read it whole rather than scan it.
+   ============================================================ */
+
+.rdr-index, .rdr-list {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rdr-index-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+  padding: 1.35rem var(--rdr-gutter) 1.1rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+
+.rdr-index-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 16rem minmax(0, 1fr);
+  gap: 1.25rem;
+  padding: 1.1rem var(--rdr-gutter) 1.5rem;
+  min-height: 0;
+}
+
+/* ---- facets ------------------------------------------------------------ */
+
+.rdr-facets { display: flex; flex-direction: column; gap: 0.9rem; }
+.rdr-facet { border: 1px solid var(--rdr-ring-edge); background: var(--fdx-surface-raised); }
+.rdr-facet .rdr-eyebrow { padding: 0.6rem 0.8rem 0.5rem; border-bottom: 1px solid var(--rdr-ring-edge); }
+.rdr-facet-list { list-style: none; margin: 0; padding: 0.35rem; }
+.rdr-facet-key {
+  width: 100%;
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.5rem;
+  font: inherit;
+  font-size: 0.75rem;
+  color: var(--fdx-text);
+  cursor: pointer;
+  text-align: left;
+}
+.rdr-facet-key[aria-pressed="true"] {
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+  font-weight: 700;
+}
+.rdr-facet-key:disabled { cursor: default; opacity: 0.55; }
+.rdr-facet-name { flex: 1 1 auto; min-width: 0; }
+.rdr-facet-count { font-family: var(--fdx-font-mono); font-size: 0.6875rem; color: var(--fdx-text-muted); }
+.rdr-facet-key[aria-pressed="true"] .rdr-facet-count { color: var(--fdx-control-label); }
+
+/* ---- the table --------------------------------------------------------- */
+
+/* composition: anchor
+   The rows are what this view is for; the facets only narrow them. */
+.rdr-table-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface-raised);
+  min-width: 0;
+  overflow: auto;
+}
+.rdr-table-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.7rem 0.9rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+
+.rdr-table { width: 100%; border-collapse: collapse; }
+.rdr-table th {
+  position: sticky;
+  top: 0;
+  background: var(--fdx-surface);
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+  text-align: left;
+}
+.rdr-table td {
+  padding: 0.6rem 0.65rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+  font-size: 0.8125rem;
+  vertical-align: middle;
+}
+.rdr-table [data-col="num"], .rdr-table [data-col="lastMove"] {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+.rdr-table [data-col="num"] { width: 3rem; }
+.rdr-table [data-col="ring"] { width: 6rem; }
+.rdr-table [data-col="lastMove"] { width: 8rem; }
+.rdr-table [data-col="evidenceAgeDays"] { width: 5rem; }
+.rdr-table [data-col="quadrant"], .rdr-table [data-col="why"] { color: var(--fdx-text-muted); }
+
+.rdr-row { cursor: pointer; }
+.rdr-row:hover { background: var(--fdx-surface); }
+/* Staleness is a caution, never a failure, so it dims the row and colours only the
+   age — it does not borrow the critical tone. */
+.rdr-row[data-stale="true"] { opacity: 0.62; }
+.rdr-fresh { font-family: var(--fdx-font-mono); font-size: 0.6875rem; color: var(--fdx-text-muted); }
+.rdr-fresh[data-stale="true"] { color: var(--fdx-warning); font-weight: 700; }

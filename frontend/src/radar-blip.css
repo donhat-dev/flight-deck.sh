@@ -1,0 +1,217 @@
+/* ============================================================
+   Radar — the blip-focus view.
+
+   composition: screen
+
+   Anchor order here is deliberate and inverted from the full view: the summary
+   panel first, the quadrant second, everything else after. A reader who has
+   already clicked a blip knows where it sits; what they came for is what it is and
+   why it holds that ring. So the panel gets the width (roughly 3:2 over the
+   radar) and the only block lift on screen, while the quadrant keeps the quiet
+   rings of the full view.
+
+   The panel runs taller than its content on purpose. Filling that room with small
+   metadata would trade the one strong region for several weak ones — the opposite
+   of what the anchor order asks for — so the gap is held open for what lands here
+   later.
+
+   Depth: none of it rationed. The panel's lift comes from `--fdx-shadow-block`,
+   which is ground material.
+   ============================================================ */
+
+.rdr-focus {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rdr-focus-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.25rem;
+  padding: 1.25rem var(--rdr-gutter) 1rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+.rdr-focus-title { flex: 1 1 auto; }
+
+.rdr-focus-body {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(20rem, 35rem) minmax(24rem, 1fr);
+  gap: 1.25rem;
+  padding: 1.25rem var(--rdr-gutter);
+  min-height: 0;
+}
+
+/* ---- the quadrant, subordinate ---------------------------------------- */
+
+.rdr-quadrant {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface-raised);
+  min-width: 0;
+}
+.rdr-quadrant-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+  flex-wrap: wrap;
+}
+.rdr-quadrant-stage { flex: 1 1 0; display: grid; place-items: center; padding: 0.5rem; min-height: 0; }
+.rdr-quadrant-stage .rdr-canvas { max-height: 100%; }
+
+/* ---- the panel, the anchor -------------------------------------------- */
+
+/* composition: anchor
+   The one region carrying block lift, the largest column, and the only place on
+   this view where prose is set at reading size. */
+.rdr-panel {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface-raised);
+  box-shadow: var(--fdx-shadow-block);
+  min-width: 0;
+  /* The panel is intentionally taller than its content, but a blip with a long
+     move history still has to be readable without growing the page. */
+  overflow: auto;
+}
+
+.rdr-tabs { display: flex; border-bottom: 1px solid var(--rdr-ring-edge); background: var(--fdx-surface); }
+.rdr-tab {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  padding: 0.8rem 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+  cursor: pointer;
+}
+.rdr-tab[aria-selected="true"] { color: var(--fdx-text); border-bottom-color: var(--fdx-orange); }
+
+.rdr-panel-head { padding: 1.25rem 1.4rem 1rem; border-bottom: 1px solid var(--rdr-ring-edge); }
+.rdr-blip-name {
+  margin: 0.55rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  font-size: 1.875rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.rdr-blip-badge {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.75rem;
+  color: var(--fdx-control-label);
+  background: var(--rdr-q-platforms);
+}
+.rdr-blip-badge[data-quadrant="techniques"] { background: var(--rdr-q-techniques); }
+.rdr-blip-badge[data-quadrant="tools"] { background: var(--rdr-q-tools); color: var(--fdx-depth-ink); }
+.rdr-blip-badge[data-quadrant="lang"] { background: var(--rdr-q-lang); }
+
+.rdr-stale {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fdx-warning);
+}
+
+.rdr-block { padding: 1rem 1.4rem 1.1rem; border-top: 1px solid var(--rdr-ring-edge); }
+.rdr-block:first-of-type { border-top: 0; }
+
+/* The lede is the largest run of prose on the page, which is what makes the panel
+   read as the anchor rather than merely the widest column. */
+.rdr-lede-block { padding-block: 0.35rem 1.4rem; }
+.rdr-lede { margin: 0; font-size: 1.125rem; font-weight: 600; line-height: 1.6; }
+
+/* ---- position track --------------------------------------------------- */
+
+.rdr-track { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
+.rdr-track-seg { flex: 1 1 0; display: flex; flex-direction: column; gap: 0.4rem; }
+.rdr-track-bar { height: 0.1875rem; background: var(--fdx-depth-muted); }
+.rdr-track-label {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.rdr-track-seg[aria-current="true"] .rdr-track-bar { height: 0.4375rem; background: var(--fdx-orange); }
+.rdr-track-seg[aria-current="true"] .rdr-track-label { color: var(--fdx-orange); font-weight: 700; }
+
+/* ---- evidence --------------------------------------------------------- */
+
+.rdr-ev-list { list-style: none; margin: 0.6rem 0 0; padding: 0; }
+.rdr-ev { display: flex; align-items: center; gap: 0.65rem; padding: 0.32rem 0; }
+.rdr-ev-mark { width: 0.75rem; height: 0.75rem; flex: none; fill: var(--fdx-pink); }
+.rdr-ev-title { flex: 1 1 auto; font-size: 0.8125rem; min-width: 0; }
+.rdr-ev-kind, .rdr-ev-date {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  color: var(--fdx-text-muted);
+}
+
+/* ---- move history ----------------------------------------------------- */
+
+.rdr-moves { list-style: none; margin: 0; padding: 0; }
+.rdr-move { display: flex; gap: 0.8rem; }
+.rdr-move-rail { display: flex; flex-direction: column; align-items: center; width: 0.875rem; padding-top: 0.4rem; }
+.rdr-move-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border: 1.5px solid var(--fdx-depth-muted);
+  border-radius: 50%;
+}
+.rdr-move[data-current="true"] .rdr-move-dot {
+  width: 0.625rem;
+  height: 0.625rem;
+  border-color: transparent;
+  background: var(--fdx-orange);
+}
+.rdr-move-line { flex: 1 1 auto; width: 1.5px; background: var(--fdx-depth-muted); }
+.rdr-move-body { flex: 1 1 auto; padding-bottom: 1.05rem; min-width: 0; }
+.rdr-move-head { margin: 0; display: flex; align-items: center; gap: 0.5rem; }
+.rdr-move-when, .rdr-move-arrow {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  color: var(--fdx-text-muted);
+}
+.rdr-move-ring {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.rdr-move-ring[data-ring="adopt"] { color: var(--fdx-orange); }
+.rdr-move-ring[data-ring="trial"] { color: var(--fdx-text); }
+.rdr-move-ring[data-ring="caution"] { color: var(--fdx-warning); }
+.rdr-move-why { margin: 0.3rem 0 0; font-size: 0.8125rem; line-height: 1.5; }
+.rdr-move-ev { margin: 0.45rem 0 0; display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.rdr-chip {
+  border: 1px solid var(--rdr-ring-edge);
+  padding: 0.12rem 0.4rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  color: var(--fdx-text-muted);
+}

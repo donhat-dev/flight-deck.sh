@@ -1,0 +1,307 @@
+/* ============================================================
+   Radar — page chrome and the primitives every view shares.
+
+   NOT marked a screen, for the same reason plane.css is not: this sheet styles the
+   frame around the views, and the anchor belongs to whichever view is mounted.
+   Each view keeps its own sheet (radar-full.css, radar-blip.css, radar-index.css,
+   radar-list.css), each declaring exactly one anchor — the lint checks anchors per
+   sheet, so that file layout is what makes "two anchors on one screen" impossible
+   to introduce quietly.
+
+   The radar is a page you READ, not a console you scan. Three things follow:
+   the canvas is quiet so the blips are the only saturated thing on screen, the
+   chrome is one line tall, and the whole surface is deliberately under-furnished.
+   Empty room here is held open on purpose — the instruction was to prefer fewer,
+   larger elements over many small ones, and to accept the gap.
+
+   Depth here: TWO bases, both interactive — the action key and the current nav
+   key. Panels take their lift from `--fdx-shadow-block`, which is ground material
+   rather than rationed control depth.
+   ============================================================ */
+
+/* The height chain, and it has to be PERCENTAGES rather than viewport units.
+   The kit applies `body { zoom: var(--app-zoom) }` (1.12) as a deliberate global
+   interface scale, so a viewport unit measured inside that subtree is 1.12x too
+   tall once painted: `height: 100dvh` computed 937px in body's own space and
+   rendered 1049px, overflowing the viewport by exactly the zoom factor and pushing
+   the history bar off the clipped page. Percentages resolve inside the zoomed
+   space and are immune.
+
+   It has to be a DEFINITE height, not a minimum, for a second reason: with
+   `min-height` every descendant's height stays indefinite, so `min(100%, 54rem)`
+   on the radar resolved to 54rem and the stage never shrank. */
+html, body, #root { height: 100%; }
+
+.rdr-page {
+  height: 100%;
+  overflow: hidden;
+  background: var(--fdx-surface);
+  color: var(--fdx-text);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Quadrant hues. One per quadrant so a blip is identifiable in the full view
+   without a legend, and the whole palette stays in the sheet where the lint can
+   read it. All four are kit tokens; none is a new colour. */
+.rdr-page {
+  --rdr-q-platforms: var(--fdx-orange);
+  --rdr-q-techniques: var(--fdx-pink);
+  --rdr-q-tools: var(--fdx-warning);
+  --rdr-q-lang: var(--fdx-critical);
+  --rdr-ring-quiet: color-mix(in srgb, var(--fdx-surface) 88%, var(--fdx-text));
+  --rdr-ring-quiet-2: color-mix(in srgb, var(--fdx-surface) 82%, var(--fdx-text));
+  --rdr-ring-edge: color-mix(in srgb, var(--fdx-surface) 66%, var(--fdx-text));
+  --rdr-gutter: 1.5rem;
+}
+
+/* ---- chrome ------------------------------------------------------------- */
+
+.rdr-chrome {
+  display: flex;
+  align-items: center;
+  gap: 1.75rem;
+  padding: 0.85rem var(--rdr-gutter);
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+
+.rdr-mark { display: flex; align-items: center; gap: 0.5rem; text-decoration: none; }
+.rdr-roundel { width: 0.875rem; height: 0.875rem; background: var(--fdx-orange); }
+.rdr-wordmark {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--fdx-text);
+}
+
+.rdr-nav { display: flex; gap: 0.25rem; }
+.rdr-nav-key {
+  border: 0;
+  background: none;
+  padding: 0.4rem 0.85rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+  cursor: pointer;
+}
+.rdr-nav-key[aria-current="page"] {
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+  box-shadow: var(--fdx-shadow-control-quiet);
+}
+
+.rdr-chrome-title { font-size: 0.9375rem; font-weight: 700; }
+.rdr-chrome-fill { flex: 1 1 auto; }
+.rdr-chrome-meta {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+
+/* ---- shared type ------------------------------------------------------- */
+
+.rdr-eyebrow {
+  margin: 0;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.rdr-h1 { margin: 0.35rem 0 0; font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+.rdr-h2 { margin: 0; font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
+.rdr-sub { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--fdx-text-muted); }
+.rdr-count { font-family: var(--fdx-font-mono); color: var(--fdx-orange); }
+
+/* ---- keys -------------------------------------------------------------- */
+
+.rdr-btn {
+  border: 1px solid var(--fdx-depth-muted);
+  background: none;
+  color: var(--fdx-text);
+  padding: 0.55rem 1rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: var(--fdx-shadow-control-quiet);
+}
+.rdr-btn[data-variant="primary"] {
+  border-color: transparent;
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+}
+.rdr-btn:active { box-shadow: var(--fdx-shadow-control-pressed); translate: 3px 3px; }
+
+.rdr-icon-btn {
+  border: 1px solid var(--fdx-depth-muted);
+  background: none;
+  color: var(--fdx-text);
+  padding: 0.4rem 0.6rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.rdr-seg { display: flex; border: 1px solid var(--fdx-depth-muted); }
+.rdr-seg-key {
+  border: 0;
+  border-left: 1px solid var(--fdx-depth-muted);
+  background: none;
+  padding: 0.4rem 0.7rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+  cursor: pointer;
+}
+.rdr-seg-key:first-child { border-left: 0; }
+.rdr-seg-key[aria-pressed="true"] {
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+  font-weight: 700;
+}
+
+/* ---- history bar ------------------------------------------------------- */
+
+.rdr-history {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  padding: 0.9rem var(--rdr-gutter) 1rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+}
+.rdr-history-lead, .rdr-history-tail { display: flex; flex-direction: column; gap: 0.55rem; }
+.rdr-history-tail { align-items: flex-end; }
+.rdr-history-controls { display: flex; align-items: center; gap: 0.4rem; }
+
+.rdr-ruler { flex: 1 1 auto; display: flex; flex-direction: column; }
+.rdr-ruler-ticks { display: flex; align-items: flex-end; height: 1.375rem; }
+.rdr-tick {
+  flex: 1 1 0;
+  height: 0.4375rem;
+  border-left: 1px solid var(--rdr-ring-edge);
+}
+.rdr-tick[data-major="true"] { height: 0.8125rem; border-left-color: var(--fdx-depth-muted); }
+/* The handle is the only mark on the ruler that is not a tick, so it is the one
+   thing allowed a colour here. */
+.rdr-tick[data-handle="true"] {
+  height: 1.375rem;
+  border-left: 2px solid var(--fdx-orange);
+}
+.rdr-ruler-ticks + * { border-top: 1px solid var(--rdr-ring-edge); }
+.rdr-ruler-labels { display: flex; padding-top: 0.45rem; }
+.rdr-ruler-stop {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+}
+.rdr-ruler-key {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  color: var(--fdx-text-muted);
+}
+.rdr-ruler-stop[aria-current="true"] .rdr-ruler-key { color: var(--fdx-orange); font-weight: 700; }
+.rdr-ruler-moves { font-size: 0.625rem; color: var(--fdx-text-muted); }
+
+/* ---- the radar drawing ------------------------------------------------- */
+
+.rdr-canvas { display: block; width: 100%; height: auto; }
+
+.rdr-ring { fill: var(--rdr-ring-quiet); stroke: var(--rdr-ring-edge); stroke-width: 1; }
+.rdr-ring[data-ring="assess"] { fill: var(--rdr-ring-quiet-2); }
+.rdr-ring[data-ring="adopt"] {
+  fill: color-mix(in srgb, var(--fdx-surface) 84%, var(--fdx-orange));
+  stroke: color-mix(in srgb, var(--fdx-surface) 55%, var(--fdx-orange));
+}
+
+.rdr-ring-label {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  letter-spacing: 0.16em;
+  fill: var(--fdx-text-muted);
+  opacity: 0.55;
+}
+.rdr-ring-label[data-ring="adopt"] { fill: var(--fdx-orange); opacity: 1; }
+
+.rdr-quadrant-label {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  fill: var(--fdx-text-muted);
+}
+
+/* A blip is the content. Everything above is the frame that gives it a position,
+   which is why the frame is quiet and this is not. */
+.rdr-blip { cursor: pointer; }
+.rdr-blip-body { fill: var(--rdr-q); }
+.rdr-blip-arc { fill: var(--rdr-q); }
+.rdr-blip-entered { fill: none; stroke: var(--rdr-q); stroke-width: 4; }
+.rdr-blip-halo { fill: none; stroke: var(--fdx-signal); stroke-width: 2.5; opacity: 0.55; }
+.rdr-blip-num {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  fill: var(--fdx-control-label);
+  text-anchor: middle;
+  dominant-baseline: central;
+  pointer-events: none;
+}
+/* Tools is the one hue light enough that a light numeral disappears on it. */
+.rdr-blip[data-quadrant="tools"] .rdr-blip-num { fill: var(--fdx-depth-ink); }
+
+.rdr-blip[data-quadrant="platforms"] { --rdr-q: var(--rdr-q-platforms); }
+.rdr-blip[data-quadrant="techniques"] { --rdr-q: var(--rdr-q-techniques); }
+.rdr-blip[data-quadrant="tools"] { --rdr-q: var(--rdr-q-tools); }
+.rdr-blip[data-quadrant="lang"] { --rdr-q: var(--rdr-q-lang); }
+
+/* Stale is dimmed, not recoloured: the blip still belongs to its quadrant, and
+   borrowing another hue would say it changed category. */
+.rdr-blip[data-stale="true"] { opacity: 0.42; }
+
+/* ---- ring badges and dots, shared by the panel and the table ----------- */
+
+.rdr-ring-badge, .rdr-dot { --rdr-ring-tone: var(--fdx-text-muted); }
+.rdr-ring-badge[data-ring="adopt"], .rdr-dot[data-ring="adopt"] { --rdr-ring-tone: var(--fdx-orange); }
+.rdr-ring-badge[data-ring="trial"], .rdr-dot[data-ring="trial"] { --rdr-ring-tone: var(--fdx-text); }
+.rdr-ring-badge[data-ring="caution"], .rdr-dot[data-ring="caution"] { --rdr-ring-tone: var(--fdx-warning); }
+
+.rdr-ring-badge {
+  display: inline-block;
+  border: 1px solid var(--rdr-ring-edge);
+  padding: 0.1rem 0.4rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--rdr-ring-tone);
+}
+.rdr-ring-badge[data-ring="adopt"] { border-color: var(--fdx-orange); }
+
+.rdr-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--rdr-ring-tone);
+}
+/* Caution is not failure, so a stale flag wears the caution colour and never the
+   critical one. */
+.rdr-dot[data-flag="stale"] { background: var(--fdx-warning); }
+.rdr-dot[data-flag="moved"] { background: var(--fdx-orange); }
+
+.rdr-empty { padding: 4rem var(--rdr-gutter); display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; }
+.rdr-empty-line { margin: 0; padding: 1.25rem var(--rdr-gutter); color: var(--fdx-text-muted); }

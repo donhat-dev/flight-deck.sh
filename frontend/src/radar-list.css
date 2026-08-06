@@ -1,0 +1,129 @@
+/* ============================================================
+   Radar — the radar list.
+
+   composition: screen
+
+   One card per initiative, and the card leads with a miniature of the radar rather
+   than with its name. That is not decoration: the shape says something the title
+   cannot — blips bunched in the outer rings mean the initiative is still a
+   question, blips gathered inside mean the decisions are made — and a reader
+   scanning five radars reads five shapes faster than five sentences.
+
+   Depth: ONE element, the OPEN radar's card, gated on `aria-current`. Lifting
+   every card spends the whole budget on a list and leaves nothing to distinguish
+   the one you are actually working in — which is the failure C3c exists to catch,
+   and it caught this: the first draft lifted all six.
+   ============================================================ */
+
+/* composition: anchor
+   The grid of cards is the whole view; there is nothing else on the page for it to
+   be anchored against. */
+.rdr-cards {
+  flex: 1 1 auto;
+  list-style: none;
+  margin: 0;
+  padding: 1.25rem var(--rdr-gutter) 1.75rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(24rem, 1fr));
+  gap: 1.25rem;
+  align-content: start;
+  min-height: 0;
+  /* The page no longer grows, so a long list scrolls here rather than there. */
+  overflow: auto;
+}
+
+.rdr-card {
+  width: 100%;
+  height: 100%;
+  min-height: 13rem;
+  border: 1px solid var(--rdr-ring-edge);
+  border-left-width: 1px;
+  background: var(--fdx-surface-raised);
+  color: var(--fdx-text);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1.1rem;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rdr-card[aria-current="true"] {
+  border-left: 3px solid var(--fdx-orange);
+  box-shadow: var(--fdx-shadow-control-quiet);
+}
+.rdr-card[data-new="true"] {
+  border-style: solid;
+  border-color: var(--fdx-depth-muted);
+  background: none;
+  box-shadow: none;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--fdx-text-muted);
+}
+.rdr-card-plus { font-size: 1.5rem; line-height: 1; }
+
+.rdr-card-top { display: flex; gap: 0.9rem; align-items: flex-start; }
+.rdr-mini { width: 4.625rem; height: 4.625rem; flex: none; }
+.rdr-mini-ring { fill: none; stroke: var(--rdr-ring-edge); stroke-width: 1; }
+.rdr-mini-ring[data-inner="true"] { fill: color-mix(in srgb, var(--fdx-surface) 84%, var(--fdx-orange)); }
+.rdr-mini-dot[data-quadrant="platforms"] { fill: var(--rdr-q-platforms); }
+.rdr-mini-dot[data-quadrant="techniques"] { fill: var(--rdr-q-techniques); }
+.rdr-mini-dot[data-quadrant="tools"] { fill: var(--rdr-q-tools); }
+.rdr-mini-dot[data-quadrant="lang"] { fill: var(--rdr-q-lang); }
+
+.rdr-card-title { display: flex; flex-direction: column; gap: 0.3rem; min-width: 0; }
+.rdr-card-name {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.rdr-card-open {
+  background: var(--fdx-orange);
+  color: var(--fdx-control-label);
+  padding: 0.1rem 0.35rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.rdr-card-sub { font-size: 0.75rem; color: var(--fdx-text-muted); line-height: 1.4; }
+
+.rdr-card-dist { display: flex; gap: 0.5rem; }
+.rdr-card-seg { flex: 1 1 0; display: flex; flex-direction: column; gap: 0.32rem; }
+.rdr-card-bar { height: 0.1875rem; background: var(--fdx-text-muted); }
+.rdr-card-seg[data-ring="adopt"] .rdr-card-bar { height: 0.375rem; background: var(--fdx-orange); }
+.rdr-card-seg[data-ring="trial"] .rdr-card-bar { background: var(--fdx-text); }
+.rdr-card-seg[data-ring="caution"] .rdr-card-bar { background: var(--fdx-warning); }
+.rdr-card-seg[data-empty="true"] .rdr-card-bar { background: var(--rdr-ring-edge); }
+.rdr-card-count { font-family: var(--fdx-font-mono); font-size: 0.8125rem; }
+.rdr-card-seg[data-empty="true"] .rdr-card-count { color: var(--fdx-depth-muted); }
+.rdr-card-ring {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.rdr-card-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+}
+.rdr-card-meta { font-family: var(--fdx-font-mono); font-size: 0.625rem; color: var(--fdx-text-muted); }
+/* A stale count is a caution about the evidence, not a failure of the radar. */
+.rdr-card-stale {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--fdx-warning);
+}

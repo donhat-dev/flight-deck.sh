@@ -1,0 +1,47 @@
+/* ============================================================
+   Radar — the full view.
+
+   composition: screen
+
+   The only view whose question is "where does everything stand", so it carries
+   nothing but the radar and the history bar. No masthead, no side panel, no stat
+   strip: every one of those would take attention that the 34 blips are supposed
+   to have, and the answer to this view's question is a shape, not a number.
+
+   Depth: none. The anchor holds the eye by area and saturation, and a page with a
+   single region has nothing to be lifted above.
+   ============================================================ */
+
+.rdr-full {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* composition: anchor
+   The radar is the anchor by area — it takes the whole stage — and by being the
+   only saturated thing on a deliberately quiet canvas. */
+.rdr-full-stage {
+  /* basis 0, not auto: with `flex-basis: auto` the stage sizes to its content, the
+     canvas's `100%` then resolves against that same content height, and the pair
+     never shrinks — which pushed the history bar out of the clipped page. */
+  flex: 1 1 0;
+  display: grid;
+  place-items: center;
+  padding: 0.75rem var(--rdr-gutter);
+  min-height: 0;
+}
+
+.rdr-full-stage .rdr-canvas {
+  /* Sized from the HEIGHT, not the width. Driving it from the width and capping
+     with max-height did not work: `width: min(100%, 54rem)` resolved to 864px on a
+     wide window, the aspect ratio made it 864px tall too, and the bottom quadrants
+     were cropped by the viewport. Height-first means the radar always fits the
+     room left between the chrome and the history bar, and `max-width` takes over
+     on a window that is narrower than it is tall. */
+  block-size: min(100%, 54rem);
+  inline-size: auto;
+  max-inline-size: 100%;
+  aspect-ratio: 1;
+}
