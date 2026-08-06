@@ -26,13 +26,17 @@
   min-height: 0;
 }
 
+/* `center`, not `flex-end`: with the eyebrow and subtitle removed the title is a
+   single line, and bottom-aligning one line against two buttons left the buttons
+   hanging below it. */
 .rdr-focus-head {
   display: flex;
-  align-items: flex-end;
-  gap: 1.25rem;
-  padding: 1.25rem var(--rdr-gutter) 1rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1.1rem var(--rdr-gutter);
   border-bottom: 1px solid var(--rdr-ring-edge);
 }
+.rdr-focus-head .rdr-h1 { margin: 0; font-size: 2.125rem; }
 .rdr-focus-title { flex: 1 1 auto; }
 
 .rdr-focus-body {
@@ -53,13 +57,14 @@
   background: var(--fdx-surface-raised);
   min-width: 0;
 }
+/* No wrap any more: the quadrant chip row is gone, so this is a name and a count
+   and can never need a second line. */
 .rdr-quadrant-head {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.8rem 1rem;
+  align-items: baseline;
+  gap: 0.6rem;
+  padding: 0.9rem 1rem 0.8rem;
   border-bottom: 1px solid var(--rdr-ring-edge);
-  flex-wrap: wrap;
 }
 .rdr-quadrant-stage { flex: 1 1 0; display: grid; place-items: center; padding: 0.5rem; min-height: 0; }
 .rdr-quadrant-stage .rdr-canvas { max-height: 100%; }

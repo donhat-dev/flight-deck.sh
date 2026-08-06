@@ -25,7 +25,7 @@ import BlipPanel from "./BlipPanel.jsx";
 import HistoryBar from "./HistoryBar.jsx";
 import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
-import { QUADRANTS, quadrantOf } from "./geometry.js";
+import { quadrantOf } from "./geometry.js";
 import { BLIPS, RADARS, blipByNum } from "./seed.js";
 
 const NAV = [
@@ -96,7 +96,7 @@ function FullView({ granularity, onGranularity }) {
   );
 }
 
-function BlipView({ num, granularity, onGranularity }) {
+function BlipView({ num }) {
   const blip = blipByNum(num);
   if (!blip) {
     return (
@@ -112,10 +112,17 @@ function BlipView({ num, granularity, onGranularity }) {
     <main className="rdr-focus">
       <div className="rdr-focus-head">
         <div className="rdr-focus-title">
-          <p className="rdr-eyebrow">Radar</p>
-          <h1 className="rdr-h1">{openRadar.title}</h1>
-          <p className="rdr-sub">{openRadar.subtitle}</p>
+          {/* The title alone. The eyebrow and the migration subtitle were both
+              removed: a reader who clicked a blip already knows which radar they
+              are on, so both were repeating context to buy nothing. The title is
+              the way back, since this view has no chrome. */}
+          <h1 className="rdr-h1">
+            <button type="button" className="rdr-title-btn" onClick={() => go("#/")}>
+              {openRadar.title}
+            </button>
+          </h1>
         </div>
+        <button type="button" className="rdr-btn">Export</button>
         <button type="button" className="rdr-btn" data-variant="primary">Move blip</button>
       </div>
 
@@ -125,19 +132,6 @@ function BlipView({ num, granularity, onGranularity }) {
             <h2 className="rdr-h2">{quadrant.label}</h2>
             <span className="rdr-chrome-meta">{siblings.length} blips</span>
             <span className="rdr-chrome-fill" />
-            <div className="rdr-seg" role="group" aria-label="Quadrant">
-              <button type="button" className="rdr-seg-key" onClick={() => go("#/")}>All</button>
-              {QUADRANTS.map((q) => (
-                <button key={q.k} type="button" className="rdr-seg-key"
-                        aria-pressed={q.k === blip.quadrant}
-                        onClick={() => {
-                          const first = BLIPS.find((b) => b.quadrant === q.k);
-                          if (first) go(`#/blip/${first.num}`);
-                        }}>
-                  {q.label.split(" ")[0]}
-                </button>
-              ))}
-            </div>
           </div>
           <div className="rdr-quadrant-stage">
             <Radar mode="quadrant" blips={siblings} quadrant={blip.quadrant}
@@ -149,7 +143,7 @@ function BlipView({ num, granularity, onGranularity }) {
         <BlipPanel blip={blip} />
       </div>
 
-      <HistoryBar granularity={granularity} onGranularity={onGranularity} />
+      <HistoryBar variant="quarters" />
     </main>
   );
 }
@@ -162,13 +156,17 @@ export default function RadarPage() {
 
   return (
     <div className="rdr-page">
-      <Chrome active={active} />
+      {/* No chrome on the blip route. The anchor there is the summary panel, and a
+          wordmark plus four nav keys plus a palette switch is five small elements
+          competing with it. The radar title returns to the full radar, so the view
+          is not a dead end. */}
+      {route.name !== "blip" && <Chrome active={active} />}
       {route.name === "index" ? (
         <BlipIndex onOpen={(num) => go(`#/blip/${num}`)} />
       ) : route.name === "radars" ? (
         <RadarList onOpen={() => go("#/")} />
       ) : route.name === "blip" ? (
-        <BlipView num={route.num} granularity={granularity} onGranularity={onGranularity} />
+        <BlipView num={route.num} />
       ) : (
         <FullView granularity={granularity} onGranularity={onGranularity} />
       )}

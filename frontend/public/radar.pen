@@ -16,8 +16,11 @@
         {
           "type": "frame",
           "id": "sRlD9",
+          "x": 0,
+          "y": 0,
           "name": "Chrome Bar",
-          "width": "fill_container",
+          "enabled": false,
+          "width": "fill_container(1440)",
           "fill": "$surface",
           "stroke": "$edge",
           "strokeWidth": {
@@ -250,12 +253,10 @@
           },
           "gap": 20,
           "padding": [
-            22,
-            24,
             18,
             24
           ],
-          "alignItems": "end",
+          "alignItems": "center",
           "children": [
             {
               "type": "frame",
@@ -267,17 +268,6 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "cWcqy",
-                  "name": "Eyebrow",
-                  "fill": "$orange",
-                  "content": "RADAR",
-                  "fontFamily": "$font-mono",
-                  "fontSize": 10,
-                  "fontWeight": "700",
-                  "letterSpacing": 1.8
-                },
-                {
-                  "type": "text",
                   "id": "YbP6k",
                   "name": "Radar Title",
                   "fill": "$text",
@@ -286,16 +276,6 @@
                   "fontSize": 34,
                   "fontWeight": "700",
                   "letterSpacing": -0.6
-                },
-                {
-                  "type": "text",
-                  "id": "vUxDV",
-                  "name": "Subtitle",
-                  "fill": "$text-muted",
-                  "content": "Odoo 12 EE  →  Odoo 19 CE  ·  replacing EE sale_subscription",
-                  "fontFamily": "$font-primary",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
                 }
               ]
             },
@@ -436,8 +416,11 @@
                 {
                   "type": "frame",
                   "id": "YoKgQ",
+                  "x": 0,
+                  "y": 0,
                   "name": "Radar Toolbar",
-                  "width": "fill_container",
+                  "enabled": false,
+                  "width": "fill_container(560)",
                   "stroke": "$edge",
                   "strokeWidth": {
                     "bottom": 1
@@ -10368,8 +10351,11 @@
         {
           "type": "frame",
           "id": "HlJT3",
+          "x": 0,
+          "y": 0,
           "name": "Chrome Bar",
-          "width": "fill_container",
+          "enabled": false,
+          "width": "fill_container(1440)",
           "fill": "$surface",
           "stroke": "$edge",
           "strokeWidth": {
@@ -10602,12 +10588,10 @@
           },
           "gap": 20,
           "padding": [
-            22,
-            24,
             18,
             24
           ],
-          "alignItems": "end",
+          "alignItems": "center",
           "children": [
             {
               "type": "frame",
@@ -10619,17 +10603,6 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "pgHXE",
-                  "name": "Eyebrow",
-                  "fill": "$orange",
-                  "content": "RADAR",
-                  "fontFamily": "$font-mono",
-                  "fontSize": 10,
-                  "fontWeight": "700",
-                  "letterSpacing": 1.8
-                },
-                {
-                  "type": "text",
                   "id": "z1szu",
                   "name": "Radar Title",
                   "fill": "$text",
@@ -10638,16 +10611,6 @@
                   "fontSize": 34,
                   "fontWeight": "700",
                   "letterSpacing": -0.6
-                },
-                {
-                  "type": "text",
-                  "id": "qigNQ",
-                  "name": "Subtitle",
-                  "fill": "$text-muted",
-                  "content": "Odoo 12 EE  →  Odoo 19 CE  ·  replacing EE sale_subscription",
-                  "fontFamily": "$font-primary",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
                 }
               ]
             },
@@ -10788,8 +10751,11 @@
                 {
                   "type": "frame",
                   "id": "osAWL",
+                  "x": 0,
+                  "y": 0,
                   "name": "Radar Toolbar",
-                  "width": "fill_container",
+                  "enabled": false,
+                  "width": "fill_container(560)",
                   "stroke": "$edge",
                   "strokeWidth": {
                     "bottom": 1
@@ -13007,16 +12973,19 @@
         "mode": "day"
       },
       "clip": true,
-      "width": 1440,
-      "height": 1100,
+      "width": 1980,
+      "height": 1080,
       "fill": "$surface",
       "layout": "vertical",
       "children": [
         {
           "type": "frame",
           "id": "rW1L8",
+          "x": 0,
+          "y": 0,
           "name": "Chrome Bar",
-          "width": "fill_container",
+          "enabled": false,
+          "width": "fill_container(1980)",
           "fill": "$surface",
           "stroke": "$edge",
           "strokeWidth": {
@@ -13266,17 +13235,6 @@
               "children": [
                 {
                   "type": "text",
-                  "id": "IH4zX",
-                  "name": "Eyebrow",
-                  "fill": "$orange",
-                  "content": "RADAR",
-                  "fontFamily": "$font-mono",
-                  "fontSize": 10,
-                  "fontWeight": "700",
-                  "letterSpacing": 1.8
-                },
-                {
-                  "type": "text",
                   "id": "u4oy48",
                   "name": "Radar Title",
                   "fill": "$text",
@@ -13285,16 +13243,6 @@
                   "fontSize": 34,
                   "fontWeight": "700",
                   "letterSpacing": -0.6
-                },
-                {
-                  "type": "text",
-                  "id": "K2meB",
-                  "name": "Subtitle",
-                  "fill": "$text-muted",
-                  "content": "Odoo 12 EE  →  Odoo 19 CE  ·  replacing EE sale_subscription",
-                  "fontFamily": "$font-primary",
-                  "fontSize": 14,
-                  "fontWeight": "normal"
                 }
               ]
             },
@@ -13435,8 +13383,11 @@
                 {
                   "type": "frame",
                   "id": "UAEIi",
+                  "x": 0,
+                  "y": 0,
                   "name": "Radar Toolbar",
-                  "width": "fill_container",
+                  "enabled": false,
+                  "width": "fill_container(560)",
                   "stroke": "$edge",
                   "strokeWidth": {
                     "bottom": 1
@@ -14395,17 +14346,6 @@
                         22
                       ],
                       "children": [
-                        {
-                          "type": "text",
-                          "id": "ZX1OD",
-                          "name": "Kicker",
-                          "fill": "$text-muted",
-                          "content": "BLIP",
-                          "fontFamily": "$font-mono",
-                          "fontSize": 9,
-                          "fontWeight": "700",
-                          "letterSpacing": 1.6
-                        },
                         {
                           "type": "frame",
                           "id": "h5rHM",
@@ -15585,12 +15525,12 @@
     {
       "type": "frame",
       "id": "gG7mW",
-      "x": 9120,
+      "x": 10010,
       "y": 0,
       "name": "Radar List",
       "clip": true,
-      "width": 1440,
-      "height": 880,
+      "width": 1980,
+      "height": 1080,
       "fill": "$surface",
       "layout": "vertical",
       "children": [

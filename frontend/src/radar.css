@@ -115,6 +115,19 @@ html, body, #root { height: 100%; }
   color: var(--fdx-text-muted);
 }
 .rdr-h1 { margin: 0.35rem 0 0; font-size: 1.875rem; font-weight: 700; letter-spacing: -0.02em; }
+/* The radar title doubles as the way back when a view carries no chrome. Styled to
+   look like the heading it is, not like a control: an underline or a chevron here
+   would be one more small element on a view whose whole point is fewer of them. */
+.rdr-title-btn {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-align: left;
+}
 .rdr-h2 { margin: 0; font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; }
 .rdr-sub { margin: 0.35rem 0 0; font-size: 0.8125rem; color: var(--fdx-text-muted); }
 .rdr-count { font-family: var(--fdx-font-mono); color: var(--fdx-orange); }
@@ -181,6 +194,28 @@ html, body, #root { height: 100%; }
   border-top: 1px solid var(--rdr-ring-edge);
 }
 .rdr-history-lead, .rdr-history-tail { display: flex; flex-direction: column; gap: 0.55rem; }
+.rdr-history-hint { font-size: 0.75rem; color: var(--fdx-text-muted); max-width: 16rem; }
+/* The quarters variant has no ruler, so its stops need a mark of their own to sit
+   on — otherwise the labels float with nothing showing where the track runs. */
+.rdr-history[data-variant="quarters"] .rdr-ruler-labels { padding-top: 0; }
+.rdr-history[data-variant="quarters"] .rdr-ruler {
+  border-top: 1px solid var(--rdr-ring-edge);
+  padding-top: 0.9rem;
+}
+.rdr-stop-mark {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 50%;
+  background: var(--fdx-depth-muted);
+  margin-bottom: 0.55rem;
+  margin-top: -1.15rem;
+}
+.rdr-ruler-stop[aria-current="true"] .rdr-stop-mark {
+  border-radius: 0;
+  background: none;
+  border: 1.5px solid var(--fdx-orange);
+  box-shadow: inset 0 0 0 2px var(--fdx-surface), inset 0 0 0 4px var(--fdx-orange);
+}
 .rdr-history-tail { align-items: flex-end; }
 .rdr-history-controls { display: flex; align-items: center; gap: 0.4rem; }
 
