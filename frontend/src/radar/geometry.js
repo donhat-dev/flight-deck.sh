@@ -92,6 +92,24 @@ export function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
 }
 
 /**
+ * An OPEN arc: one concentric stroke, with no radial edges.
+ *
+ * The ring boundaries have to be drawn separately from the filled sectors, because
+ * a filled sector is a CLOSED path and stroking it outlines all four of its sides
+ * — including the two radial cuts at the quadrant seams. Those radial strokes meet
+ * at each axis and read as the quadrant having been chamfered: the ring looks like
+ * it stops short of the circle instead of continuing round it. Splitting fill from
+ * edge is what makes the seams a gap rather than a bevel.
+ */
+export function arcPath(cx, cy, r, deg0, deg1) {
+  const large = Math.abs(deg1 - deg0) > 180 ? 1 : 0;
+  const a = polar(cx, cy, r, deg0);
+  const b = polar(cx, cy, r, deg1);
+  const f = (n) => Math.round(n * 100) / 100;
+  return `M ${f(a.x)} ${f(a.y)} A ${f(r)} ${f(r)} 0 ${large} 0 ${f(b.x)} ${f(b.y)}`;
+}
+
+/**
  * Give every blip a place, as `{ rFrac, deg }`.
  *
  * `spanDeg` is how much of the 90° quadrant blips may use; the remainder is a

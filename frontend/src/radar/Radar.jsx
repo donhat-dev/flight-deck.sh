@@ -14,12 +14,19 @@
 import React from "react";
 
 import {
-  QUADRANTS, RINGS, RING_LABEL, arcFacing, isStale, placeBlips, polar,
+  QUADRANTS, RINGS, RING_LABEL, arcFacing, arcPath, isStale, placeBlips, polar,
   quadrantOf, ringBand, sectorPath,
 } from "./geometry.js";
 
-/** Degrees of blank left on each side of a quadrant seam, in the full view. */
-const SEAM = 1.1;
+/** Width of the quadrant seam, in user units.
+ *
+ * A CONSTANT WIDTH, drawn as an overlay, rather than an angular gap cut out of each
+ * sector. An angular gap is a wedge: 1.1 degrees is 17px of missing ring at the
+ * outer radius and 6px at the inner one, so every quadrant loses a visible bite out
+ * of its outer corner and the four corners never reach their axis. Overlaying a
+ * line in the page colour cuts the same corridor at the same width everywhere and
+ * leaves the corners square, which is what the reference radar shows. */
+const SEAM_W = 3;
 
 /** Blip diameter in user units. Bigger than a dot on purpose: the blips are the
  *  content, and the rings are only the frame that gives them a position. */
@@ -94,21 +101,43 @@ export default function Radar({
     <svg className="rdr-canvas" viewBox={vb} role="img"
          aria-label={mode === "full" ? "Radar, four quadrants" : `Radar, ${quadrantOf(quadrant).label}`}>
       {/* Rings outer-first so the inner ones paint on top of their neighbours'
-          edges rather than under them. */}
+          edges rather than under them. FILL only — the boundary is drawn below as
+          an open arc, because stroking a closed sector also strokes its two radial
+          cuts, and those read as a chamfer at every quadrant seam. */}
       {[...RINGS].reverse().map((ring) => {
         const [lo, hi] = ringBand(ring);
-        return turns.map((turn) => {
-          const gap = mode === "full" ? SEAM : 0;
-          return (
-            <path
-              key={`${ring}-${turn}`}
-              className="rdr-ring"
-              data-ring={ring}
-              d={sectorPath(cx, cy, lo * r, hi * r, turn * 90 + gap, turn * 90 + 90 - gap)}
-            />
-          );
-        });
+        return turns.map((turn) => (
+          <path
+            key={`${ring}-${turn}`}
+            className="rdr-ring"
+            data-ring={ring}
+            d={sectorPath(cx, cy, lo * r, hi * r, turn * 90, turn * 90 + 90)}
+          />
+        ));
       })}
+
+      {/* Ring boundaries: one open arc per ring per quadrant, concentric only. */}
+      {RINGS.map((ring) => {
+        const [, hi] = ringBand(ring);
+        return turns.map((turn) => (
+          <path
+            key={`edge-${ring}-${turn}`}
+            className="rdr-ring-arc"
+            data-ring={ring}
+            d={arcPath(cx, cy, hi * r, turn * 90, turn * 90 + 90)}
+          />
+        ));
+      })}
+
+      {/* The seams, drawn OVER the rings in the page colour so the corridor is the
+          same width at every radius. Below the blips: a blip is never placed on a
+          seam, so nothing it could hide is ever there. */}
+      {mode === "full" && (
+        <g className="rdr-seams">
+          <rect x={cx - SEAM_W / 2} y={cy - r} width={SEAM_W} height={r * 2} />
+          <rect x={cx - r} y={cy - SEAM_W / 2} width={r * 2} height={SEAM_W} />
+        </g>
+      )}
 
       {/* Ring labels ride the seam in the full view and the axis in the quadrant
           view — both are places no blip is allowed to sit, so a label can never

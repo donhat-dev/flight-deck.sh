@@ -219,12 +219,19 @@ html, body, #root { height: 100%; }
 
 .rdr-canvas { display: block; width: 100%; height: auto; }
 
-.rdr-ring { fill: var(--rdr-ring-quiet); stroke: var(--rdr-ring-edge); stroke-width: 1; }
+/* Fill only. Stroking a filled sector also strokes the two RADIAL cuts that make
+   it a quadrant, and those cuts meet at each axis and read as a chamfer — the ring
+   looks like it stops short of the circle instead of continuing round it. The
+   boundary is a separate open arc below, which is what the reference radar draws:
+   concentric arcs, and a plain gap at the seams. */
+.rdr-ring { fill: var(--rdr-ring-quiet); stroke: none; }
 .rdr-ring[data-ring="assess"] { fill: var(--rdr-ring-quiet-2); }
-.rdr-ring[data-ring="adopt"] {
-  fill: color-mix(in srgb, var(--fdx-surface) 84%, var(--fdx-orange));
-  stroke: color-mix(in srgb, var(--fdx-surface) 55%, var(--fdx-orange));
-}
+.rdr-ring[data-ring="adopt"] { fill: color-mix(in srgb, var(--fdx-surface) 84%, var(--fdx-orange)); }
+
+.rdr-ring-arc { fill: none; stroke: var(--rdr-ring-edge); stroke-width: 1; }
+/* The page colour, not a colour of its own: the seam is absence of radar. */
+.rdr-seams rect { fill: var(--fdx-surface); }
+.rdr-ring-arc[data-ring="adopt"] { stroke: color-mix(in srgb, var(--fdx-surface) 55%, var(--fdx-orange)); }
 
 .rdr-ring-label {
   font-family: var(--fdx-font-mono);
