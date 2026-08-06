@@ -247,17 +247,48 @@
           "id": "SJz3W",
           "name": "Header",
           "width": "fill_container",
+          "height": 84,
           "stroke": "$edge",
           "strokeWidth": {
             "bottom": 1
           },
-          "gap": 20,
+          "gap": 18,
           "padding": [
-            18,
-            24
+            0,
+            24,
+            0,
+            0
           ],
           "alignItems": "center",
           "children": [
+            {
+              "type": "frame",
+              "id": "lYfMp",
+              "name": "Btn Back",
+              "height": "fill_container",
+              "stroke": "$edge",
+              "strokeWidth": {
+                "right": 1
+              },
+              "padding": [
+                0,
+                26
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "jmGcB",
+                  "name": "I",
+                  "width": 28,
+                  "height": 28,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$text"
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "olDua",
@@ -629,6 +660,59 @@
                       "name": "Spacer",
                       "width": "fill_container",
                       "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "TBIjh",
+                      "name": "Quadrant Nav",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "u5OzQy",
+                          "name": "Prev Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "K18bW8",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-left",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "e8halq",
+                          "name": "Next Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "leqEf",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-right",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        }
+                      ]
                     }
                   ]
                 },
@@ -1402,29 +1486,40 @@
                               "type": "frame",
                               "id": "xqMz1",
                               "name": "Blip Mark",
-                              "width": 26,
-                              "height": 26,
+                              "width": 34,
+                              "height": 34,
                               "layout": "none",
                               "children": [
                                 {
-                                  "type": "polygon",
-                                  "polygonCount": 3,
-                                  "cornerRadius": 1,
-                                  "id": "X8LBJ",
-                                  "x": 1,
-                                  "y": 2,
-                                  "name": "Shape",
+                                  "type": "ellipse",
+                                  "id": "P8Cq3t",
+                                  "x": 0,
+                                  "y": 0,
+                                  "name": "Arc in",
+                                  "innerRadius": 0.824,
+                                  "startAngle": -56,
+                                  "sweepAngle": 112,
                                   "fill": "$orange",
-                                  "width": 24,
-                                  "height": 22
+                                  "width": 34,
+                                  "height": 34
+                                },
+                                {
+                                  "type": "ellipse",
+                                  "id": "Mao4m",
+                                  "x": 4,
+                                  "y": 4,
+                                  "name": "Body",
+                                  "fill": "$orange",
+                                  "width": 26,
+                                  "height": 26
                                 },
                                 {
                                   "type": "frame",
                                   "id": "uGVCV",
-                                  "x": 1,
+                                  "x": 4,
                                   "y": 11,
                                   "name": "Num Wrap",
-                                  "width": 24,
+                                  "width": 26,
                                   "justifyContent": "center",
                                   "children": [
                                     {
@@ -10582,17 +10677,48 @@
           "id": "S3K3dI",
           "name": "Header",
           "width": "fill_container",
+          "height": 84,
           "stroke": "$edge",
           "strokeWidth": {
             "bottom": 1
           },
-          "gap": 20,
+          "gap": 18,
           "padding": [
-            18,
-            24
+            0,
+            24,
+            0,
+            0
           ],
           "alignItems": "center",
           "children": [
+            {
+              "type": "frame",
+              "id": "W5V038",
+              "name": "Btn Back",
+              "height": "fill_container",
+              "stroke": "$edge",
+              "strokeWidth": {
+                "right": 1
+              },
+              "padding": [
+                0,
+                26
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "wggWt",
+                  "name": "I",
+                  "width": 28,
+                  "height": 28,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$text"
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "lK7mV",
@@ -10964,6 +11090,59 @@
                       "name": "Spacer",
                       "width": "fill_container",
                       "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "qgIow",
+                      "name": "Quadrant Nav",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "Q1B6V0",
+                          "name": "Prev Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "GsBS7",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-left",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "vtIyA",
+                          "name": "Next Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "lCCTh",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-right",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        }
+                      ]
                     }
                   ]
                 },
@@ -11738,29 +11917,40 @@
                               "type": "frame",
                               "id": "tsH3U",
                               "name": "Blip Mark",
-                              "width": 26,
-                              "height": 26,
+                              "width": 34,
+                              "height": 34,
                               "layout": "none",
                               "children": [
                                 {
-                                  "type": "polygon",
-                                  "polygonCount": 3,
-                                  "cornerRadius": 1,
-                                  "id": "qbE94",
-                                  "x": 1,
-                                  "y": 2,
-                                  "name": "Shape",
+                                  "type": "ellipse",
+                                  "id": "NKSgn",
+                                  "x": 0,
+                                  "y": 0,
+                                  "name": "Arc in",
+                                  "innerRadius": 0.824,
+                                  "startAngle": -56,
+                                  "sweepAngle": 112,
                                   "fill": "$orange",
-                                  "width": 24,
-                                  "height": 22
+                                  "width": 34,
+                                  "height": 34
+                                },
+                                {
+                                  "type": "ellipse",
+                                  "id": "ZMzSL",
+                                  "x": 4,
+                                  "y": 4,
+                                  "name": "Body",
+                                  "fill": "$orange",
+                                  "width": 26,
+                                  "height": 26
                                 },
                                 {
                                   "type": "frame",
                                   "id": "h3fUF4",
-                                  "x": 1,
+                                  "x": 4,
                                   "y": 11,
                                   "name": "Num Wrap",
-                                  "width": 24,
+                                  "width": 26,
                                   "justifyContent": "center",
                                   "children": [
                                     {
@@ -13212,19 +13402,48 @@
           "id": "iIvFq",
           "name": "Header",
           "width": "fill_container",
+          "height": 84,
           "stroke": "$edge",
           "strokeWidth": {
             "bottom": 1
           },
-          "gap": 20,
+          "gap": 18,
           "padding": [
-            22,
+            0,
             24,
-            18,
-            24
+            0,
+            0
           ],
-          "alignItems": "end",
+          "alignItems": "center",
           "children": [
+            {
+              "type": "frame",
+              "id": "J4UpjL",
+              "name": "Btn Back",
+              "height": "fill_container",
+              "stroke": "$edge",
+              "strokeWidth": {
+                "right": 1
+              },
+              "padding": [
+                0,
+                26
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon",
+                  "id": "kTSmo",
+                  "name": "I",
+                  "width": 28,
+                  "height": 28,
+                  "icon": "arrow-left",
+                  "library": "lucide",
+                  "fill": "$text"
+                }
+              ]
+            },
             {
               "type": "frame",
               "id": "q6u3J",
@@ -13596,6 +13815,59 @@
                       "name": "Spacer",
                       "width": "fill_container",
                       "height": 1
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cirGA",
+                      "name": "Quadrant Nav",
+                      "gap": 4,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "T66FRc",
+                          "name": "Prev Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "AXU0A",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-left",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "BsZRK",
+                          "name": "Next Quadrant",
+                          "stroke": "$depth-muted",
+                          "strokeWidth": 1,
+                          "padding": 9,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon",
+                              "id": "B5rTf",
+                              "name": "I",
+                              "width": 26,
+                              "height": 26,
+                              "icon": "chevron-right",
+                              "library": "lucide",
+                              "fill": "$text"
+                            }
+                          ]
+                        }
+                      ]
                     }
                   ]
                 },
@@ -14358,29 +14630,40 @@
                               "type": "frame",
                               "id": "kbfwY",
                               "name": "Blip Mark",
-                              "width": 26,
-                              "height": 26,
+                              "width": 34,
+                              "height": 34,
                               "layout": "none",
                               "children": [
                                 {
-                                  "type": "polygon",
-                                  "polygonCount": 3,
-                                  "cornerRadius": 1,
-                                  "id": "jYNuI",
-                                  "x": 1,
-                                  "y": 2,
-                                  "name": "Shape",
+                                  "type": "ellipse",
+                                  "id": "wVEzQ",
+                                  "x": 0,
+                                  "y": 0,
+                                  "name": "Arc in",
+                                  "innerRadius": 0.824,
+                                  "startAngle": -56,
+                                  "sweepAngle": 112,
                                   "fill": "$orange",
-                                  "width": 24,
-                                  "height": 22
+                                  "width": 34,
+                                  "height": 34
+                                },
+                                {
+                                  "type": "ellipse",
+                                  "id": "YOccH",
+                                  "x": 4,
+                                  "y": 4,
+                                  "name": "Body",
+                                  "fill": "$orange",
+                                  "width": 26,
+                                  "height": 26
                                 },
                                 {
                                   "type": "frame",
                                   "id": "xmuQ8",
-                                  "x": 1,
+                                  "x": 4,
                                   "y": 11,
                                   "name": "Num Wrap",
-                                  "width": 24,
+                                  "width": 26,
                                   "justifyContent": "center",
                                   "children": [
                                     {

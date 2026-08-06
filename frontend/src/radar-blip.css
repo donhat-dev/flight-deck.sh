@@ -29,14 +29,22 @@
 /* `center`, not `flex-end`: with the eyebrow and subtitle removed the title is a
    single line, and bottom-aligning one line against two buttons left the buttons
    hanging below it. */
+/* Padding on the RIGHT only. The back slab has to reach the left edge and both
+   header edges, which a symmetric gutter makes impossible — so the header gives its
+   height to the slab and keeps its inset for everything after it. */
 .rdr-focus-head {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
-  padding: 1.1rem var(--rdr-gutter);
+  gap: 1.1rem;
+  padding: 0 var(--rdr-gutter) 0 0;
+  min-height: 5.25rem;
   border-bottom: 1px solid var(--rdr-ring-edge);
 }
 .rdr-focus-head .rdr-h1 { margin: 0; font-size: 2.125rem; }
+.rdr-quadrant-nav { display: flex; gap: 0.3rem; }
+
+/* The badge is now an SVG mark drawn by BlipGlyph, so the old CSS circle is gone. */
+.rdr-blip-name { align-items: center; }
 .rdr-focus-title { flex: 1 1 auto; }
 
 .rdr-focus-body {
@@ -116,20 +124,6 @@
   font-weight: 700;
   letter-spacing: -0.02em;
 }
-.rdr-blip-badge {
-  display: grid;
-  place-items: center;
-  width: 1.75rem;
-  height: 1.75rem;
-  border-radius: 50%;
-  font-family: var(--fdx-font-mono);
-  font-size: 0.75rem;
-  color: var(--fdx-control-label);
-  background: var(--rdr-q-platforms);
-}
-.rdr-blip-badge[data-quadrant="techniques"] { background: var(--rdr-q-techniques); }
-.rdr-blip-badge[data-quadrant="tools"] { background: var(--rdr-q-tools); color: var(--fdx-depth-ink); }
-.rdr-blip-badge[data-quadrant="lang"] { background: var(--rdr-q-lang); }
 
 .rdr-stale {
   font-family: var(--fdx-font-mono);

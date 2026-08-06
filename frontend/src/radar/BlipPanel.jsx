@@ -13,6 +13,7 @@
  */
 import React, { useState } from "react";
 
+import BlipMark from "./BlipGlyph.jsx";
 import { RINGS, RING_LABEL, isStale } from "./geometry.js";
 import { EVIDENCE, MOVES, SUMMARY } from "./seed.js";
 
@@ -140,9 +141,7 @@ export default function BlipPanel({ blip }) {
       <header className="rdr-panel-head">
         <p className="rdr-eyebrow">Blip</p>
         <h2 className="rdr-blip-name">
-          <span className="rdr-blip-badge" data-quadrant={blip.quadrant} aria-hidden="true">
-            {blip.num}
-          </span>
+          <BlipMark blip={blip} />
           {blip.name}
           {isStale(blip) && <span className="rdr-stale">evidence {blip.evidenceAgeDays}d old</span>}
         </h2>

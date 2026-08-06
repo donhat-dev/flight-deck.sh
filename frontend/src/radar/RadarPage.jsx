@@ -25,7 +25,7 @@ import BlipPanel from "./BlipPanel.jsx";
 import HistoryBar from "./HistoryBar.jsx";
 import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
-import { quadrantOf } from "./geometry.js";
+import { QUADRANTS, quadrantOf } from "./geometry.js";
 import { BLIPS, RADARS, blipByNum } from "./seed.js";
 
 const NAV = [
@@ -111,16 +111,22 @@ function BlipView({ num }) {
   return (
     <main className="rdr-focus">
       <div className="rdr-focus-head">
+        {/* A full-height slab flush against the left edge, not a button floating in
+            a gutter. It is the only way out of a view that carries no chrome, so it
+            gets the weight of an edge rather than the weight of a control — and no
+            hard offset, because a lifted key here would read as an action on the
+            radar rather than as leaving it. */}
+        <button type="button" className="rdr-back" aria-label="Back to the full radar"
+                onClick={() => go("#/")}>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M14 5l-7 7 7 7" />
+          </svg>
+        </button>
         <div className="rdr-focus-title">
           {/* The title alone. The eyebrow and the migration subtitle were both
               removed: a reader who clicked a blip already knows which radar they
-              are on, so both were repeating context to buy nothing. The title is
-              the way back, since this view has no chrome. */}
-          <h1 className="rdr-h1">
-            <button type="button" className="rdr-title-btn" onClick={() => go("#/")}>
-              {openRadar.title}
-            </button>
-          </h1>
+              are on, so both were repeating context to buy nothing. */}
+          <h1 className="rdr-h1">{openRadar.title}</h1>
         </div>
         <button type="button" className="rdr-btn">Export</button>
         <button type="button" className="rdr-btn" data-variant="primary">Move blip</button>
@@ -132,6 +138,23 @@ function BlipView({ num }) {
             <h2 className="rdr-h2">{quadrant.label}</h2>
             <span className="rdr-chrome-meta">{siblings.length} blips</span>
             <span className="rdr-chrome-fill" />
+            {/* Stepping between quadrants is a move along a ring of four, so the
+                control is a pair of steppers rather than four named chips: the names
+                are already the four corners of the full radar. */}
+            <div className="rdr-quadrant-nav">
+              {[["prev", -1, "M14 5l-7 7 7 7"], ["next", 1, "M10 5l7 7-7 7"]].map(([k, step, d]) => (
+                <button key={k} type="button" className="rdr-icon-btn" data-size="lg"
+                        aria-label={`${k === "prev" ? "Previous" : "Next"} quadrant`}
+                        onClick={() => {
+                          const i = QUADRANTS.findIndex((q) => q.k === blip.quadrant);
+                          const to = QUADRANTS[(i + step + QUADRANTS.length) % QUADRANTS.length];
+                          const first = BLIPS.find((b) => b.quadrant === to.k);
+                          if (first) go(`#/blip/${first.num}`);
+                        }}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d={d} /></svg>
+                </button>
+              ))}
+            </div>
           </div>
           <div className="rdr-quadrant-stage">
             <Radar mode="quadrant" blips={siblings} quadrant={blip.quadrant}

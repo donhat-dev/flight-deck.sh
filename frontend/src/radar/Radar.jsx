@@ -13,6 +13,7 @@
  */
 import React from "react";
 
+import { BlipGlyph } from "./BlipGlyph.jsx";
 import {
   QUADRANTS, RINGS, RING_LABEL, arcFacing, arcPath, isStale, placeBlips, polar,
   quadrantOf, ringBand, sectorPath,
@@ -66,19 +67,7 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
       }}
     >
       <title>{`${b.num}. ${b.name} — ${RING_LABEL[b.ring]}`}</title>
-      {selected && (
-        <circle className="rdr-blip-halo" cx={p.x} cy={p.y} r={d / 2 + 9} />
-      )}
-      {b.state === "new" && (
-        <circle className="rdr-blip-entered" cx={p.x} cy={p.y} r={d / 2 + 5} />
-      )}
-      {facing !== null && (
-        <path
-          className="rdr-blip-arc"
-          d={sectorPath(p.x, p.y, d / 2 + 3, d / 2 + 8, facing - 56, facing + 56)}
-        />
-      )}
-      <circle className="rdr-blip-body" cx={p.x} cy={p.y} r={d / 2} />
+      <BlipGlyph cx={p.x} cy={p.y} d={d} state={b.state} facing={facing} selected={selected} />
       <text className="rdr-blip-num" x={p.x} y={p.y}>{b.num}</text>
     </g>
   );

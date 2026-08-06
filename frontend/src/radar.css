@@ -162,7 +162,32 @@ html, body, #root { height: 100%; }
   font-size: 0.875rem;
   line-height: 1;
   cursor: pointer;
+  display: grid;
+  place-items: center;
 }
+/* Icon-only and deliberately WITHOUT a hard offset. Every other key on the page
+   carries one, so the absence is the signal: these two step the view sideways, they
+   do not act on the radar. */
+.rdr-icon-btn[data-size="lg"] { padding: 0.55rem; }
+.rdr-icon-btn svg { width: 1.375rem; height: 1.375rem; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.rdr-icon-btn[data-size="lg"] svg { width: 1.625rem; height: 1.625rem; }
+
+/* The way out of a chrome-less view: a slab on the header's left edge, the header's
+   full height, no gutter around it. Sized by the header rather than by padding of
+   its own, so the two can never drift apart. */
+.rdr-back {
+  align-self: stretch;
+  border: 0;
+  border-right: 1px solid var(--rdr-ring-edge);
+  background: none;
+  color: var(--fdx-text);
+  padding: 0 1.6rem;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.rdr-back svg { width: 1.75rem; height: 1.75rem; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.rdr-back:hover { background: var(--fdx-surface-raised); }
 
 .rdr-seg { display: flex; border: 1px solid var(--fdx-depth-muted); }
 .rdr-seg-key {
@@ -304,10 +329,16 @@ html, body, #root { height: 100%; }
 /* Tools is the one hue light enough that a light numeral disappears on it. */
 .rdr-blip[data-quadrant="tools"] .rdr-blip-num { fill: var(--fdx-depth-ink); }
 
-.rdr-blip[data-quadrant="platforms"] { --rdr-q: var(--rdr-q-platforms); }
-.rdr-blip[data-quadrant="techniques"] { --rdr-q: var(--rdr-q-techniques); }
-.rdr-blip[data-quadrant="tools"] { --rdr-q: var(--rdr-q-tools); }
-.rdr-blip[data-quadrant="lang"] { --rdr-q: var(--rdr-q-lang); }
+.rdr-blip[data-quadrant="platforms"], .rdr-blip-mark[data-quadrant="platforms"] { --rdr-q: var(--rdr-q-platforms); }
+.rdr-blip[data-quadrant="techniques"], .rdr-blip-mark[data-quadrant="techniques"] { --rdr-q: var(--rdr-q-techniques); }
+.rdr-blip[data-quadrant="tools"], .rdr-blip-mark[data-quadrant="tools"] { --rdr-q: var(--rdr-q-tools); }
+.rdr-blip[data-quadrant="lang"], .rdr-blip-mark[data-quadrant="lang"] { --rdr-q: var(--rdr-q-lang); }
+
+/* Sized in em so the mark tracks the heading beside it: the appearance config can
+   change the type scale at runtime, and a pixel size would stop matching. */
+.rdr-blip-mark { width: 2.125em; height: 2.125em; flex: none; overflow: visible; }
+.rdr-blip-mark .rdr-blip-num { font-size: 0.75em; }
+.rdr-blip-mark[data-quadrant="tools"] .rdr-blip-num { fill: var(--fdx-depth-ink); }
 
 /* Stale is dimmed, not recoloured: the blip still belongs to its quadrant, and
    borrowing another hue would say it changed category. */
