@@ -11,7 +11,7 @@
 import React from "react";
 
 import { RINGS, RING_LABEL } from "./geometry.js";
-import { RADARS } from "./seed.js";
+
 
 /** The miniature. Four rings, four dots — one per quadrant, placed so the glyph
  *  reads as a radar at 74px rather than as a target. */
@@ -36,7 +36,7 @@ function Mini() {
   );
 }
 
-export default function RadarList({ onOpen }) {
+export default function RadarList({ radars, openSlug, onOpen }) {
   return (
     <main className="rdr-list">
       <div className="rdr-index-head">
@@ -49,7 +49,7 @@ export default function RadarList({ onOpen }) {
       </div>
 
       <ul className="rdr-cards">
-        {RADARS.map((r) => (
+        {radars.map((r) => ((r = { ...r, open: r.slug === openSlug }),
           <li key={r.slug}>
             <button type="button" className="rdr-card" aria-current={r.open ? "true" : undefined}
                     onClick={() => r.open && onOpen?.(r.slug)}>

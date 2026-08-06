@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { BLIPS } from "./seed.js";
+import { BLIPS } from "./fixtures.js";
 import {
   QUADRANTS, RINGS, RING_EDGE, arcFacing, isStale, placeBlips, polar,
   quadrantOf, ringBand, sectorPath,

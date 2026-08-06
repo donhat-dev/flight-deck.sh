@@ -1,8 +1,17 @@
 /**
- * Radar seed data.
+ * Radar FIXTURES — for tests only.
  *
- * Stands in for the API that does not exist yet, and is shaped like the API this
- * page needs rather than like something convenient to hand-write. Two properties
+ * This was the seed the page rendered before the API existed. It is kept because the
+ * geometry tests must stay hermetic: placement math is pure, and a test that reached
+ * for the network to check an angle would fail for reasons that have nothing to do
+ * with geometry.
+ *
+ * NOTHING IN THE APP MAY IMPORT THIS. Invented data drawn beside real data looks
+ * exactly like real data, which is the one failure a radar cannot survive. The
+ * backend seeder (backend/flightdeck/radar/seed.py) owns the real board.
+ *
+ * Originally shaped like the API this page needs rather than like something
+ * convenient to hand-write. Two properties
  * of that shape are decisions, not conveniences:
  *
  *   - a blip's ring is NOT stored on the blip in the real model; it is the ring of

@@ -15,7 +15,15 @@ import React, { useState } from "react";
 
 import BlipMark from "./BlipGlyph.jsx";
 import { RINGS, RING_LABEL, isStale } from "./geometry.js";
-import { EVIDENCE, MOVES, SUMMARY } from "./seed.js";
+
+/** `2026-08-04` reads as `04 Aug` in a list where the year is never in question. */
+function fmtDate(iso) {
+  if (!iso) return "";
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso
+    : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+
 
 const TABS = [
   { k: "summary", label: "Blip summary" },
@@ -53,12 +61,12 @@ function Position({ ring }) {
 }
 
 function Summary({ blip }) {
-  const evidence = EVIDENCE[blip.num] || [];
+  const evidence = blip.evidence || [];
   return (
     <>
       <Position ring={blip.ring} />
       <section className="rdr-block rdr-lede-block">
-        <p className="rdr-lede">{SUMMARY[blip.num] || blip.why}</p>
+        <p className="rdr-lede">{blip.why}</p>
       </section>
       <section className="rdr-block">
         <h3 className="rdr-eyebrow">
@@ -70,7 +78,7 @@ function Summary({ blip }) {
               <EvidenceMark kind={e.kind} />
               <span className="rdr-ev-title">{e.title}</span>
               <span className="rdr-ev-kind">{e.kind}</span>
-              <span className="rdr-ev-date">{e.date}</span>
+              <span className="rdr-ev-date">{fmtDate(e.dated)}</span>
             </li>
           ))}
         </ul>
@@ -80,12 +88,12 @@ function Summary({ blip }) {
 }
 
 function Why({ blip }) {
-  const moves = MOVES[blip.num] || [];
+  const moves = blip.moves || [];
   return (
     <section className="rdr-block">
       <ol className="rdr-moves">
         {moves.map((m, i) => (
-          <li key={`${m.quarter}-${m.ring ?? "entered"}`} className="rdr-move"
+          <li key={m.id} className="rdr-move"
               data-current={i === 0 ? "true" : undefined}>
             <span className="rdr-move-rail" aria-hidden="true">
               <span className="rdr-move-dot" />
@@ -93,17 +101,17 @@ function Why({ blip }) {
             </span>
             <div className="rdr-move-body">
               <p className="rdr-move-head">
-                <span className="rdr-move-when">{m.quarter}</span>
+                <span className="rdr-move-when">{m.period}</span>
                 <span className="rdr-move-arrow" aria-hidden="true">→</span>
                 <span className="rdr-move-ring" data-ring={m.ring || undefined}>
                   {m.ring ? RING_LABEL[m.ring] : "Entered"}
                 </span>
               </p>
               <p className="rdr-move-why">{m.why}</p>
-              {m.evidence.length > 0 && (
+              {m.evidence?.length > 0 && (
                 <p className="rdr-move-ev">
                   {m.evidence.map((e) => (
-                    <span key={e} className="rdr-chip">{e}</span>
+                    <span key={e.title} className="rdr-chip">{e.title}</span>
                   ))}
                 </p>
               )}
@@ -117,7 +125,7 @@ function Why({ blip }) {
 
 export default function BlipPanel({ blip }) {
   const [tab, setTab] = useState("summary");
-  const moves = MOVES[blip.num] || [];
+  const moves = blip.moves || [];
   return (
     <article className="rdr-panel">
       <div className="rdr-tabs" role="tablist" aria-label="Blip detail">

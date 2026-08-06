@@ -19,16 +19,17 @@
  */
 import React from "react";
 
-import { GRANULARITY, TIMELINE } from "./seed.js";
+/** The four units the switch offers. Not from the API: it is a control, not data. */
+const GRANULARITY = ["day", "week", "month", "quarter"];
 
 /** Minor ticks per major stop, per granularity. A quarter holds three months; a
  *  month holds roughly four weeks; a week holds seven days. */
 const MINOR = { quarter: 3, month: 4, week: 7, day: 4 };
 
-function Ruler({ minor, handleAt }) {
+function Ruler({ minor, handleAt, stops }) {
   return (
     <div className="rdr-ruler-ticks">
-      {TIMELINE.flatMap((t, ti) =>
+      {stops.flatMap((t, ti) =>
         Array.from({ length: minor }, (_, mi) => {
           const idx = ti * minor + mi;
           return (
@@ -44,10 +45,10 @@ function Ruler({ minor, handleAt }) {
   );
 }
 
-function Stops({ marked }) {
+function Stops({ marked, stops }) {
   return (
     <div className="rdr-ruler-labels">
-      {TIMELINE.map((t) => (
+      {stops.map((t) => (
         <span key={t.key} className="rdr-ruler-stop"
               aria-current={t.current ? "true" : undefined}>
           {marked && <span className="rdr-stop-mark" aria-hidden="true" />}
@@ -63,14 +64,21 @@ export default function HistoryBar({
   variant = "granularity",
   granularity = "quarter",
   onGranularity,
-  asOf = "04 Aug 2026",
+  periods = [],
+  asOf,
 }) {
   const full = variant === "granularity";
+  // Derived from the moves themselves, server-side, so a quarter with no moves is
+  // simply not a stop. A hand-kept list showed quarters that never happened.
+  const stops = periods;
   const minor = MINOR[granularity] ?? 3;
-  const currentIndex = Math.max(0, TIMELINE.findIndex((t) => t.current));
+  const currentIndex = Math.max(0, stops.findIndex((t) => t.current));
   // The handle sits on the second minor tick of the current stop rather than at
   // its edge: an edge handle reads as "the boundary", which is a different claim.
   const handleAt = currentIndex * minor + Math.min(minor - 1, 1);
+
+  // A scrubber with no stops is not a smaller scrubber, it is a different thing.
+  if (stops.length === 0) return null;
 
   return (
     <div className="rdr-history" data-variant={variant}>
@@ -96,12 +104,12 @@ export default function HistoryBar({
       </div>
 
       <div className="rdr-ruler">
-        {full && <Ruler minor={minor} handleAt={handleAt} />}
-        <Stops marked={!full} />
+        {full && <Ruler minor={minor} handleAt={handleAt} stops={stops} />}
+        <Stops marked={!full} stops={stops} />
       </div>
 
       <div className="rdr-history-tail">
-        {full && <span className="rdr-eyebrow">As of {asOf}</span>}
+        {full && asOf && <span className="rdr-eyebrow">As of {asOf}</span>}
         <div className="rdr-history-controls">
           {full ? (
             <>
@@ -111,7 +119,7 @@ export default function HistoryBar({
             </>
           ) : (
             <>
-              <button type="button" className="rdr-btn">⏮ {TIMELINE[0].key.split(" ")[0]}</button>
+              <button type="button" className="rdr-btn">⏮ {stops[0]?.key.split(" ")[0] ?? "start"}</button>
               <button type="button" className="rdr-btn">▷ Replay</button>
             </>
           )}

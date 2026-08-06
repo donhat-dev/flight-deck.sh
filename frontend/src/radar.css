@@ -376,5 +376,21 @@ html, body, #root { height: 100%; }
 .rdr-dot[data-flag="stale"] { background: var(--fdx-warning); }
 .rdr-dot[data-flag="moved"] { background: var(--fdx-orange); }
 
+/* Loading, failure and emptiness share a slot but not a meaning, so the tone comes
+   from the message rather than from the container. */
+.rdr-status-wrap { flex: 1 1 auto; display: grid; place-items: center; }
+.rdr-status {
+  padding: 3rem var(--rdr-gutter);
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  align-items: flex-start;
+}
+.rdr-status-line { margin: 0; font-size: 0.9375rem; color: var(--fdx-text); }
+/* A failed request is a failure, so it takes the critical tone. Staleness elsewhere
+   takes caution — the two are different claims and never share a colour. */
+.rdr-status-line[data-tone="error"] { color: var(--fdx-critical); }
+.rdr-status-hint { margin: 0; font-size: 0.8125rem; color: var(--fdx-text-muted); }
+
 .rdr-empty { padding: 4rem var(--rdr-gutter); display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; }
 .rdr-empty-line { margin: 0; padding: 1.25rem var(--rdr-gutter); color: var(--fdx-text-muted); }

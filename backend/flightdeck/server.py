@@ -17,7 +17,8 @@ from flightdeck.hub import credentials
 from flightdeck.hub.nodes import load as hub_load
 from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
-from flightdeck.routers import (charts, core, diff, hub, missions, sessions,
+from flightdeck.radar import store as radar_store
+from flightdeck.routers import (charts, core, diff, hub, missions, radar, sessions,
                                stream, treasures, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
@@ -48,6 +49,7 @@ def create_app() -> FastAPI:
     # Treasures index: created here too, so the dashboard works even if the
     # Treasures MCP has never been run in this environment.
     treasures_store.init(write_conn)
+    radar_store.init(write_conn)
     flows_dir = os.environ.get("TOKEN_AUDIT_FLOWS_DIR") or os.path.join(
         os.path.dirname(__file__), "..", "flows")
 
@@ -70,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(charts.router)
     app.include_router(diff.router)
     app.include_router(hub.router)
+    app.include_router(radar.router)
     app.include_router(stream.router)
     app.include_router(appearance.router)
     app.include_router(treasures.router)

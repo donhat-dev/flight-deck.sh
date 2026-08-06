@@ -14,7 +14,7 @@
 import React, { useMemo, useState } from "react";
 
 import { QUADRANTS, RINGS, RING_LABEL, isStale } from "./geometry.js";
-import { BLIPS, RADARS } from "./seed.js";
+
 
 const COLUMNS = [
   { k: "num", label: "#" },
@@ -26,17 +26,23 @@ const COLUMNS = [
   { k: "evidenceAgeDays", label: "Fresh" },
 ];
 
-const count = (pred) => BLIPS.filter(pred).length;
 
-export default function BlipIndex({ onOpen }) {
+
+export default function BlipIndex({ blips, radars, currentPeriod, onOpen }) {
+  const BLIPS = blips;
+  const RADARS = radars;
+  const count = (pred) => BLIPS.filter(pred).length;
   const [ring, setRing] = useState(null);
   const [quadrant, setQuadrant] = useState(null);
   const [staleOnly, setStaleOnly] = useState(false);
+  const [movedOnly, setMovedOnly] = useState(false);
 
   const rows = useMemo(() => BLIPS.filter((b) =>
     (!ring || b.ring === ring)
     && (!quadrant || b.quadrant === quadrant)
-    && (!staleOnly || isStale(b))), [ring, quadrant, staleOnly]);
+    && (!staleOnly || isStale(b))
+    && (!movedOnly || (b.period === currentPeriod && b.state !== "held"))),
+    [ring, quadrant, staleOnly, movedOnly, currentPeriod]);
 
   const facet = (title, items, active, onPick) => (
     <section className="rdr-facet">
@@ -71,7 +77,7 @@ export default function BlipIndex({ onOpen }) {
       <div className="rdr-index-body">
         <aside className="rdr-facets" aria-label="Filters">
           {facet("Radar", RADARS.map((r) => ({ k: r.slug, label: r.title, n: r.blipCount })),
-                 RADARS.find((r) => r.open)?.slug, () => {})}
+                 RADARS[0]?.slug, () => {})}
           {facet("Quadrant", QUADRANTS.map((q) => ({
             k: q.k, label: q.label, n: count((b) => b.quadrant === q.k),
           })), quadrant, setQuadrant)}
@@ -90,10 +96,13 @@ export default function BlipIndex({ onOpen }) {
                 </button>
               </li>
               <li>
-                <button type="button" className="rdr-facet-key" aria-pressed={false} disabled>
+                <button type="button" className="rdr-facet-key" aria-pressed={movedOnly}
+                        onClick={() => setMovedOnly((v) => !v)}>
                   <span className="rdr-dot" data-flag="moved" aria-hidden="true" />
-                  <span className="rdr-facet-name">Moved this quarter</span>
-                  <span className="rdr-facet-count">{count((b) => b.state !== "held")}</span>
+                  <span className="rdr-facet-name">Moved in {currentPeriod || "this period"}</span>
+                  <span className="rdr-facet-count">
+                    {count((b) => b.period === currentPeriod && b.state !== "held")}
+                  </span>
                 </button>
               </li>
             </ul>
@@ -106,9 +115,9 @@ export default function BlipIndex({ onOpen }) {
               {rows.length} of {BLIPS.length} blips
             </span>
             <span className="rdr-chrome-fill" />
-            {(ring || quadrant || staleOnly) && (
+            {(ring || quadrant || staleOnly || movedOnly) && (
               <button type="button" className="rdr-btn" onClick={() => {
-                setRing(null); setQuadrant(null); setStaleOnly(false);
+                setRing(null); setQuadrant(null); setStaleOnly(false); setMovedOnly(false);
               }}>Clear filters</button>
             )}
           </div>
