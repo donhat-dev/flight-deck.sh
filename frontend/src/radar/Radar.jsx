@@ -29,10 +29,26 @@ import {
  * leaves the corners square, which is what the reference radar shows. */
 const SEAM_W = 3;
 
-/** Blip diameter in user units. Bigger than a dot on purpose: the blips are the
- *  content, and the rings are only the frame that gives them a position. */
-const D = 30;
-const D_SELECTED = 40;
+/** Blip diameter in user units. Still bigger than a dot on purpose — the blips are
+ *  the content and the rings are only the frame — but no longer 30.
+ *
+ *  Came down from 30/40 once a real radar was loaded. The seed spread 8 Adopt blips
+ *  over four quadrants, so nothing collided; FlightDeck's own radar puts FIVE
+ *  techniques blips in Adopt, which is the innermost and therefore smallest-area
+ *  band, and two of them overlapped. 22 is ~47% of the old area, which clears that
+ *  cell without making the numerals unreadable.
+ *
+ *  The geometry test did not catch it: it requires 6° OR 0.02 radius of separation,
+ *  and that is satisfied by two blips that still visually touch at d=30. The
+ *  threshold is honest about angular distance and silent about drawn size. */
+const D = 22;
+const D_SELECTED = 30;
+
+/** The numeral, as a fraction of the blip. It used to be a fixed `0.75rem` in the
+ *  stylesheet — 12 user units whatever the blip measured — so shrinking the circle
+ *  alone would have pushed the digits past its edge. Tying it to D keeps one number
+ *  in charge of the pair. */
+const NUM_RATIO = 0.44;
 
 function ringGeometry(mode, width, height) {
   if (mode === "full") {
@@ -68,7 +84,11 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
     >
       <title>{`${b.num}. ${b.name} — ${RING_LABEL[b.ring]}`}</title>
       <BlipGlyph cx={p.x} cy={p.y} d={d} state={b.state} facing={facing} selected={selected} />
-      <text className="rdr-blip-num" x={p.x} y={p.y}>{b.num}</text>
+      {/* Through a custom property rather than the `font-size` attribute: a CSS
+          declaration beats a presentation attribute, so the stylesheet's own value
+          would win and the numeral would stay 12 units on a 22-unit blip. */}
+      <text className="rdr-blip-num" x={p.x} y={p.y}
+            style={{ "--rdr-blip-num-size": `${d * NUM_RATIO}px` }}>{b.num}</text>
     </g>
   );
 }

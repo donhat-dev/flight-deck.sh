@@ -44,7 +44,15 @@ function EvidenceMark({ kind }) {
   );
 }
 
-function Position({ ring }) {
+/**
+ * The four rings as a track, Caution on the left to Adopt on the right.
+ *
+ * Exported because the radar's summary panel shows the same thing, and a second copy
+ * is how the two came to disagree the last time a blip was drawn twice (see
+ * BlipGlyph's header). The direction of this track is also what `markFacing` encodes,
+ * so a third copy would put an arc on the wrong side.
+ */
+export function Position({ ring }) {
   return (
     <section className="rdr-block">
       <h3 className="rdr-eyebrow">Position</h3>

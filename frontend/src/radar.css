@@ -313,13 +313,26 @@ html, body, #root { height: 100%; }
 /* A blip is the content. Everything above is the frame that gives it a position,
    which is why the frame is quiet and this is not. */
 .rdr-blip { cursor: pointer; }
+/* The UA focus ring is a RECTANGLE around the group's bounding box, so clicking a
+   round blip drew a square box over the radar. Keyboard focus still has to be visible
+   — it is how the drawing is navigable at all — so it moves onto the body as a stroke,
+   which is the same shape as the thing being focused. */
+.rdr-blip:focus { outline: none; }
+.rdr-blip:focus-visible .rdr-blip-body {
+  stroke: var(--fdx-signal);
+  stroke-width: 2.5;
+  paint-order: stroke;
+}
 .rdr-blip-body { fill: var(--rdr-q); }
 .rdr-blip-arc { fill: var(--rdr-q); }
 .rdr-blip-entered { fill: none; stroke: var(--rdr-q); stroke-width: 4; }
 .rdr-blip-halo { fill: none; stroke: var(--fdx-signal); stroke-width: 2.5; opacity: 0.55; }
 .rdr-blip-num {
   font-family: var(--fdx-font-mono);
-  font-size: 0.75rem;
+  /* Set per blip by Radar.jsx, which owns the diameter. The fallback is only for a
+     caller that draws a numeral without one — the panel's inline mark overrides it
+     with an em value below, and that selector is more specific either way. */
+  font-size: var(--rdr-blip-num-size, 0.75rem);
   font-weight: 700;
   fill: var(--fdx-control-label);
   text-anchor: middle;

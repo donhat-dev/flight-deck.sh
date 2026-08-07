@@ -26,6 +26,7 @@ import HistoryBar from "./HistoryBar.jsx";
 import MoveBlipModal from "./MoveBlipModal.jsx";
 import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
+import SummaryPanel from "./SummaryPanel.jsx";
 import { useBlip, useRadars } from "./data.js";
 import { QUADRANTS, quadrantOf } from "./geometry.js";
 
@@ -133,10 +134,41 @@ function Chrome({ active, board }) {
 }
 
 function FullView({ board, granularity, onGranularity }) {
+  // Selection is component state, not a route. Clicking a blip does not navigate at
+  // all now, so there is nothing for the URL to preserve and nothing for the back
+  // button to walk — a hash per click would put twenty entries in the history for one
+  // reading session. The linkable thing is still the detail page.
+  const [picked, setPicked] = useState(null);
+  const blip = board.blips.find((b) => b.num === picked) ?? null;
+
+  // A radar that changed under the panel must not leave a stale blip open. This is
+  // reachable: recording a move refetches the board, and the reindex tool can renumber
+  // every blip on it.
+  useEffect(() => {
+    if (picked !== null && !board.blips.some((b) => b.num === picked)) setPicked(null);
+  }, [board, picked]);
+
+  useEffect(() => {
+    const on = (e) => { if (e.key === "Escape") setPicked(null); };
+    window.addEventListener("keydown", on);
+    return () => window.removeEventListener("keydown", on);
+  }, []);
+
   return (
     <main className="rdr-full">
-      <div className="rdr-full-stage">
-        <Radar mode="full" blips={board.blips} onSelect={(num) => go(`#/blip/${num}`)} />
+      {/* The stage is a ROW so the panel takes width from the radar rather than
+          covering it. The canvas is already sized from its height with
+          `max-inline-size: 100%`, so it shrinks to the room left over on its own. */}
+      <div className="rdr-full-row">
+        <div className="rdr-full-stage">
+          <Radar mode="full" blips={board.blips} selectedNum={picked}
+                 onSelect={(num) => setPicked((cur) => (cur === num ? null : num))} />
+        </div>
+        {blip && (
+          <SummaryPanel blip={blip}
+                        onClose={() => setPicked(null)}
+                        onOpenDetail={() => go(`#/blip/${blip.num}`)} />
+        )}
       </div>
       <HistoryBar granularity={granularity} onGranularity={onGranularity}
                   periods={board.periods} />

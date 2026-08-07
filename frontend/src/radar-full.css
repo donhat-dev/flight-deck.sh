@@ -3,13 +3,26 @@
 
    composition: screen
 
-   The only view whose question is "where does everything stand", so it carries
-   nothing but the radar and the history bar. No masthead, no side panel, no stat
-   strip: every one of those would take attention that the 34 blips are supposed
-   to have, and the answer to this view's question is a shape, not a number.
+   The view's question is "where does everything stand", and the answer is a shape
+   rather than a number. So the frame stays bare: no masthead, no stat strip.
 
-   Depth: none. The anchor holds the eye by area and saturation, and a page with a
-   single region has nothing to be lifted above.
+   It does now carry ONE more region, and only on demand. Reading a single blip used
+   to mean leaving this page for the detail view and coming back, which took the radar
+   away for the whole trip; a summary panel opens beside the radar instead and the
+   radar keeps both its place and its selection.
+
+   The panel is SUBORDINATE and the styling has to say so, because a reader decides
+   what matters by weight, not by which one is newer on screen:
+
+     - it takes width FROM the radar rather than covering it, so the drawing is never
+       hidden by the thing describing it
+     - it gets a border and a raised surface but NO block lift. The blip-focus panel
+       does take that lift, because there it is the anchor; here the radar is, and two
+       lifted regions on one screen means neither reads as the subject
+     - it is the only region that can be closed, which is the other half of saying it
+       is not what the page is for
+
+   Depth: none. The anchor holds the eye by area and saturation.
    ============================================================ */
 
 .rdr-full {
@@ -31,6 +44,101 @@
   place-items: center;
   padding: 0.75rem var(--rdr-gutter);
   min-height: 0;
+}
+
+/* The row that holds the radar and, when one is open, the summary beside it.
+   `min-height: 0` on both this and the stage: without it the grid child refuses to
+   shrink below its content and the history bar leaves the page — the same trap the
+   stage's `flex-basis: 0` already documents, one level up. */
+.rdr-full-row {
+  flex: 1 1 0;
+  display: flex;
+  align-items: stretch;
+  min-height: 0;
+}
+
+/* ---- the summary, subordinate to the drawing ---------------------------- */
+
+.rdr-side {
+  flex: 0 1 26rem;
+  min-width: 0;
+  align-self: center;
+  /* The gutter between the two comes from the stage's own right padding, and this
+     supplies the one at the page edge — so every gap on the row is `--rdr-gutter`
+     and no rule has to know whether the panel is open. */
+  margin-inline-end: var(--rdr-gutter);
+  /* Never taller than the radar it sits beside: a panel that outgrows the drawing
+     starts to read as the subject. Its own body scrolls instead. */
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface-raised);
+}
+
+.rdr-side-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 1.05rem 1.1rem 0.9rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+.rdr-side-head .rdr-eyebrow { flex: 1 1 100%; }
+.rdr-side-name {
+  flex: 1 1 auto;
+  margin: 0.4rem 0 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+.rdr-side-head .rdr-icon-btn { margin-top: 0.3rem; padding: 0.3rem 0.4rem; }
+.rdr-side-head .rdr-icon-btn svg { width: 1.1rem; height: 1.1rem; }
+
+.rdr-side-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+/* Definition pairs rather than a chip row: each of these is a labelled fact, and a
+   chip would make four unlabelled numbers the reader has to decode. */
+.rdr-side-meta {
+  margin: 0.55rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem 1rem;
+}
+.rdr-side-meta > div { min-width: 0; }
+.rdr-side-meta dt {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.rdr-side-meta dd { margin: 0.2rem 0 0; font-size: 0.8125rem; }
+
+.rdr-side-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.85rem 1.1rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+}
+
+/* The lede is the largest prose in the panel but smaller than the focus view's, so a
+   reader who opens the detail still gets a step up rather than the same page twice. */
+.rdr-side .rdr-lede { font-size: 1rem; }
+.rdr-side .rdr-block { padding: 0.9rem 1.1rem 1rem; border-top: 1px solid var(--rdr-ring-edge); }
+.rdr-side .rdr-block:first-of-type { border-top: 0; }
+.rdr-side .rdr-lede-block { padding-block: 0.2rem 1.1rem; }
+
+/* On a narrow window the row stacks, and the radar keeps the top half. */
+@media (max-width: 60rem) {
+  .rdr-full-row { flex-direction: column; }
+  .rdr-side { flex: 0 0 auto; align-self: stretch; max-height: 45%; }
 }
 
 .rdr-full-stage .rdr-canvas {
