@@ -12,6 +12,24 @@ import React from "react";
 
 import { RINGS, RING_LABEL } from "./geometry.js";
 
+/**
+ * `2026-08-07T03:05:34.711924+00:00` reads as `07 Aug`.
+ *
+ * The card used to print `r.updated`, which the board has never had — the field is
+ * `updated_at` — so the slot rendered empty on every card and the layout reserved
+ * space for nothing. A missing property is undefined rather than an error, which is
+ * why it survived: React renders it as nothing at all and no test looked.
+ *
+ * Not BlipPanel's `fmtDate`: that one appends `T00:00:00Z` to a bare `YYYY-MM-DD` and
+ * would produce an invalid date from a full timestamp.
+ */
+function fmtStamp(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? ""
+    : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
+}
+
 
 /** The miniature. Four rings, four dots — one per quadrant, placed so the glyph
  *  reads as a radar at 74px rather than as a target. */
@@ -85,7 +103,9 @@ export default function RadarList({ radars, openSlug, onOpen }) {
                 {r.stale > 0 && (
                   <span className="rdr-card-stale">{r.stale} stale</span>
                 )}
-                <span className="rdr-card-meta">{r.updated}</span>
+                {/* Labelled, because a bare date beside "12 blips · 30 moves" reads as
+                    a fourth count rather than as when the radar last changed. */}
+                <span className="rdr-card-meta">updated {fmtStamp(r.updated_at)}</span>
               </span>
             </button>
           </li>
