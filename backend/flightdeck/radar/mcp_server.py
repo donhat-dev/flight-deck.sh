@@ -8,9 +8,14 @@ Two properties are worth knowing before calling anything.
 
 **A position cannot exist without its reason.** There is no "set ring" tool, and there
 is no ring column to set. A blip's ring is the ring of its newest move, derived on
-read. So `radar_blip_add` takes a `why` and `radar_move` takes a `why` plus evidence,
-and both refuse without them. This is not validation politeness — the state "positioned
-for no stated reason" is unrepresentable, which is the whole point of the feature.
+read. So `radar_blip_add` and `radar_move` both take a `why`, and both refuse without one.
+This is not validation politeness — the state "positioned for no stated reason" is
+unrepresentable, which is the whole point of the feature.
+
+Evidence is the part that is NOT enforced. It is optional, and worth OFFERING when a blip
+changes ring or lands somewhere consequential (Adopt, Caution). A citation supplied to get
+past a gate says nothing, and an honest gap is easier to fix later than a decorative
+reference nobody ever checks.
 
 **Writes answer "what does the radar say now".** Every write tool returns the DERIVED
 blip or board, not the row it wrote. After a move you get the new ring and the new
@@ -18,9 +23,9 @@ direction as the server computed them, so there is nothing to assume and no foll
 read to make.
 
 The destructive tools (`radar_delete`, `radar_blip_delete`, `radar_move_delete`) all
-require `confirm=true` and all report what they cascaded. Two of them refuse outright
-in the cases that would leave the board lying: a blip's last move cannot be deleted,
-and the only evidence behind a positioned move cannot be removed.
+require `confirm=true` and all report what they cascaded. One of them refuses outright in
+the case that would leave the board lying: a blip's last move cannot be deleted, because a
+blip with no move has a position nobody decided.
 
 It runs outside FlightDeck's process, so it resolves its own configuration the same way
 the treasures server does: repo-root `.env`, then config.toml through flightdeck.config.
@@ -230,7 +235,7 @@ def radar_reindex(slug, by="num"):
 
 # --- moves and evidence -------------------------------------------------------
 
-def radar_move(slug, num, ring, period, why, evidence, session_id=None):
+def radar_move(slug, num, ring, period, why, evidence=None, session_id=None):
     return service.move_blip(_conn(), slug, int(num), ring=ring, period=period,
                              why=why, evidence=evidence, session_id=session_id)
 
@@ -265,8 +270,12 @@ _RING = {"type": ["string", "null"], "enum": [*store.RINGS, None],
 _QUADRANT = {"type": "string", "enum": list(store.QUADRANTS)}
 _EVIDENCE = {
     "type": "array",
-    "description": "what justifies the move. At least one is required for any move "
-                   "that names a ring; the store refuses otherwise.",
+    "description": "what justifies the move. OPTIONAL — the store accepts a move with "
+                   "none, because a citation added to satisfy a check is worth less than "
+                   "an honest gap. Offer to fill it in two cases: the blip actually "
+                   "CHANGES ring, or the choice is consequential (a move into Adopt or "
+                   "Caution, which is what other work will be built on or steered away "
+                   "from). For a hold, or an entry with nothing decided yet, do not ask.",
     "items": {"type": "object",
               "properties": {"kind": {"type": "string",
                                       "enum": ["treasure", "trace", "jira", "note"]},
@@ -396,15 +405,17 @@ TOOLS = {
         "Move a blip to a ring, with the reason and the evidence. THE write verb: "
         "position is the newest move, so this is the only way a blip's ring changes.\n"
         "Re-selecting the ring it already holds is legitimate and meaningful — it "
-        "records the position being HELD with fresh evidence, which is how a stale blip "
-        "is refreshed without a demotion that never happened.",
+        "records the position being HELD, which is how a stale blip is refreshed without "
+        "a demotion that never happened.\n"
+        "Evidence is OPTIONAL. Offer to fill it when the ring actually changes, or when "
+        "the landing is consequential (Adopt, Caution). Never block a move on it.",
         {"slug": {"type": "string"}, "num": {"type": "integer"}, "ring": _RING,
          "period": {"type": "string", "description": "e.g. 'Q3 2026'"},
          "why": {"type": "string",
                  "description": "required. What changed, and what it means for this "
                                 "choice."},
          "evidence": _EVIDENCE, "session_id": _SESSION},
-        ["slug", "num", "ring", "period", "why", "evidence"]),
+        ["slug", "num", "ring", "period", "why"]),
     "radar_move_update": (
         radar_move_update,
         "Correct a move already on record — its reason, its ring, or its period. This "
@@ -436,9 +447,9 @@ TOOLS = {
         ["slug", "num", "move_id", "evidence"]),
     "radar_evidence_delete": (
         radar_evidence_delete,
-        "Remove one citation by its id (from radar_blip). Refuses to leave a "
-        "POSITIONED move with none — add replacement evidence first, or delete the "
-        "move.",
+        "Remove one citation by its id (from radar_blip). Accepts leaving the move with "
+        "none, and reports `remaining` so a caller can see it just left a positioned move "
+        "uncited.",
         {"slug": {"type": "string"}, "num": {"type": "integer"},
          "evidence_id": {"type": "string"}},
         ["slug", "num", "evidence_id"]),

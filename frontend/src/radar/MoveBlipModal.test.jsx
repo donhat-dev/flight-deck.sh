@@ -11,7 +11,7 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import MoveBlipModal, { payload, refusal } from "./MoveBlipModal.jsx";
+import MoveBlipModal, { advice, payload, refusal } from "./MoveBlipModal.jsx";
 
 const BLIP = {
   id: "blip_5",
@@ -53,24 +53,53 @@ describe("a move with no reason is not recordable", () => {
   });
 });
 
-describe("a move with no evidence is not recordable", () => {
-  it("refuses an empty evidence list", () => {
-    expect(refusal(complete({ evidence: [] }))).toMatch(/at least one/);
+describe("a move with no evidence IS recordable", () => {
+  // Reversed by decision. Evidence is recommended, not required: a citation typed to get
+  // past a gate supports nothing. What stays required is the reason, tested above.
+  it("accepts an empty evidence list", () => {
+    expect(refusal(complete({ evidence: [] }))).toBeNull();
   });
 
-  it("refuses rows that exist but cite nothing", () => {
-    // The shape the form actually starts in: one row, present and blank.
+  it("accepts rows that exist but cite nothing — the shape the form starts in", () => {
     expect(refusal(complete({ evidence: [{ kind: "treasure", title: "", dated: "" }] })))
-      .toMatch(/at least one/);
+      .toBeNull();
+  });
+});
+
+describe("evidence is SUGGESTED, and only when it would change what someone does", () => {
+  const uncited = (over) => complete({ evidence: [], ...over });
+  const at = (ring) => ({ ...BLIP, ring });
+
+  it("asks when the ring actually changes", () => {
+    const out = advice(uncited({ ring: "trial" }), at("adopt"));
+    expect(out).toMatch(/changes the position from Adopt to Trial/);
+    // And it says the move is still recordable, so the hint cannot be read as a block.
+    expect(out).toMatch(/record it without/);
   });
 
-  it("accepts one cited row among blank ones", () => {
-    expect(refusal(complete({
-      evidence: [
-        { kind: "treasure", title: "", dated: "" },
-        { kind: "jira", title: "CRM-11197", dated: "" },
-      ],
-    }))).toBeNull();
+  it("asks on a HOLD at a consequential ring", () => {
+    // Nothing moved, but Adopt is what later work gets built on.
+    expect(advice(uncited({ ring: "adopt" }), at("adopt")))
+      .toMatch(/built on or steered away from/);
+  });
+
+  it("stays quiet on a hold at a ring nothing is built on", () => {
+    // The case that decides whether this is advice or a nag.
+    expect(advice(uncited({ ring: "trial" }), at("trial"))).toBeNull();
+    expect(advice(uncited({ ring: "assess" }), at("assess"))).toBeNull();
+  });
+
+  it("stays quiet the moment something is actually cited", () => {
+    expect(advice(complete({ ring: "adopt" }), at("trial"))).toBeNull();
+  });
+
+  it("never returns anything the form could mistake for a refusal", () => {
+    // refusal() and advice() are read at different places; if advice ever fired while
+    // refusal was null the key would be enabled beside a message that looks like a block.
+    for (const ring of ["adopt", "trial", "assess", "caution"]) {
+      const draft = uncited({ ring });
+      expect(refusal(draft)).toBeNull();
+    }
   });
 });
 
@@ -100,13 +129,14 @@ describe("the payload matches what the API accepts", () => {
     expect(body.evidence).toEqual([{ kind: "treasure", title: "doc 23", dated: null }]);
   });
 
-  it("never produces an empty evidence array from an accepted draft", () => {
-    // The API declares `evidence` with min_length=1 and no default, so an empty
-    // array is a 422 the reader cannot act on. Refusal and payload have to agree
-    // about which drafts get that far.
-    const draft = complete();
-    expect(refusal(draft)).toBeNull();
-    expect(payload(draft).evidence.length).toBeGreaterThan(0);
+  it("sends an empty array rather than omitting the field", () => {
+    // The API used to declare `evidence` with min_length=1 and no default, so an empty
+    // array was a 422. It now defaults to empty, and what matters is that the payload
+    // stays a LIST either way — a missing key and an empty list validate differently, and
+    // the form has no reason to make the server guess which it meant.
+    const body = payload(complete({ evidence: [{ kind: "note", title: "  ", dated: "" }] }));
+    expect(Array.isArray(body.evidence)).toBe(true);
+    expect(body.evidence).toEqual([]);
   });
 });
 
@@ -116,7 +146,7 @@ describe("the form as it first renders", () => {
                    onClose={() => {}} onRecorded={() => {}} />,
   );
 
-  it("opens with the record key disabled, because the reason starts empty", () => {
+  it("opens with the record key disabled, because the REASON starts empty", () => {
     // Fail-closed at first paint. A form that starts submittable and only refuses
     // on click has already told the reader the move is fine.
     const key = html.match(/<button[^>]*type="submit"[^>]*>/)[0];
@@ -124,9 +154,12 @@ describe("the form as it first renders", () => {
     expect(html).toContain("Record move");
   });
 
-  it("names both required fields before the reader submits anything", () => {
+  it("marks the one required field as required and evidence as optional", () => {
+    // The badge has to match what the form does. A "required" badge on a field that does
+    // not block teaches a reader to ignore the next one.
     expect(html).toContain("required");
-    expect(html).toContain("at least one");
+    expect(html).toContain("optional");
+    expect(html).not.toContain("at least one");
   });
 
   it("prints the rule the reason has to satisfy", () => {

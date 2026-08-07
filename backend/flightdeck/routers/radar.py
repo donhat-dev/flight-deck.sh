@@ -26,9 +26,11 @@ class Move(BaseModel):
     ring: str = Field(min_length=1, max_length=16)
     period: str = Field(min_length=1, max_length=32)
     why: str = Field(min_length=1, max_length=2000)
-    # No default. A caller that forgets evidence gets a 422 naming the field, rather
-    # than silently recording a move nobody can audit.
-    evidence: list[Evidence] = Field(min_length=1)
+    # Optional, and empty by default. It used to be `min_length=1` with no default, so a
+    # caller with nothing to cite got a 422 — which bought citations that existed to
+    # satisfy the check rather than to support the move. The REASON is still required
+    # above; evidence is recommended at the surfaces that ask a human for it.
+    evidence: list[Evidence] = Field(default_factory=list)
     session_id: str | None = Field(default=None, max_length=64)
 
 

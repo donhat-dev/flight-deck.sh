@@ -91,8 +91,8 @@
 .rdr-field { padding: 1.1rem 1.3rem; border-top: 1px solid var(--rdr-ring-edge); }
 .rdr-field:first-of-type { border-top: 0; }
 
-/* Both required fields wear this, so the refusal is visible BEFORE the submit
-   rather than after it. */
+/* The one genuinely required field wears this, so the refusal is visible BEFORE the
+   submit rather than after it. */
 .rdr-required {
   margin-left: 0.5rem;
   border: 1px solid var(--fdx-orange);
@@ -101,6 +101,22 @@
   letter-spacing: 0.06em;
   color: var(--fdx-orange);
 }
+
+/* Evidence is recommended, not required, so its badge must not look like the one on a
+   field that blocks. Quieter border, muted text: it reads as a note about the field and
+   not as a condition on the form. */
+.rdr-optional {
+  margin-left: 0.5rem;
+  border: 1px solid var(--fdx-depth-muted);
+  padding: 0.1rem 0.4rem;
+  font-size: 0.5625rem;
+  letter-spacing: 0.06em;
+  color: var(--fdx-text-muted);
+}
+
+/* The suggestion tone. Caution rather than the accent, because it is asking the reader to
+   consider something and not telling them the form is wrong. */
+.rdr-field-hint[data-tone="suggest"] { color: var(--fdx-warning); }
 
 .rdr-field-hint {
   margin: 0.55rem 0 0;

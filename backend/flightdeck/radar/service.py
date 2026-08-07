@@ -174,7 +174,7 @@ def blip_detail(conn, slug, num, today=None) -> dict | None:
     }
 
 
-def move_blip(conn, slug, num, *, ring, period, why, evidence, session_id=None) -> dict:
+def move_blip(conn, slug, num, *, ring, period, why, evidence=None, session_id=None) -> dict:
     """Move a blip, or raise with a reason a form can show."""
     blip = store.blip_by_num(conn, slug, num)
     if blip is None:

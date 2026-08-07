@@ -212,36 +212,53 @@ def test_a_blip_cannot_be_added_without_a_reason(wired):
     assert call("radar_get", {"slug": "r"})["blipCount"] == 0
 
 
-def test_a_positioned_blip_cannot_be_added_without_evidence(wired):
-    out = call("radar_blip_add", {"slug": "r", "name": "Unjustified", "quadrant": "tools",
-                                 "why": "felt right", "period": "Q3", "ring": "adopt"})
-    assert "evidence" in out["error"]
-    assert call("radar_get", {"slug": "r"})["blipCount"] == 0
+def test_a_positioned_blip_can_be_added_without_evidence(wired):
+    """Reversed by decision: evidence is a recommendation, not a gate. A citation typed to
+    get past a check supports nothing, and an uncited move that admits it is easier to
+    fix later than a decorative reference nobody reads."""
+    out = call("radar_blip_add", {"slug": "r", "name": "Uncited", "quadrant": "tools",
+                                 "why": "worth a look", "period": "Q3", "ring": "adopt"})
+    assert out["ring"] == "adopt" and out["evidenceCount"] == 0
+    assert call("radar_get", {"slug": "r"})["blipCount"] == 1
 
 
-def test_a_move_cannot_be_recorded_without_evidence(wired):
+def test_a_move_can_be_recorded_without_evidence(wired):
     placed()
     out = call("radar_move", {"slug": "r", "num": 1, "ring": "adopt",
-                              "period": "Q4 2026", "why": "trust me", "evidence": []})
-    assert "evidence" in out["error"]
+                              "period": "Q4 2026", "why": "the probe passed"})
+    assert out["ring"] == "adopt" and out["moveCount"] == 2
+
+
+def test_evidence_is_no_longer_a_required_argument(wired):
+    """The schema is the only thing an agent reads before calling. If it still listed
+    evidence as required, the tool would accept what the schema forbade."""
+    assert "evidence" not in mcp_server.TOOLS["radar_move"][3]
+    assert "OPTIONAL" in mcp_server.TOOLS["radar_move"][2]["evidence"]["description"]
+    # And the schema says WHEN to offer it, since "optional" alone reads as "skip it".
+    desc = mcp_server.TOOLS["radar_move"][2]["evidence"]["description"]
+    assert "CHANGES ring" in desc and "Adopt" in desc
+
+
+def test_a_move_still_cannot_be_recorded_without_a_reason(wired):
+    # The half that did not move.
+    placed()
+    out = call("radar_move", {"slug": "r", "num": 1, "ring": "adopt",
+                              "period": "Q4 2026", "why": "   ", "evidence": EV})
+    assert "reason" in out["error"]
     assert call("radar_blip", {"slug": "r", "num": 1})["moveCount"] == 1
 
 
-def test_an_entry_move_cannot_be_promoted_to_a_ring_it_cannot_justify(wired):
-    """The subtle one. An entry move is legitimately evidence-free, so editing its ring
-    is a back door to a positioned move with nothing behind it."""
+def test_an_entry_move_can_be_promoted_to_a_ring(wired):
+    """This check existed to close one door: promoting an evidence-free entry move to a
+    real ring. With evidence optional there is no door there, so the promotion is now a
+    plain correction — and the reason still has to be there."""
     entered()
     move_id = call("radar_blip", {"slug": "r", "num": 1})["moves"][0]["id"]
     out = call("radar_move_update", {"slug": "r", "num": 1, "move_id": move_id,
                                      "ring": "adopt"})
-    assert "evidence" in out["error"]
-    assert call("radar_blip", {"slug": "r", "num": 1})["ring"] is None
-
-    # The door opens once the evidence is actually there.
-    call("radar_evidence_add", {"slug": "r", "num": 1, "move_id": move_id,
-                                "evidence": EV})
+    assert out["ring"] == "adopt"
     assert call("radar_move_update", {"slug": "r", "num": 1, "move_id": move_id,
-                                      "ring": "adopt"})["ring"] == "adopt"
+                                      "why": ""})["error"].count("reason")
 
 
 def test_a_reason_cannot_be_edited_away(wired):
@@ -274,12 +291,16 @@ def test_an_earlier_move_can_be_deleted_and_the_position_re_derives(wired):
     assert out["blip"]["ring"] == "adopt" and out["blip"]["state"] == "new"
 
 
-def test_the_only_evidence_behind_a_position_cannot_be_removed(wired):
+def test_the_last_evidence_can_be_removed_and_the_answer_says_so(wired):
+    """No refusal left, because the uncited state is reachable from add_move anyway —
+    keeping it here would only have made removing a WRONG citation harder than never
+    adding one. `remaining` is how a caller learns what it just did."""
     placed(ring="trial")
     ev_id = call("radar_blip", {"slug": "r", "num": 1})["evidence"][0]["id"]
     out = call("radar_evidence_delete", {"slug": "r", "num": 1, "evidence_id": ev_id})
-    assert "only evidence" in out["error"]
-    assert len(call("radar_blip", {"slug": "r", "num": 1})["evidence"]) == 1
+    assert out["remaining"] == 0
+    assert call("radar_blip", {"slug": "r", "num": 1})["evidenceCount"] == 0
+    assert call("radar_blip", {"slug": "r", "num": 1})["ring"] == "trial"
 
 
 def test_evidence_can_be_removed_once_something_replaces_it(wired):
@@ -468,3 +489,27 @@ def test_the_schemas_advertise_the_three_blip_level_fields(wired):
         assert {"description", "ref", "related"} <= set(props), name
         assert "not of a move" in props["description"]["description"]
         assert props["related"]["items"]["type"] == "integer"
+
+
+def test_every_schema_required_list_matches_its_function_signature(wired):
+    """Caught a real bug the moment it was written.
+
+    Dropping `evidence` from `radar_move`'s required list without also giving the Python
+    parameter a default left the schema saying "optional" while the function still refused
+    to be called without it. An agent reading the schema would have been told it could omit
+    a field that then raised TypeError — and the tool answers errors as data, so it would
+    have looked like a radar problem rather than a contract mismatch.
+    """
+    import inspect
+    mismatched = []
+    for name, (fn, _desc, _props, required) in mcp_server.TOOLS.items():
+        for p in inspect.signature(fn).parameters.values():
+            needs_it = p.default is inspect.Parameter.empty
+            says_it = p.name in required
+            if needs_it != says_it:
+                mismatched.append(
+                    f"{name}.{p.name}: signature={'required' if needs_it else 'optional'} "
+                    f"schema={'required' if says_it else 'optional'}")
+    assert mismatched == []
+    # Anti-vacuity: a registry that lost its tools would pass the line above.
+    assert len(mcp_server.TOOLS) >= 15

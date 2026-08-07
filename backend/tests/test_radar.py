@@ -65,10 +65,23 @@ def test_a_move_without_a_reason_is_refused(conn):
         store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="  ", evidence=EV)
 
 
-def test_a_positioned_move_without_evidence_is_refused(conn):
+def test_a_positioned_move_without_evidence_is_ACCEPTED(conn):
+    """Reversed by decision. Evidence used to be refused here, and the refusal bought
+    citations that existed to satisfy it. What stays mandatory is the REASON: that is the
+    irreducible part, because a position nobody explained is the state this store exists
+    to make unrepresentable. Evidence strengthens a reason and cannot replace one, so it
+    is prompted at the surfaces instead of demanded here."""
     b = add(conn, 1)
-    with pytest.raises(ValueError, match="at least one piece of evidence"):
-        store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="w", evidence=[])
+    move = store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="w", evidence=[])
+    assert store.evidence_of(conn, [move["id"]]) == {}
+    assert service.blip_view(conn, b)["ring"] == "adopt"
+
+
+def test_a_move_still_cannot_be_recorded_without_a_REASON(conn):
+    # The half that did not move. Relaxing evidence must not relax this one with it.
+    b = add(conn, 1)
+    with pytest.raises(ValueError, match="needs a reason"):
+        store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="", evidence=[])
 
 
 def test_the_entry_move_is_the_one_exception(conn):
@@ -376,14 +389,22 @@ def test_the_api_404s_on_an_unknown_radar(client):
     assert client.get("/api/radar/nope").status_code == 404
 
 
-def test_moving_a_blip_needs_evidence(client):
+def test_moving_a_blip_without_evidence_is_accepted_over_HTTP(client):
+    # The schema field went from `min_length=1` with no default to an empty default, so a
+    # caller with nothing to cite is no longer a 422. The reason is still enforced below.
     r = client.post("/api/radar/subscription-migration/blips/5/moves",
-                    json={"ring": "trial", "period": "Q1 2027", "why": "changed my mind",
-                          "evidence": []})
-    # 422 from the schema, not 400 from the service: refusing at the boundary names
-    # the field, which is what a form needs to point at.
+                    json={"ring": "trial", "period": "Q1 2027", "why": "changed my mind"})
+    assert r.status_code == 200, r.text
+    assert r.json()["ring"] == "trial"
+
+
+def test_moving_a_blip_with_no_reason_is_still_refused_over_HTTP(client):
+    r = client.post("/api/radar/subscription-migration/blips/5/moves",
+                    json={"ring": "trial", "period": "Q1 2027", "why": ""})
+    # 422 from the schema, not 400 from the service: refusing at the boundary names the
+    # field, which is what a form needs to point at.
     assert r.status_code == 422
-    assert "evidence" in r.text
+    assert "why" in r.text
 
 
 def test_moving_a_blip_records_the_move_and_re_derives_the_ring(client):

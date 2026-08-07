@@ -459,20 +459,26 @@ def _touch_radar(conn, slug) -> None:
 
 # --- moves and evidence -------------------------------------------------------
 
-def add_move(conn, *, blip, ring, period, why, evidence, session_id=None, ts=None) -> dict:
-    """Record a move. Refuses one that cannot justify itself.
+def add_move(conn, *, blip, ring, period, why, evidence=None, session_id=None,
+             ts=None) -> dict:
+    """Record a move. Refuses one that states no reason.
 
     `ring=None` means "entered the radar" — the first move, which has a reason but no
     position yet. Every other move must name a real ring.
+
+    Evidence is OPTIONAL and recommended, not required. It used to be refused without,
+    which had a cost the refusal hid: the cheapest way past a hard gate is a citation
+    that exists to satisfy it, and a radar of decorative references is worse than one
+    that admits which decisions are still only argued. The REASON stays mandatory,
+    because that is the irreducible part — a position nobody explained is the thing this
+    store exists to make unrepresentable. Evidence strengthens a reason; it cannot
+    replace one, so it is prompted for at the surfaces (see `radar-blips`) instead of
+    demanded here.
     """
     if not (why or "").strip():
         raise ValueError("a move needs a reason: `why` is required")
     if ring is not None and ring not in RINGS:
         raise ValueError(f"unknown ring {ring!r} — one of {', '.join(RINGS)}")
-    # The entry move is the one exception: nothing has been decided yet, so there is
-    # nothing to cite. Every later move is a decision and has to show its evidence.
-    if ring is not None and not evidence:
-        raise ValueError("a move needs at least one piece of evidence")
     mid = new_id("move")
     conn.execute(
         "INSERT INTO radar_move (id, blip, ring, period, why, ts, session_id) "
@@ -517,16 +523,13 @@ def get_move(conn, move_id) -> dict | None:
 def update_move(conn, move_id, *, ring=_KEEP, period=_KEEP, why=_KEEP) -> dict:
     """Correct a recorded move.
 
-    This is the one write that edits history rather than appending to it, so it
-    re-checks the same two invariants `add_move` enforces instead of trusting that a
-    row which was once valid still is:
+    This is the one write that edits history rather than appending to it, so it re-checks
+    what `add_move` enforces rather than trusting that a row which was once valid still
+    is: a move may never end up with a blank reason.
 
-      - a move may never end up with a blank reason
-      - a move that names a ring must still have evidence behind it
-
-    The second is the one that bites: promoting an entry move (`ring=None`, legitimately
-    evidence-free) to a real ring would otherwise create exactly the unjustified
-    position the store exists to make unrepresentable.
+    It no longer re-checks evidence, because `add_move` no longer demands any. That check
+    existed to close one specific door — promoting an evidence-free entry move to a real
+    ring — and with evidence optional there is no door there to close.
     """
     cur = get_move(conn, move_id)
     if cur is None:
@@ -537,10 +540,6 @@ def update_move(conn, move_id, *, ring=_KEEP, period=_KEEP, why=_KEEP) -> dict:
         raise ValueError("a move needs a reason: `why` cannot be cleared")
     if new_ring is not None and new_ring not in RINGS:
         raise ValueError(f"unknown ring {new_ring!r} — one of {', '.join(RINGS)}")
-    if new_ring is not None and not evidence_of(conn, [move_id]).get(move_id):
-        raise ValueError(
-            "a move that names a ring needs at least one piece of evidence — "
-            "add_evidence first, then set the ring")
     sets, args = ["why = ?"], [new_why.strip()]
     if ring is not _KEEP:
         sets.append("ring = ?")
@@ -609,8 +608,11 @@ def add_evidence(conn, move_id, evidence) -> list[dict]:
 def delete_evidence(conn, evidence_id) -> dict:
     """Remove one citation.
 
-    Refuses to leave a POSITIONED move with none, which is the same invariant
-    `add_move` and `update_move` hold — reached from a third direction.
+    No longer refuses the last one. It used to, to keep a positioned move from ending up
+    with nothing behind it — but with evidence optional that state is reachable from
+    `add_move` anyway, so refusing it here would only have made removing a WRONG citation
+    harder than never adding one. Reports what it removed so a caller can see the move is
+    now uncited.
     """
     row = conn.execute(
         "SELECT id, move, kind, title FROM radar_evidence WHERE id = ?",
@@ -619,18 +621,15 @@ def delete_evidence(conn, evidence_id) -> dict:
         raise LookupError(f"no evidence {evidence_id!r}")
     eid, move_id, kind, title = row
     move = get_move(conn, move_id)
-    if move and move["ring"] is not None:
-        if len(evidence_of(conn, [move_id]).get(move_id, [])) <= 1:
-            raise ValueError(
-                f"this is the only evidence behind the move to {move['ring']} — "
-                "a positioned move with nothing behind it is not recordable. Add "
-                "replacement evidence first, or delete the move.")
     conn.execute("DELETE FROM radar_evidence WHERE id = ?", (eid,))
     blip = blip_by_id(conn, move["blip"]) if move else None
     if blip:
         _touch_radar(conn, blip["radar"])
     conn.commit()
-    return {"evidence": eid, "move": move_id, "kind": kind, "title": title}
+    # `remaining` rather than a bare acknowledgement: with no refusal left, the only way a
+    # caller learns it just left a positioned move uncited is if the answer says so.
+    return {"evidence": eid, "move": move_id, "kind": kind, "title": title,
+            "remaining": len(evidence_of(conn, [move_id]).get(move_id, []))}
 
 
 def evidence_of(conn, move_ids) -> dict[str, list[dict]]:

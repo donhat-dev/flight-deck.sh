@@ -53,10 +53,37 @@ export function refusal(draft) {
   if (!draft.ring) return "Pick the ring this blip moves to.";
   if (!draft.period) return "Pick the period this move belongs to.";
   if (!draft.why.trim()) return "A move with no reason is not recordable.";
-  if (!draft.evidence.some((e) => e.title.trim())) {
-    return "A move needs at least one piece of evidence.";
-  }
+  // Evidence is NOT here any more. It is recommended, not required — see `advice`. A
+  // citation typed to get past a gate supports nothing, and the store now agrees.
   return null;
+}
+
+/**
+ * What the form should SUGGEST, having refused nothing.
+ *
+ * Returns null when there is nothing worth saying. The distinction from `refusal` is the
+ * point: advice never blocks, so it has to earn its place by only appearing when it would
+ * change what a careful person does.
+ *
+ * It appears in two cases, and stays quiet otherwise:
+ *
+ *   the ring CHANGES        the position moves, and a year from now the question will be
+ *                           what moved it
+ *   Adopt or Caution        the two consequential landings — one is what later work gets
+ *                           built on, the other is what it gets steered away from
+ *
+ * A hold at Trial with no citation gets no nag. Nagging on every move is how a hint stops
+ * being read.
+ */
+export function advice(draft, blip) {
+  if (draft.evidence.some((e) => e.title.trim())) return null;
+  const moved = draft.ring !== blip.ring;
+  const consequential = draft.ring === "adopt" || draft.ring === "caution";
+  if (!moved && !consequential) return null;
+  const why = moved
+    ? `This changes the position from ${RING_LABEL[blip.ring] ?? "unplaced"} to ${RING_LABEL[draft.ring]}.`
+    : `${RING_LABEL[draft.ring]} is what other work gets built on or steered away from.`;
+  return `${why} Worth citing something, though you can record it without.`;
 }
 
 /** The draft as the API wants it: blank evidence rows dropped, blank dates nulled. */
@@ -172,15 +199,22 @@ function WhyField({ draft, set }) {
   );
 }
 
-function EvidenceField({ draft, set }) {
+function EvidenceField({ draft, set, hint }) {
   const rows = draft.evidence;
   const change = (i, patch) =>
     set({ evidence: rows.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
   return (
     <section className="rdr-field">
       <h3 className="rdr-eyebrow">
-        Evidence <span className="rdr-required">at least one</span>
+        {/* `optional`, not `at least one`. The badge has to match what the form does,
+            or it is the form lying about its own rules — and a reader who trusts a
+            "required" badge once and then finds it was not will not read the next one. */}
+        Evidence <span className="rdr-optional">optional</span>
       </h3>
+      {/* The suggestion, and it appears only when it would change what a careful person
+          does: the ring changed, or the landing is Adopt or Caution. A hint shown on
+          every move is a hint nobody reads. */}
+      {hint && <p className="rdr-field-hint" data-tone="suggest">{hint}</p>}
       <ul className="rdr-ev-rows">
         {rows.map((row, i) => (
           <li key={i} className="rdr-ev-row">
@@ -273,7 +307,7 @@ export default function MoveBlipModal({ slug, blip, periods = [], onClose, onRec
         <form className="rdr-modal-body" onSubmit={submit}>
           <RingField blip={blip} draft={draft} set={set} periods={periods} />
           <WhyField draft={draft} set={set} />
-          <EvidenceField draft={draft} set={set} />
+          <EvidenceField draft={draft} set={set} hint={advice(draft, blip)} />
           <footer className="rdr-modal-foot">
             <span className="rdr-modal-arrow">{arrow}</span>
             {/* One line, and it says which of the two it is. A refusal is something
