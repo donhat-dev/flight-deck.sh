@@ -60,16 +60,13 @@
 /* ---- the summary, subordinate to the drawing ---------------------------- */
 
 .rdr-side {
-  flex: 0 1 26rem;
+  flex: 0 1 29rem;
   min-width: 0;
-  align-self: center;
-  /* The gutter between the two comes from the stage's own right padding, and this
-     supplies the one at the page edge — so every gap on the row is `--rdr-gutter`
-     and no rule has to know whether the panel is open. */
+  /* STRETCH, not centred. The panel now carries prose rather than four metadata rows,
+     and a block of text floating at the vertical middle of a tall column reads as a
+     fragment; running the full height of the stage makes it a page. */
+  align-self: stretch;
   margin-inline-end: var(--rdr-gutter);
-  /* Never taller than the radar it sits beside: a panel that outgrows the drawing
-     starts to read as the subject. Its own body scrolls instead. */
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   border: 1px solid var(--rdr-ring-edge);
@@ -78,62 +75,129 @@
 
 .rdr-side-head {
   display: flex;
-  align-items: flex-start;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  padding: 1.05rem 1.1rem 0.9rem;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1.05rem 1.15rem 0.95rem;
   border-bottom: 1px solid var(--rdr-ring-edge);
 }
-.rdr-side-head .rdr-eyebrow { flex: 1 1 100%; }
-.rdr-side-name {
-  flex: 1 1 auto;
-  margin: 0.4rem 0 0;
-  display: flex;
+.rdr-side-top { display: flex; align-items: center; gap: 0.6rem; }
+.rdr-side-ref {
+  display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  min-width: 0;
-  font-size: 1.375rem;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-}
-.rdr-side-head .rdr-icon-btn { margin-top: 0.3rem; padding: 0.3rem 0.4rem; }
-.rdr-side-head .rdr-icon-btn svg { width: 1.1rem; height: 1.1rem; }
-
-.rdr-side-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
-
-/* Definition pairs rather than a chip row: each of these is a labelled fact, and a
-   chip would make four unlabelled numbers the reader has to decode. */
-.rdr-side-meta {
-  margin: 0.55rem 0 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem 1rem;
-}
-.rdr-side-meta > div { min-width: 0; }
-.rdr-side-meta dt {
+  gap: 0.35rem;
   font-family: var(--fdx-font-mono);
   font-size: 0.5625rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--fdx-text-muted);
+  text-decoration: none;
 }
-.rdr-side-meta dd { margin: 0.2rem 0 0; font-size: 0.8125rem; }
+.rdr-side-ref svg { width: 0.7rem; height: 0.7rem; fill: none; stroke: currentColor; stroke-width: 2; }
+.rdr-side-head .rdr-icon-btn { padding: 0.28rem 0.36rem; }
+.rdr-side-head .rdr-icon-btn svg { width: 1rem; height: 1rem; }
+
+.rdr-side-name {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.rdr-side-meta {
+  margin: 0;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.75rem;
+  color: var(--fdx-text-muted);
+}
+
+.rdr-side-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+.rdr-side-block {
+  padding: 1rem 1.15rem 1.1rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+}
+.rdr-side-body .rdr-side-block:first-child { border-top: 0; }
+
+/* Reading size, and it is the whole point of dropping the position track and the
+   evidence list: the height they spent on facts stated elsewhere now buys prose a
+   reader will actually read. */
+.rdr-side-lede {
+  margin: 0.6rem 0 0;
+  font-size: 1.125rem;
+  font-weight: 500;
+  line-height: 1.52;
+}
+/* The argument for the ring carries more weight than the definition above it, because
+   it is the claim a reader is entitled to disagree with. */
+.rdr-side-lede[data-weight="argument"] { font-weight: 600; }
+
+.rdr-side-moved {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.8rem 1.15rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+}
+.rdr-side-when {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.8125rem;
+  color: var(--fdx-text);
+}
+.rdr-side-link {
+  border: 0;
+  background: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--fdx-orange);
+  cursor: pointer;
+}
+.rdr-side-link svg { width: 0.9rem; height: 0.9rem; fill: none; stroke: currentColor; stroke-width: 2; }
+
+/* Two columns of cards. A row per pair rather than a wrapping flex, so a long name
+   never leaves a single card stranded on its own line at full width. */
+.rdr-side-related {
+  list-style: none;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+.rdr-side-related li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--rdr-ring-edge);
+  min-width: 0;
+}
+.rdr-side-rel-name { font-size: 0.875rem; font-weight: 600; }
+.rdr-side-rel-ring {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+/* Caution is the one worth a colour: a related blip parked there is the reason this one
+   is where it is. Adopt takes the accent for the same reason, from the other side. */
+.rdr-side-rel-ring[data-ring="caution"] { color: var(--fdx-warning); }
+.rdr-side-rel-ring[data-ring="adopt"] { color: var(--fdx-orange); }
 
 .rdr-side-foot {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  padding: 0.85rem 1.1rem;
+  padding: 0.85rem 1.15rem;
   border-top: 1px solid var(--rdr-ring-edge);
 }
-
-/* The lede is the largest prose in the panel but smaller than the focus view's, so a
-   reader who opens the detail still gets a step up rather than the same page twice. */
-.rdr-side .rdr-lede { font-size: 1rem; }
-.rdr-side .rdr-block { padding: 0.9rem 1.1rem 1rem; border-top: 1px solid var(--rdr-ring-edge); }
-.rdr-side .rdr-block:first-of-type { border-top: 0; }
-.rdr-side .rdr-lede-block { padding-block: 0.2rem 1.1rem; }
 
 /* On a narrow window the row stacks, and the radar keeps the top half. */
 @media (max-width: 60rem) {

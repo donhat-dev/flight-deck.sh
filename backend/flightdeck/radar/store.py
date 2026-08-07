@@ -39,10 +39,23 @@ CREATE TABLE IF NOT EXISTS radar_blip (
   num INTEGER NOT NULL,
   name TEXT NOT NULL,
   quadrant TEXT NOT NULL,
-  created_at TEXT
+  created_at TEXT,
+  description TEXT,
+  ref TEXT
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_radar_blip_num ON radar_blip(radar, num);
 CREATE INDEX IF NOT EXISTS idx_radar_blip_radar ON radar_blip(radar);
+
+-- Related blips, stored ONE row per stated relation and read in BOTH directions.
+-- "A is related to B" is not a claim about direction, so storing both rows would make
+-- every relation two facts that can disagree, and asking the caller to state it twice
+-- would make half of them get stated once.
+CREATE TABLE IF NOT EXISTS radar_blip_link (
+  blip TEXT NOT NULL,
+  related TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_radar_blip_link ON radar_blip_link(blip, related);
+CREATE INDEX IF NOT EXISTS idx_radar_blip_link_rev ON radar_blip_link(related);
 
 CREATE TABLE IF NOT EXISTS radar_move (
   id TEXT PRIMARY KEY,
@@ -79,9 +92,29 @@ _KEEP = object()
 KEEP = _KEEP
 
 
+BLIP_COLS = ("id", "radar", "num", "name", "quadrant", "description", "ref")
+_BLIP_SELECT = ", ".join(BLIP_COLS)
+
+
 def init(conn) -> None:
     conn.executescript(_SCHEMA)
+    # `CREATE TABLE IF NOT EXISTS` does nothing to a table that already exists, so a
+    # column added to the schema above never reaches an install that predates it.
+    for column in ("description", "ref"):
+        _ensure_column(conn, "radar_blip", column)
     conn.commit()
+
+
+def _ensure_column(conn, table, column) -> None:
+    """Add a TEXT column if it is missing. One helper rather than a function per
+    column, because the only thing that ever varies is the two names."""
+    if db.is_postgres():
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} text")
+        return
+    # SQLite has no IF NOT EXISTS on ADD COLUMN, so the check has to be explicit.
+    cols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
 
 def now_iso() -> str:
@@ -170,6 +203,11 @@ def delete_radar(conn, slug) -> dict:
         raise LookupError(f"no radar {slug!r}")
     blips = [b["id"] for b in blips_of(conn, slug)]
     moves = [m["id"] for m in all_moves_of_radar(conn, slug)]
+    if blips:
+        marks = ", ".join("?" for _ in blips)
+        conn.execute(
+            f"DELETE FROM radar_blip_link WHERE blip IN ({marks}) OR related IN ({marks})",
+            (*blips, *blips))
     ev = 0
     if moves:
         marks = ", ".join("?" for _ in moves)
@@ -184,9 +222,14 @@ def delete_radar(conn, slug) -> dict:
 
 # --- blips --------------------------------------------------------------------
 
-def add_blip(conn, *, radar, num=None, name, quadrant) -> dict:
+def add_blip(conn, *, radar, num=None, name, quadrant, description=None, ref=None) -> dict:
     """Add a blip. `num=None` takes the next free number rather than making the
-    caller read the radar first and race with anyone else adding one."""
+    caller read the radar first and race with anyone else adding one.
+
+    `description` is what the thing IS, and it lives here rather than on a move for a
+    reason: a definition is not a decision. On a move it would change every time the
+    ring changed, and the same sentence would repeat in every row of the history.
+    """
     if quadrant not in QUADRANTS:
         raise ValueError(f"unknown quadrant {quadrant!r} — one of {', '.join(QUADRANTS)}")
     if not (name or "").strip():
@@ -197,33 +240,33 @@ def add_blip(conn, *, radar, num=None, name, quadrant) -> dict:
     _refuse_taken_num(conn, radar, num)
     bid = new_id("blip")
     conn.execute(
-        "INSERT INTO radar_blip (id, radar, num, name, quadrant, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?)", (bid, radar, num, name.strip(), quadrant, now_iso()))
+        "INSERT INTO radar_blip (id, radar, num, name, quadrant, created_at, description, ref) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (bid, radar, num, name.strip(), quadrant, now_iso(),
+         (description or "").strip() or None, (ref or "").strip() or None))
     _touch_radar(conn, radar)
     conn.commit()
-    return {"id": bid, "radar": radar, "num": num, "name": name.strip(), "quadrant": quadrant}
+    return blip_by_id(conn, bid)
 
 
 def blips_of(conn, radar) -> list[dict]:
     rows = conn.execute(
-        "SELECT id, radar, num, name, quadrant FROM radar_blip WHERE radar = ? "
-        "ORDER BY num", (radar,)).fetchall()
-    cols = ("id", "radar", "num", "name", "quadrant")
-    return [dict(zip(cols, r)) for r in rows]
+        f"SELECT {_BLIP_SELECT} FROM radar_blip WHERE radar = ? ORDER BY num",
+        (radar,)).fetchall()
+    return [dict(zip(BLIP_COLS, r)) for r in rows]
 
 
 def blip_by_num(conn, radar, num) -> dict | None:
     row = conn.execute(
-        "SELECT id, radar, num, name, quadrant FROM radar_blip "
-        "WHERE radar = ? AND num = ?", (radar, int(num))).fetchone()
-    return dict(zip(("id", "radar", "num", "name", "quadrant"), row)) if row else None
+        f"SELECT {_BLIP_SELECT} FROM radar_blip WHERE radar = ? AND num = ?",
+        (radar, int(num))).fetchone()
+    return dict(zip(BLIP_COLS, row)) if row else None
 
 
 def blip_by_id(conn, blip_id) -> dict | None:
     row = conn.execute(
-        "SELECT id, radar, num, name, quadrant FROM radar_blip WHERE id = ?",
-        (blip_id,)).fetchone()
-    return dict(zip(("id", "radar", "num", "name", "quadrant"), row)) if row else None
+        f"SELECT {_BLIP_SELECT} FROM radar_blip WHERE id = ?", (blip_id,)).fetchone()
+    return dict(zip(BLIP_COLS, row)) if row else None
 
 
 def next_num(conn, radar) -> int:
@@ -236,12 +279,13 @@ def next_num(conn, radar) -> int:
     return int(row[0] or 0) + 1
 
 
-def update_blip(conn, blip_id, *, name=_KEEP, quadrant=_KEEP, num=_KEEP) -> dict:
-    """Rename a blip, move it to another quadrant, or renumber it.
+def update_blip(conn, blip_id, *, name=_KEEP, quadrant=_KEEP, num=_KEEP,
+                description=_KEEP, ref=_KEEP) -> dict:
+    """Rename a blip, move it to another quadrant, renumber it, or correct what it is.
 
-    None of these is history: a blip's name, quadrant and number are LABELS, and
-    correcting a label is not the same act as changing where it stands. Its ring is
-    not settable here at all — that requires a move, which requires a reason.
+    None of these is history: a blip's name, quadrant, number, definition and link are
+    LABELS, and correcting a label is not the same act as changing where it stands. Its
+    ring is not settable here at all — that requires a move, which requires a reason.
     """
     cur = blip_by_id(conn, blip_id)
     if cur is None:
@@ -252,6 +296,13 @@ def update_blip(conn, blip_id, *, name=_KEEP, quadrant=_KEEP, num=_KEEP) -> dict
             raise ValueError("a blip needs a name")
         sets.append("name = ?")
         args.append(name.strip())
+    for col, val in (("description", description), ("ref", ref)):
+        if val is _KEEP:
+            continue
+        sets.append(f"{col} = ?")
+        # Empty string clears it, so a caller can remove a definition without needing
+        # to know that null and "" are different here.
+        args.append((val or "").strip() or None if isinstance(val, str) else val)
     if quadrant is not _KEEP:
         if quadrant not in QUADRANTS:
             raise ValueError(f"unknown quadrant {quadrant!r} — one of {', '.join(QUADRANTS)}")
@@ -283,11 +334,65 @@ def _refuse_taken_num(conn, radar, num) -> None:
             f"pick another, or call reindex_blips to close the gaps")
 
 
+def set_related(conn, blip_id, related_ids) -> list[str]:
+    """Replace a blip's stated relations. Returns the ids actually linked.
+
+    Self-links are dropped rather than refused: "related to itself" is a slip, not a
+    decision worth an error, and silently keeping it would put the blip in its own
+    Related list.
+    """
+    if blip_by_id(conn, blip_id) is None:
+        raise LookupError(f"no blip {blip_id!r}")
+    wanted = [i for i in dict.fromkeys(related_ids or []) if i != blip_id]
+    for i in wanted:
+        if blip_by_id(conn, i) is None:
+            raise LookupError(f"no blip {i!r} to relate to")
+    # Only the rows this blip STATED are replaced. A relation stated from the other side
+    # is that blip's row, and clearing this one's list must not silently delete it.
+    conn.execute("DELETE FROM radar_blip_link WHERE blip = ?", (blip_id,))
+    for i in wanted:
+        conn.execute("INSERT INTO radar_blip_link (blip, related) VALUES (?, ?)",
+                     (blip_id, i))
+    row = blip_by_id(conn, blip_id)
+    if row:
+        _touch_radar(conn, row["radar"])
+    conn.commit()
+    return wanted
+
+
+def related_of(conn, blip_ids) -> dict[str, list[str]]:
+    """Related ids per blip, read in BOTH directions, in ONE query.
+
+    Only ids: the related blips' RINGS are derived, and resolving them here would be a
+    second derivation living outside `service`. The caller already holds the board.
+    """
+    ids = list(blip_ids)
+    if not ids:
+        return {}
+    marks = ", ".join("?" for _ in ids)
+    rows = conn.execute(
+        f"SELECT blip, related FROM radar_blip_link "
+        f"WHERE blip IN ({marks}) OR related IN ({marks})",
+        (*ids, *ids)).fetchall()
+    want = set(ids)
+    out: dict[str, list[str]] = {}
+    for a, b in rows:
+        if a in want and b not in out.setdefault(a, []):
+            out[a].append(b)
+        if b in want and a not in out.setdefault(b, []):
+            out[b].append(a)
+    return out
+
+
 def delete_blip(conn, blip_id) -> dict:
     """Delete a blip with its whole history. Cascade written out, same as delete_radar."""
     cur = blip_by_id(conn, blip_id)
     if cur is None:
         raise LookupError(f"no blip {blip_id!r}")
+    # Both directions: a link stated FROM another blip would otherwise survive and point
+    # at a row that no longer exists, and `related_of` reads both sides.
+    conn.execute("DELETE FROM radar_blip_link WHERE blip = ? OR related = ?",
+                 (blip_id, blip_id))
     moves = [m["id"] for m in moves_of(conn, blip_id)]
     ev = 0
     if moves:

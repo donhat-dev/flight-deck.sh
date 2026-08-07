@@ -406,3 +406,130 @@ def test_there_is_no_way_to_set_a_ring_without_a_move(client):
     paths = [r.path for r in client.app.routes if getattr(r, "path", "").startswith("/api/radar")]
     assert not any("PUT" in getattr(r, "methods", set()) for r in client.app.routes
                    if getattr(r, "path", "").startswith("/api/radar")), paths
+
+
+# ------------------------------------------- what a blip IS, apart from its moves
+
+def test_a_description_is_a_property_of_the_blip_not_of_a_move(conn):
+    """The reason `description` is a column and not another field on `add_move`.
+
+    A definition is not a decision. On a move it would change every time the ring
+    changed, and the same sentence would repeat in every row of the history — so the
+    test that matters is that a move leaves it alone.
+    """
+    b = store.add_blip(conn, radar="r", num=1, name="OCA subscription_oca",
+                       quadrant="platforms",
+                       description="The OCA module that carries recurring billing.",
+                       ref="https://github.com/OCA/contract")
+    store.add_move(conn, blip=b["id"], ring="trial", period="Q3", why="probe passed",
+                   evidence=EV)
+    store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="39/39 reconciled",
+                   evidence=EV)
+    v = service.blip_view(conn, store.blip_by_id(conn, b["id"]))
+    assert v["ring"] == "adopt"                      # the position moved twice
+    assert v["description"].startswith("The OCA module")   # the definition did not
+    assert v["ref"] == "https://github.com/OCA/contract"
+
+
+def test_an_empty_description_clears_it_rather_than_storing_blank(conn):
+    b = add(conn, 1)
+    store.update_blip(conn, b["id"], description="  something  ")
+    assert store.blip_by_id(conn, b["id"])["description"] == "something"
+    store.update_blip(conn, b["id"], description="   ")
+    assert store.blip_by_id(conn, b["id"])["description"] is None
+
+
+def test_the_columns_are_added_to_a_table_that_predates_them(conn):
+    """`CREATE TABLE IF NOT EXISTS` does nothing to an existing table, so without the
+    migration an install created before these columns would never get them."""
+    conn.execute("DROP TABLE radar_blip")
+    conn.execute("CREATE TABLE radar_blip (id TEXT PRIMARY KEY, radar TEXT NOT NULL, "
+                 "num INTEGER NOT NULL, name TEXT NOT NULL, quadrant TEXT NOT NULL, "
+                 "created_at TEXT)")
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(radar_blip)").fetchall()}
+    assert "description" not in cols                 # anti-vacuity: really absent first
+    store.init(conn)
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(radar_blip)").fetchall()}
+    assert {"description", "ref"} <= cols
+    # And init is idempotent: running it again must not fail on the now-present column.
+    store.init(conn)
+
+
+# ------------------------------------------------------------------ related blips
+
+def _placed(conn, num, name, ring="assess"):
+    b = store.add_blip(conn, radar="r", num=num, name=name, quadrant="platforms")
+    store.add_move(conn, blip=b["id"], ring=ring, period="Q3", why="w", evidence=EV)
+    return b
+
+
+def test_a_relation_is_read_from_both_sides(conn):
+    """Stored as ONE row and read in both directions. Two rows would be two facts that
+    can disagree; asking the caller to state it twice means half of them state it once."""
+    a = _placed(conn, 1, "subscription_oca", "adopt")
+    b = _placed(conn, 2, "OCA contract", "trial")
+    store.set_related(conn, a["id"], [b["id"]])
+    assert conn.execute("SELECT COUNT(*) FROM radar_blip_link").fetchone()[0] == 1
+    links = store.related_of(conn, [a["id"], b["id"]])
+    assert links[a["id"]] == [b["id"]]
+    assert links[b["id"]] == [a["id"]]
+
+
+def test_a_related_blip_carries_its_own_DERIVED_ring(conn):
+    a = _placed(conn, 1, "subscription_oca", "adopt")
+    b = _placed(conn, 2, "OCA contract", "trial")
+    store.set_related(conn, a["id"], [b["id"]])
+    # b moves after the link was made; the link must report where b stands NOW.
+    store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="landed", evidence=EV)
+    board = service.radar_board(conn, "r")
+    rel = {v["num"]: v["related"] for v in board["blips"]}
+    assert rel[1] == [{"num": 2, "name": "OCA contract", "quadrant": "platforms",
+                       "ring": "adopt"}]
+
+
+def test_relating_a_blip_to_itself_is_dropped_not_stored(conn):
+    a = _placed(conn, 1, "A")
+    assert store.set_related(conn, a["id"], [a["id"]]) == []
+    assert conn.execute("SELECT COUNT(*) FROM radar_blip_link").fetchone()[0] == 0
+
+
+def test_relating_to_a_blip_that_does_not_exist_is_refused(conn):
+    a = _placed(conn, 1, "A")
+    with pytest.raises(LookupError, match="to relate to"):
+        store.set_related(conn, a["id"], ["blip_ghost"])
+    with pytest.raises(LookupError, match="to relate to"):
+        service.update_blip(conn, "r", 1, related=[99])
+
+
+def test_setting_related_replaces_only_this_blips_own_statements(conn):
+    a = _placed(conn, 1, "A")
+    b = _placed(conn, 2, "B")
+    c = _placed(conn, 3, "C")
+    store.set_related(conn, a["id"], [b["id"]])
+    store.set_related(conn, c["id"], [a["id"]])
+    # Clearing a's list must not delete the relation c stated about a.
+    store.set_related(conn, a["id"], [])
+    assert store.related_of(conn, [a["id"]])[a["id"]] == [c["id"]]
+
+
+def test_deleting_a_blip_removes_links_pointing_AT_it(conn):
+    a = _placed(conn, 1, "A")
+    b = _placed(conn, 2, "B")
+    store.set_related(conn, a["id"], [b["id"]])
+    store.delete_blip(conn, b["id"])
+    assert conn.execute("SELECT COUNT(*) FROM radar_blip_link").fetchone()[0] == 0
+    assert service.blip_detail(conn, "r", 1)["related"] == []
+
+
+def test_the_board_stays_a_fixed_number_of_queries_as_blips_are_added(conn):
+    """The N+1 this module's docstring forbids. `blip_detail` used to build peer views
+    one blip at a time, which was two queries per blip just to resolve related rings."""
+    for i in range(1, 4):
+        _placed(conn, i, f"B{i}")
+    small = _Counting(conn)
+    service.radar_board(small, "r")
+    for i in range(4, 12):
+        _placed(conn, i, f"B{i}")
+    big = _Counting(conn)
+    service.radar_board(big, "r")
+    assert small.n == big.n, f"{small.n} queries for 3 blips, {big.n} for 11"

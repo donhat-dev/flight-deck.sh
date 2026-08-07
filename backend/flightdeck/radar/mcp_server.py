@@ -199,15 +199,19 @@ def radar_delete(slug, confirm=False):
 # --- blips --------------------------------------------------------------------
 
 def radar_blip_add(slug, name, quadrant, why, period, num=None, ring=None,
-                   evidence=None, session_id=None):
+                   evidence=None, session_id=None, description=None, ref=None,
+                   related=None):
     return service.add_blip(_conn(), slug, name=name, quadrant=quadrant, why=why,
                             period=period, num=num, ring=ring, evidence=evidence,
-                            session_id=session_id)
+                            session_id=session_id, description=description, ref=ref,
+                            related=related)
 
 
-def radar_blip_update(slug, num, name=store.KEEP, quadrant=store.KEEP, new_num=store.KEEP):
+def radar_blip_update(slug, num, name=store.KEEP, quadrant=store.KEEP, new_num=store.KEEP,
+                      description=store.KEEP, ref=store.KEEP, related=store.KEEP):
     return service.update_blip(_conn(), slug, int(num),
-                               **_kw(name=name, quadrant=quadrant, new_num=new_num))
+                               **_kw(name=name, quadrant=quadrant, new_num=new_num,
+                                     description=description, ref=ref, related=related))
 
 
 def radar_blip_delete(slug, num, confirm=False):
@@ -277,6 +281,23 @@ _SESSION = {"type": "string",
             "description": "your Claude session id. Pass it and the move is traceable "
                            "back to the session that made it; omit it and the record "
                            "says a decision happened but not who made it."}
+_DESCRIPTION = {
+    "type": "string",
+    "description": "WHAT THE THING IS, in one or two sentences, independent of any ring. "
+                   "This is a property of the blip and not of a move: a definition is "
+                   "not a decision, so it must not change when the position changes. "
+                   "Keep the argument for the ring in the move's `why` instead.",
+}
+_REF = {"type": "string",
+        "description": "one external link — repo, docs, or spec. Evidence goes on the "
+                       "move that cited it, not here."}
+_RELATED = {
+    "type": "array",
+    "items": {"type": "integer"},
+    "description": "blip NUMBERS on this radar to show as related. REPLACES the whole "
+                   "set, so pass the full list. Relations are read in both directions: "
+                   "stating 5 relates to 20 also shows 5 on blip 20.",
+}
 
 TOOLS = {
     "radar_list": (
@@ -335,18 +356,21 @@ TOOLS = {
                                 "radar shows a year from now, not the ring."},
          "period": {"type": "string", "description": "e.g. 'Q3 2026'"},
          "num": {"type": "integer", "description": "omit for the next free number"},
-         "ring": _RING, "evidence": _EVIDENCE, "session_id": _SESSION},
+         "ring": _RING, "evidence": _EVIDENCE, "session_id": _SESSION,
+         "description": _DESCRIPTION, "ref": _REF, "related": _RELATED},
         ["slug", "name", "quadrant", "why", "period"]),
     "radar_blip_update": (
         radar_blip_update,
-        "Correct a blip's LABELS — its name, its quadrant, or its number. None of "
-        "these is history. Its ring is deliberately not here: changing where something "
-        "stands requires radar_move, which requires a reason.",
+        "Correct a blip's LABELS — its name, quadrant, number, definition, link, or "
+        "related list. None of these is history. Its ring is deliberately not here: "
+        "changing where something stands requires radar_move, which requires a reason.\n"
+        "Omitted fields are left alone; an empty string clears `description` or `ref`.",
         {"slug": {"type": "string"}, "num": {"type": "integer"},
          "name": {"type": "string"}, "quadrant": _QUADRANT,
          "new_num": {"type": "integer",
                      "description": "renumber it; refused if another blip holds that "
-                                    "number, naming which one"}},
+                                    "number, naming which one"},
+         "description": _DESCRIPTION, "ref": _REF, "related": _RELATED},
         ["slug", "num"]),
     "radar_blip_delete": (
         radar_blip_delete,

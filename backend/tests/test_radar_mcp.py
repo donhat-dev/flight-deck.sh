@@ -408,3 +408,63 @@ def test_the_ring_and_quadrant_vocabularies_come_from_the_store(wired):
     assert [r for r in props["ring"]["enum"] if r] == list(store.RINGS)
     assert mcp_server.TOOLS["radar_blip_add"][2]["quadrant"]["enum"] \
         == list(store.QUADRANTS)
+
+
+# --------------------------------------------- what a blip is, and what it sits beside
+
+def test_a_blip_can_be_given_a_definition_and_a_link_at_creation(wired):
+    out = entered(name="OCA subscription_oca",
+                  description="The OCA module that carries recurring billing on 19 CE.",
+                  ref="https://github.com/OCA/contract")
+    assert out["description"].startswith("The OCA module")
+    assert out["ref"] == "https://github.com/OCA/contract"
+
+
+def test_a_definition_survives_a_move(wired):
+    """The reason it is a blip field and not a move field, checked at the tool surface."""
+    placed(name="Thing", ring="assess", description="What it is, independent of any ring.")
+    out = call("radar_move", {"slug": "r", "num": 1, "ring": "adopt", "period": "Q4",
+                              "why": "it landed", "evidence": EV})
+    assert out["ring"] == "adopt"
+    assert out["description"] == "What it is, independent of any ring."
+
+
+def test_there_is_no_tool_that_puts_a_definition_on_a_move(wired):
+    # A definition on a move would change with every ring change and repeat in every
+    # history row, so the move tools must not accept one.
+    for name in ("radar_move", "radar_move_update"):
+        assert "description" not in mcp_server.TOOLS[name][2], name
+
+
+def test_related_blips_are_stated_once_and_read_both_ways(wired):
+    placed(name="subscription_oca", ring="adopt")
+    placed(name="OCA contract", ring="trial")
+    out = call("radar_blip_update", {"slug": "r", "num": 1, "related": [2]})
+    assert [r["num"] for r in out["related"]] == [2]
+    # Stating it on 1 is enough for 2 to show it, and 2's entry carries 1's real ring.
+    back = call("radar_blip", {"slug": "r", "num": 2})
+    assert [(r["num"], r["ring"]) for r in back["related"]] == [(1, "adopt")]
+
+
+def test_related_replaces_the_whole_set(wired):
+    for n in ("A", "B", "C"):
+        placed(name=n)
+    call("radar_blip_update", {"slug": "r", "num": 1, "related": [2, 3]})
+    assert len(call("radar_blip", {"slug": "r", "num": 1})["related"]) == 2
+    out = call("radar_blip_update", {"slug": "r", "num": 1, "related": [3]})
+    assert [r["num"] for r in out["related"]] == [3]
+
+
+def test_relating_to_a_number_with_no_blip_is_refused(wired):
+    placed()
+    out = call("radar_blip_update", {"slug": "r", "num": 1, "related": [42]})
+    assert "no blip 42" in out["error"]
+
+
+def test_the_schemas_advertise_the_three_blip_level_fields(wired):
+    """An agent only knows a field exists if the schema says so."""
+    for name in ("radar_blip_add", "radar_blip_update"):
+        props = mcp_server.TOOLS[name][2]
+        assert {"description", "ref", "related"} <= set(props), name
+        assert "not of a move" in props["description"]["description"]
+        assert props["related"]["items"]["type"] == "integer"

@@ -2,8 +2,8 @@
  * The summary panel's contract: everything it shows comes off the BOARD.
  *
  * That is the property worth a test rather than the markup. The panel exists so that
- * reading one blip costs no request and no navigation, and the way that guarantee
- * breaks is quietly — someone reaches for a field only `blip_detail` returns (`moves`,
+ * reading one blip costs no request and no navigation, and the way that guarantee breaks
+ * is quietly — someone reaches for a field only `blip_detail` returns (`moves`,
  * `evidence`), it renders as undefined in development where the detail happens to be
  * cached, and the panel silently starts needing a fetch it never makes.
  *
@@ -22,14 +22,20 @@ const BOARD_BLIP = {
   num: 13,
   name: "Radar MCP",
   quadrant: "tools",
+  description: "A stdio JSON-RPC server that hands an agent the whole radar.",
+  ref: "https://example.invalid/radar-mcp",
   ring: "trial",
   state: "in",
   period: "Q3 2026",
   lastMove: "Q3 2026 → Trial",
-  why: "15 tools, verified over the real stdio transport.",
+  why: "It closed the gap where adding a blip was reachable only from seed.py.",
   moveCount: 2,
   evidenceCount: 2,
   evidenceAgeDays: 0,
+  related: [
+    { num: 11, name: "Treasures MCP", quadrant: "tools", ring: "adopt" },
+    { num: 19, name: "MUI", quadrant: "lang", ring: "caution" },
+  ],
 };
 
 const html = (over = {}) =>
@@ -43,47 +49,74 @@ describe("it renders from board data alone", () => {
     // one, this render throws or silently prints nothing — either way the test moves.
     const out = html();
     expect(out).toContain("Radar MCP");
-    expect(out).toContain("15 tools, verified over the real stdio transport.");
-    expect(out).toContain("Q3 2026 → Trial");
+    expect(out).toContain("reachable only from seed.py");
     expect(out).not.toContain("undefined");
     expect(out).not.toContain("NaN");
   });
 
-  it("labels every number it shows", () => {
-    // Four bare numbers in a row is a puzzle. Each is a dt/dd pair instead.
+  it("shows the definition and the ring argument as two separate claims", () => {
+    // The Thoughtworks anatomy this panel follows: what it IS, then why it is THERE.
+    // They are different kinds of statement and a reader can accept one and reject the
+    // other, which is why they are not one paragraph.
     const out = html();
-    for (const label of ["Quadrant", "Last move", "Moves", "Evidence"]) {
-      expect(out).toContain(label);
-    }
-    expect(out).toContain("Tools");
+    expect(out).toContain("What it is");
+    expect(out).toContain("hands an agent the whole radar");
+    expect(out).toContain("Why it is in Trial");
+    expect(out).toContain('data-weight="argument"');
   });
 
-  it("marks the current ring on the position track, and only that one", () => {
-    // Rewritten: the first version asserted the strings "Trial" and "Entered" were
-    // present, and kept passing after the ring badge was removed — the track prints
-    // all four ring names and `lastMove` happened to contain "Entered". It was testing
-    // that the words exist somewhere, which they always do.
-    const out = html({ ring: "trial" });
-    expect((out.match(/aria-current="true"/g) || []).length).toBe(1);
-    // The marked segment is the Trial one: its label follows the marker.
-    const marked = out.slice(out.indexOf('aria-current="true"'));
-    expect(marked.slice(0, 200)).toContain("Trial");
+  it("omits the definition block entirely when there is no definition", () => {
+    // Rather than an empty section with a heading over nothing: most blips predate the
+    // field, and a labelled blank reads as a loading failure.
+    const out = html({ description: null });
+    expect(out).not.toContain("What it is");
+    expect(out).toContain("Why it is in Trial");
   });
 
-  it("marks nothing when the blip has entered but is not placed", () => {
-    const out = html({ ring: null, state: "new", lastMove: "Q3 2026 → Entered" });
-    expect(out).not.toContain('aria-current="true"');
-    // And the reader is still told what happened, from the move rather than the ring.
-    expect(out).toContain("Q3 2026 → Entered");
+  it("heads the argument with the ring it is arguing for", () => {
+    expect(html({ ring: "adopt" })).toContain("Why it is in Adopt");
+    // An unplaced blip has no ring to argue for, so the heading states the weaker claim.
+    expect(html({ ring: null })).toContain("Why it is on the radar");
   });
 });
 
-describe("the two ways out are distinguishable", () => {
-  it("offers the detail as the primary action and a close beside it", () => {
+describe("the related blips carry their own positions", () => {
+  it("shows each one's name and its OWN ring", () => {
     const out = html();
-    expect(out).toContain("Open detail");
+    expect(out).toContain("Treasures MCP");
+    expect(out).toContain("Adopt");
+    expect(out).toContain("MUI");
+    expect(out).toContain("Caution");
+    // The ring is tagged so caution and adopt can be coloured; a related blip parked in
+    // Caution is often the reason this one sits where it does.
+    expect(out).toContain('data-ring="caution"');
+  });
+
+  it("omits the whole section when nothing is related", () => {
+    expect(html({ related: [] })).not.toContain("Related blips");
+  });
+
+  it("survives a board that predates the field", () => {
+    // `related` is absent, not empty, on any response older than the link table.
+    const out = html({ related: undefined });
+    expect(out).not.toContain("Related blips");
+    expect(out).not.toContain("undefined");
+  });
+});
+
+describe("the ways out are distinguishable", () => {
+  it("offers the history from the move line and from the foot", () => {
+    const out = html();
+    expect(out).toContain("View blip history");
+    expect(out).toContain("Open history");
     expect(out).toContain('data-variant="primary"');
     expect(out).toContain("Close the summary");
+  });
+
+  it("links out only when the blip has somewhere to link to", () => {
+    expect(html()).toContain('href="https://example.invalid/radar-mcp"');
+    // An always-present link that is sometimes dead is worse than an absent one.
+    expect(html({ ref: null })).not.toContain("<a ");
   });
 
   it("is labelled for a screen reader by the blip it describes", () => {
@@ -91,18 +124,13 @@ describe("the two ways out are distinguishable", () => {
   });
 });
 
-describe("staleness is stated where it belongs", () => {
-  it("hangs the age off EVIDENCE, not off the ring", () => {
-    const out = html({ evidenceAgeDays: 94 });
-    expect(out).toContain("94d old");
-    // A blip does not go stale; its citations do. The flag must not attach itself to
-    // the position, which is a different claim and a different colour.
-    const evidenceAt = out.indexOf("Evidence");
-    expect(out.indexOf("94d old")).toBeGreaterThan(evidenceAt);
+describe("the move line states the transition", () => {
+  it("names the period and the ring it landed in", () => {
+    expect(html()).toContain("Q3 2026");
+    expect(html()).toContain("Trial");
   });
 
-  it("says nothing at all when the evidence is fresh", () => {
-    expect(html({ evidenceAgeDays: 0 })).not.toContain("old");
-    expect(html({ evidenceAgeDays: 60 })).not.toContain("old"); // 60 is the boundary
+  it("says so plainly when the blip has only entered", () => {
+    expect(html({ ring: null, state: "new" })).toContain("Entered the radar");
   });
 });
