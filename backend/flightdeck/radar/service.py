@@ -139,7 +139,99 @@ def move_blip(conn, slug, num, *, ring, period, why, evidence, session_id=None) 
         raise LookupError(f"no blip {num} on radar {slug!r}")
     store.add_move(conn, blip=blip["id"], ring=ring, period=period, why=why,
                    evidence=evidence, session_id=session_id)
-    store.upsert_radar(conn, slug=slug, title=store.get_radar(conn, slug)["title"],
-                       subtitle=store.get_radar(conn, slug)["subtitle"],
-                       jira=store.get_radar(conn, slug)["jira"])
     return blip_detail(conn, slug, num)
+
+
+# --- the write verbs an agent needs -------------------------------------------
+#
+# Each returns the DERIVED view rather than the row it wrote. The question after any
+# write here is "what does the radar say now", and a caller handed back its own input
+# has to make a second call to find out — or worse, assume.
+
+
+def add_blip(conn, slug, *, name, quadrant, why, period, num=None, ring=None,
+             evidence=None, session_id=None) -> dict:
+    """Put something on the radar, with the reason it is there.
+
+    A blip and its first move are ONE act. A blip with no moves has no position and no
+    reason to exist, so allowing the two to be separate calls would make that state
+    reachable — and it is exactly the state `add_move` refuses to create for every
+    later move.
+
+    `ring=None` records an entry: on the radar, position not yet decided. That is the
+    one move allowed to cite nothing, because nothing has been decided to cite for.
+    """
+    if store.get_radar(conn, slug) is None:
+        raise LookupError(f"no radar {slug!r}")
+    blip = store.add_blip(conn, radar=slug, num=num, name=name, quadrant=quadrant)
+    try:
+        store.add_move(conn, blip=blip["id"], ring=ring, period=period, why=why,
+                       evidence=evidence or [], session_id=session_id)
+    except Exception:
+        # The move's rules live in add_move and are not duplicated here, so the only
+        # way to honour them is to let it refuse and then undo the blip. Leaving the
+        # blip behind would create the move-less blip this function exists to prevent.
+        store.delete_blip(conn, blip["id"])
+        raise
+    return blip_detail(conn, slug, blip["num"])
+
+
+def update_blip(conn, slug, num, *, name=store.KEEP, quadrant=store.KEEP,
+                new_num=store.KEEP) -> dict:
+    """Correct a blip's labels. Its ring is not here — that needs a move."""
+    blip = _blip(conn, slug, num)
+    store.update_blip(conn, blip["id"], name=name, quadrant=quadrant, num=new_num)
+    return blip_detail(conn, slug, store.blip_by_id(conn, blip["id"])["num"])
+
+
+def delete_blip(conn, slug, num) -> dict:
+    return store.delete_blip(conn, _blip(conn, slug, num)["id"])
+
+
+def update_move(conn, slug, num, move_id, *, ring=store.KEEP, period=store.KEEP,
+                why=store.KEEP) -> dict:
+    _own_move(conn, slug, num, move_id)
+    store.update_move(conn, move_id, ring=ring, period=period, why=why)
+    return blip_detail(conn, slug, num)
+
+
+def delete_move(conn, slug, num, move_id) -> dict:
+    _own_move(conn, slug, num, move_id)
+    removed = store.delete_move(conn, move_id)
+    return {**removed, "blip": blip_detail(conn, slug, num)}
+
+
+def add_evidence(conn, slug, num, move_id, evidence) -> dict:
+    _own_move(conn, slug, num, move_id)
+    store.add_evidence(conn, move_id, evidence)
+    return blip_detail(conn, slug, num)
+
+
+def delete_evidence(conn, slug, num, evidence_id) -> dict:
+    removed = store.delete_evidence(conn, evidence_id)
+    _own_move(conn, slug, num, removed["move"])
+    return {**removed, "blip": blip_detail(conn, slug, num)}
+
+
+def _blip(conn, slug, num) -> dict:
+    blip = store.blip_by_num(conn, slug, num)
+    if blip is None:
+        raise LookupError(f"no blip {num} on radar {slug!r}")
+    return blip
+
+
+def _own_move(conn, slug, num, move_id) -> dict:
+    """Check the move really belongs to that blip on that radar.
+
+    Move ids are opaque and global, so without this a caller holding an id from one
+    radar could edit it while addressing another — and the response, built from
+    `slug`/`num`, would show the untouched blip and look like the edit did nothing.
+    """
+    blip = _blip(conn, slug, num)
+    move = store.get_move(conn, move_id)
+    if move is None:
+        raise LookupError(f"no move {move_id!r}")
+    if move["blip"] != blip["id"]:
+        raise ValueError(
+            f"move {move_id!r} does not belong to blip {num} on radar {slug!r}")
+    return move

@@ -92,11 +92,59 @@ def test_an_unknown_quadrant_is_refused(conn):
 
 def test_blip_numbers_are_unique_per_radar(conn):
     add(conn, 1)
-    with pytest.raises(sqlite3.IntegrityError):
+    # The refusal names the blip in the way, because that is the only fact a caller
+    # needs to pick another number. It used to surface the driver's own
+    # "UNIQUE constraint failed: radar_blip.radar, radar_blip.num", which names the
+    # index instead of the occupant.
+    with pytest.raises(ValueError, match="already blip"):
         add(conn, 1)
 
 
+def test_the_unique_index_is_still_the_backstop(conn):
+    # The readable guard above runs BEFORE the insert, so it would also hide the loss
+    # of the index. Bypass the guard and check the database still refuses on its own:
+    # two layers, and this is the one that holds if the guard is ever edited away.
+    add(conn, 1)
+    with pytest.raises(sqlite3.IntegrityError):
+        conn.execute(
+            "INSERT INTO radar_blip (id, radar, num, name, quadrant, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            ("blip_dupe", "r", 1, "Collides", "tools", store.now_iso()))
+
+
 # --------------------------------------------------------------- ring is derived
+
+def test_two_moves_in_the_same_second_still_order_correctly(conn):
+    """Regression. `ts` used to be second-precision, so two moves recorded inside one
+    second carried the SAME timestamp, `ORDER BY ts DESC` had no defined order between
+    them, and the derived ring was whichever the engine happened to return. A person
+    never records two moves in one second; an agent driving the MCP does it routinely,
+    which is how this was found — three tests failing for one cause.
+    """
+    b = add(conn, 1)
+    store.add_move(conn, blip=b["id"], ring="assess", period="Q2", why="first", evidence=EV)
+    store.add_move(conn, blip=b["id"], ring="adopt", period="Q4", why="second", evidence=EV)
+    ms = store.moves_of(conn, b["id"])
+    assert [m["why"] for m in ms] == ["second", "first"]
+    assert service.blip_view(conn, b)["ring"] == "adopt"
+    # And the timestamps really are distinct, which is what makes the order defined
+    # rather than merely lucky this run.
+    assert ms[0]["ts"] != ms[1]["ts"]
+
+
+def test_mixed_precision_timestamps_still_order_correctly(conn):
+    """A row written before the precision change and one written after must still sort
+    by real time. They differ in FORMAT, and the sort is lexical: `...00+00:00` versus
+    `...00.123456+00:00`. It works because `.` sorts after `+`, and that is exactly the
+    kind of accident worth a test rather than a comment."""
+    b = add(conn, 1)
+    store.add_move(conn, blip=b["id"], ring="assess", period="Q2", why="old row",
+                   evidence=EV, ts="2026-08-07T10:00:00+00:00")
+    store.add_move(conn, blip=b["id"], ring="adopt", period="Q3", why="new row",
+                   evidence=EV, ts="2026-08-07T10:00:00.000001+00:00")
+    assert [m["why"] for m in store.moves_of(conn, b["id"])] == ["new row", "old row"]
+    assert service.blip_view(conn, b)["ring"] == "adopt"
+
 
 def test_a_blips_ring_is_its_newest_move(conn):
     b = add(conn, 1)
