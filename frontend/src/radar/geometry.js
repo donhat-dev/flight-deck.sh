@@ -47,6 +47,19 @@ export const QUADRANTS = [
 export const quadrantOf = (k) => QUADRANTS.find((q) => q.k === k) || QUADRANTS[0];
 
 /**
+ * The four quadrants with THIS board's labels.
+ *
+ * Labels are per-radar (a migration radar renames `lang` to Convention) and the server
+ * resolves them onto `board.quadrants`. Keys and turns stay the module constants above —
+ * they are geometry, not prose — so only the label is taken from the board, and a board
+ * that predates the field falls back to the classic set unchanged.
+ */
+export function boardQuadrants(board) {
+  const labels = new Map((board?.quadrants ?? []).map((q) => [q.k, q.label]));
+  return QUADRANTS.map((q) => ({ ...q, label: labels.get(q.k) ?? q.label }));
+}
+
+/**
  * Which way a move from `from` to `to` travels: `in` toward Adopt, `out` toward
  * Caution, `held` when the ring does not change.
  *

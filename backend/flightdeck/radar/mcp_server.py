@@ -179,16 +179,19 @@ def radar_blip(slug, num):
 
 # --- radars -------------------------------------------------------------------
 
-def radar_create(slug, title, subtitle=None, jira=None):
+def radar_create(slug, title, subtitle=None, jira=None, quadrants=None):
     conn = _conn()
     if store.get_radar(conn, slug) is not None:
         return {"error": f"radar {slug!r} already exists — use radar_update to change it"}
-    store.upsert_radar(conn, slug=slug, title=title, subtitle=subtitle, jira=jira)
+    store.upsert_radar(conn, slug=slug, title=title, subtitle=subtitle, jira=jira,
+                       quadrant_labels=quadrants)
     return _board(slug)
 
 
-def radar_update(slug, title=store.KEEP, subtitle=store.KEEP, jira=store.KEEP):
-    store.update_radar(_conn(), slug, **_kw(title=title, subtitle=subtitle, jira=jira))
+def radar_update(slug, title=store.KEEP, subtitle=store.KEEP, jira=store.KEEP,
+                 quadrants=store.KEEP):
+    store.update_radar(_conn(), slug, **_kw(title=title, subtitle=subtitle, jira=jira,
+                                            quadrant_labels=quadrants))
     return _board(slug)
 
 
@@ -267,7 +270,19 @@ def radar_evidence_delete(slug, num, evidence_id):
 _RING = {"type": ["string", "null"], "enum": [*store.RINGS, None],
          "description": "null records an ENTRY — on the radar, position not yet "
                         "decided. That is the only move allowed to cite no evidence."}
-_QUADRANT = {"type": "string", "enum": list(store.QUADRANTS)}
+_QUADRANT = {"type": "string", "enum": list(store.QUADRANTS),
+             "description": "quadrant KEY. Keys are permanent addresses; what each one "
+                            "MEANS on this radar is its per-radar label — read "
+                            "board.quadrants. The migration genre maps lang → Convention."}
+_QUADRANT_LABELS = {
+    "type": "object",
+    "description": "per-radar quadrant labels, {key: label} with keys from "
+                   f"{'/'.join(store.QUADRANTS)}. Omitted keys keep their classic label; "
+                   "null clears every override. The migration genre (see the radar-blips "
+                   "skill) uses {platforms: Systems, techniques: Techniques, tools: Tools, "
+                   "lang: Convention}.",
+    "additionalProperties": {"type": "string"},
+}
 _EVIDENCE = {
     "type": "array",
     "description": "what justifies the move. OPTIONAL — the store accepts a move with "
@@ -335,13 +350,16 @@ TOOLS = {
                   "description": "kebab-case, e.g. 'subscription-migration'"},
          "title": {"type": "string"},
          "subtitle": {"type": "string"},
-         "jira": {"type": "string", "description": "e.g. CRM-11197"}},
+         "jira": {"type": "string", "description": "e.g. CRM-11197"},
+         "quadrants": _QUADRANT_LABELS},
         ["slug", "title"]),
     "radar_update": (
         radar_update,
-        "Change a radar's title, subtitle or Jira key. Omitted fields are left alone.",
+        "Change a radar's title, subtitle, Jira key or quadrant labels. Omitted "
+        "fields are left alone.",
         {"slug": {"type": "string"}, "title": {"type": "string"},
-         "subtitle": {"type": "string"}, "jira": {"type": "string"}},
+         "subtitle": {"type": "string"}, "jira": {"type": "string"},
+         "quadrants": _QUADRANT_LABELS},
         ["slug"]),
     "radar_delete": (
         radar_delete,

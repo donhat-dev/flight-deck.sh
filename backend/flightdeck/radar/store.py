@@ -19,6 +19,7 @@ Schema notes:
     particular move; re-parenting it to the blip would lose which decision it
     supported.
 """
+import json
 from datetime import datetime, timezone
 
 from flightdeck import db
@@ -102,6 +103,7 @@ def init(conn) -> None:
     # column added to the schema above never reaches an install that predates it.
     for column in ("description", "ref"):
         _ensure_column(conn, "radar_blip", column)
+    _ensure_column(conn, "radar", "quadrant_labels")
     conn.commit()
 
 
@@ -142,34 +144,64 @@ def new_id(prefix: str) -> str:
 
 # --- radars -------------------------------------------------------------------
 
-def upsert_radar(conn, *, slug, title, subtitle=None, jira=None) -> dict:
+_RADAR_COLS = ("slug", "title", "subtitle", "jira", "created_at", "updated_at",
+               "quadrant_labels")
+_RADAR_SELECT = ", ".join(_RADAR_COLS)
+
+
+def _labels_or_refuse(labels) -> str | None:
+    """Serialize a per-radar quadrant-label map, refusing what the drawing cannot use.
+
+    Labels rename the four quadrants per radar (the migration genre maps `lang` →
+    Convention); the KEYS never change, because every blip row and both frontends address
+    quadrants by key. A label for a key that does not exist would be stored, never
+    rendered, and read as applied — so it is refused instead.
+    """
+    if labels is None:
+        return None
+    if not isinstance(labels, dict):
+        raise ValueError("quadrant_labels must be a map of quadrant key to label")
+    for k, v in labels.items():
+        if k not in QUADRANTS:
+            raise ValueError(f"unknown quadrant key {k!r} — one of {', '.join(QUADRANTS)}")
+        if not isinstance(v, str) or not v.strip():
+            raise ValueError(f"quadrant {k!r} needs a non-empty label")
+    return json.dumps({k: v.strip() for k, v in labels.items()}, ensure_ascii=False)
+
+
+def _radar_row(row) -> dict:
+    out = dict(zip(_RADAR_COLS, row))
+    out["quadrant_labels"] = json.loads(out["quadrant_labels"]) if out["quadrant_labels"] else None
+    return out
+
+
+def upsert_radar(conn, *, slug, title, subtitle=None, jira=None, quadrant_labels=None) -> dict:
     stamp = now_iso()
     conn.execute(
-        "INSERT INTO radar (slug, title, subtitle, jira, created_at, updated_at) "
-        "VALUES (?, ?, ?, ?, ?, ?) "
+        "INSERT INTO radar (slug, title, subtitle, jira, created_at, updated_at, quadrant_labels) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?) "
         "ON CONFLICT (slug) DO UPDATE SET title = excluded.title, "
-        "subtitle = excluded.subtitle, jira = excluded.jira, updated_at = excluded.updated_at",
-        (slug, title, subtitle, jira, stamp, stamp))
+        "subtitle = excluded.subtitle, jira = excluded.jira, "
+        "quadrant_labels = excluded.quadrant_labels, updated_at = excluded.updated_at",
+        (slug, title, subtitle, jira, stamp, stamp, _labels_or_refuse(quadrant_labels)))
     conn.commit()
     return get_radar(conn, slug)
 
 
 def get_radar(conn, slug) -> dict | None:
     row = conn.execute(
-        "SELECT slug, title, subtitle, jira, created_at, updated_at FROM radar "
-        "WHERE slug = ?", (slug,)).fetchone()
-    return dict(zip(("slug", "title", "subtitle", "jira", "created_at", "updated_at"), row)) if row else None
+        f"SELECT {_RADAR_SELECT} FROM radar WHERE slug = ?", (slug,)).fetchone()
+    return _radar_row(row) if row else None
 
 
 def list_radars(conn) -> list[dict]:
     rows = conn.execute(
-        "SELECT slug, title, subtitle, jira, created_at, updated_at FROM radar "
-        "ORDER BY updated_at DESC").fetchall()
-    cols = ("slug", "title", "subtitle", "jira", "created_at", "updated_at")
-    return [dict(zip(cols, r)) for r in rows]
+        f"SELECT {_RADAR_SELECT} FROM radar ORDER BY updated_at DESC").fetchall()
+    return [_radar_row(r) for r in rows]
 
 
-def update_radar(conn, slug, *, title=_KEEP, subtitle=_KEEP, jira=_KEEP) -> dict:
+def update_radar(conn, slug, *, title=_KEEP, subtitle=_KEEP, jira=_KEEP,
+                 quadrant_labels=_KEEP) -> dict:
     """Change a radar's labels. Its slug is its identity and is not editable here:
     renaming it would orphan every URL and every blip row that points at it."""
     cur = get_radar(conn, slug)
@@ -183,6 +215,9 @@ def update_radar(conn, slug, *, title=_KEEP, subtitle=_KEEP, jira=_KEEP) -> dict
             raise ValueError("a radar needs a title")
         sets.append(f"{col} = ?")
         args.append(val.strip() if isinstance(val, str) else val)
+    if quadrant_labels is not _KEEP:
+        sets.append("quadrant_labels = ?")
+        args.append(_labels_or_refuse(quadrant_labels))
     if not sets:
         return cur
     sets.append("updated_at = ?")

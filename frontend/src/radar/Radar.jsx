@@ -101,6 +101,9 @@ export default function Radar({
   onSelect,
   width = 880,
   height = 880,
+  // The board labels. Geometry (keys, turns) stays the module constant; only the words
+  // a radar calls its quadrants come from outside, because they are per-radar prose.
+  quadrants = QUADRANTS,
 }) {
   const { cx, cy, r, vb } = ringGeometry(mode, width, height);
   const turns = mode === "full" ? QUADRANTS.map((q) => q.turn) : [0];
@@ -108,7 +111,8 @@ export default function Radar({
 
   return (
     <svg className="rdr-canvas" viewBox={vb} role="img"
-         aria-label={mode === "full" ? "Radar, four quadrants" : `Radar, ${quadrantOf(quadrant).label}`}>
+         aria-label={mode === "full" ? "Radar, four quadrants"
+           : `Radar, ${(quadrants.find((q) => q.k === quadrant) ?? quadrantOf(quadrant)).label}`}>
       {/* Rings outer-first so the inner ones paint on top of their neighbours'
           edges rather than under them. FILL only — the boundary is drawn below as
           an open arc, because stroking a closed sector also strokes its two radial
@@ -165,7 +169,7 @@ export default function Radar({
         );
       })}
 
-      {mode === "full" && QUADRANTS.map((q) => {
+      {mode === "full" && quadrants.map((q) => {
         const right = q.turn === 0 || q.turn === 3;
         const bottom = q.turn === 2 || q.turn === 3;
         return (

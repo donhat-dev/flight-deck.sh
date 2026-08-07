@@ -513,3 +513,39 @@ def test_every_schema_required_list_matches_its_function_signature(wired):
     assert mismatched == []
     # Anti-vacuity: a registry that lost its tools would pass the line above.
     assert len(mcp_server.TOOLS) >= 15
+
+
+# ------------------------------------------------------------ per-radar quadrants
+
+def test_quadrant_labels_are_per_radar_and_default_classic(wired):
+    """Direction B of the taxonomy decision: the original Thoughtworks split fits a
+    STACK radar and strains a MIGRATION radar, so labels rename the four quadrants per
+    radar. Keys never change — every blip row addresses its quadrant by key."""
+    board = call("radar_get", {"slug": "r"})
+    assert [q["label"] for q in board["quadrants"]] == [
+        "Platforms", "Techniques", "Tools", "Languages & Frameworks"]
+
+    out = call("radar_update", {"slug": "r", "quadrants": {
+        "platforms": "Systems", "lang": "Convention"}})
+    assert {q["k"]: q["label"] for q in out["quadrants"]} == {
+        "platforms": "Systems", "techniques": "Techniques",
+        "tools": "Tools", "lang": "Convention"}
+    # And the keys still address the same quadrants: a blip added by key lands under
+    # the renamed label rather than needing a new key.
+    b = placed(name="SSOT", quadrant="lang", ring="adopt")
+    assert b["quadrant"] == "lang"
+
+
+def test_clearing_labels_restores_the_classic_set(wired):
+    call("radar_update", {"slug": "r", "quadrants": {"lang": "Convention"}})
+    out = call("radar_update", {"slug": "r", "quadrants": None})
+    assert [q["label"] for q in out["quadrants"]][-1] == "Languages & Frameworks"
+
+
+def test_a_label_for_a_key_that_does_not_exist_is_refused(wired):
+    # Stored-but-never-rendered is the failure mode: the caller would believe the
+    # rename applied while both frontends kept drawing the classic label.
+    out = call("radar_update", {"slug": "r", "quadrants": {"seams": "Seams"}})
+    assert "unknown quadrant key" in out["error"]
+    out = call("radar_update", {"slug": "r", "quadrants": {"lang": "  "}})
+    assert "non-empty label" in out["error"]

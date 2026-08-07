@@ -16,6 +16,7 @@ import React, { useMemo, useState } from "react";
 import { QUADRANTS, RINGS, RING_LABEL, isStale } from "./geometry.js";
 
 
+
 const COLUMNS = [
   { k: "num", label: "#" },
   { k: "name", label: "Blip" },
@@ -28,7 +29,8 @@ const COLUMNS = [
 
 
 
-export default function BlipIndex({ blips, radars, currentPeriod, onOpen }) {
+export default function BlipIndex({ blips, radars, currentPeriod, onOpen,
+                                    quadrants = QUADRANTS }) {
   const BLIPS = blips;
   const RADARS = radars;
   const count = (pred) => BLIPS.filter(pred).length;
@@ -78,7 +80,7 @@ export default function BlipIndex({ blips, radars, currentPeriod, onOpen }) {
         <aside className="rdr-facets" aria-label="Filters">
           {facet("Radar", RADARS.map((r) => ({ k: r.slug, label: r.title, n: r.blipCount })),
                  RADARS[0]?.slug, () => {})}
-          {facet("Quadrant", QUADRANTS.map((q) => ({
+          {facet("Quadrant", quadrants.map((q) => ({
             k: q.k, label: q.label, n: count((b) => b.quadrant === q.k),
           })), quadrant, setQuadrant)}
           {facet("Ring", [...RINGS].reverse().map((r) => ({
@@ -131,7 +133,7 @@ export default function BlipIndex({ blips, radars, currentPeriod, onOpen }) {
                     data-stale={isStale(b) ? "true" : undefined}>
                   <td data-col="num">{b.num}</td>
                   <td data-col="name">{b.name}</td>
-                  <td data-col="quadrant">{QUADRANTS.find((q) => q.k === b.quadrant)?.label}</td>
+                  <td data-col="quadrant">{quadrants.find((q) => q.k === b.quadrant)?.label}</td>
                   <td data-col="ring">
                     <span className="rdr-ring-badge" data-ring={b.ring}>{RING_LABEL[b.ring]}</span>
                   </td>

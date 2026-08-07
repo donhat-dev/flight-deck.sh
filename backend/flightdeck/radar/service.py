@@ -17,6 +17,22 @@ from flightdeck.radar import store
 
 RING_ORDER = {"caution": 0, "assess": 1, "trial": 2, "adopt": 3}
 
+# The classic labels, used whenever a radar declares none of its own. Keys are the
+# permanent addresses; labels are per-radar prose (the migration genre renames `lang`
+# to Convention), so the board resolves them once and every reader takes the result.
+QUADRANT_DEFAULTS = {
+    "platforms": "Platforms",
+    "techniques": "Techniques",
+    "tools": "Tools",
+    "lang": "Languages & Frameworks",
+}
+
+
+def _quadrants(radar) -> list[dict]:
+    labels = radar.get("quadrant_labels") or {}
+    return [{"k": k, "label": labels.get(k, default)}
+            for k, default in QUADRANT_DEFAULTS.items()]
+
 
 def _direction(newer_ring, older_ring):
     """`in` toward Adopt, `out` toward Caution, `new` on entry, `held` otherwise."""
@@ -94,6 +110,7 @@ def radar_board(conn, slug, today=None) -> dict | None:
     rings = {r: sum(1 for v in views if v["ring"] == r) for r in store.RINGS}
     return {
         **radar,
+        "quadrants": _quadrants(radar),
         "blips": views,
         "rings": rings,
         "blipCount": len(views),

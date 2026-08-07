@@ -22,7 +22,7 @@ import React, { useCallback, useEffect, useState } from "react";
 
 import BlipMark from "./BlipGlyph.jsx";
 import { moveBlip } from "./data.js";
-import { RINGS, RING_LABEL, directionTo, quadrantOf } from "./geometry.js";
+import { QUADRANTS, RINGS, RING_LABEL, directionTo } from "./geometry.js";
 import { periodOptions } from "./periods.js";
 
 /** The kinds the store already holds. Not a free text field: an evidence kind the
@@ -98,8 +98,8 @@ export function payload(draft) {
   };
 }
 
-function Head({ blip, onClose }) {
-  const quadrant = quadrantOf(blip.quadrant).label;
+function Head({ blip, onClose, quadrants }) {
+  const quadrant = (quadrants.find((q) => q.k === blip.quadrant) ?? quadrants[0]).label;
   const ring = blip.ring ? RING_LABEL[blip.ring] : "not yet placed";
   return (
     <header className="rdr-modal-head">
@@ -250,7 +250,8 @@ function EvidenceField({ draft, set, hint }) {
   );
 }
 
-export default function MoveBlipModal({ slug, blip, periods = [], onClose, onRecorded }) {
+export default function MoveBlipModal({ slug, blip, periods = [], onClose, onRecorded,
+                                        quadrants = QUADRANTS }) {
   const [draft, setDraft] = useState(() => ({
     ring: blip.ring,
     period: periodOptions(periods)[0]?.key ?? "",
@@ -303,7 +304,7 @@ export default function MoveBlipModal({ slug, blip, periods = [], onClose, onRec
               onClick={() => !busy && onClose()} />
       <div className="rdr-modal" role="dialog" aria-modal="true"
            aria-labelledby="rdr-move-title">
-        <Head blip={blip} onClose={onClose} />
+        <Head blip={blip} onClose={onClose} quadrants={quadrants} />
         <form className="rdr-modal-body" onSubmit={submit}>
           <RingField blip={blip} draft={draft} set={set} periods={periods} />
           <WhyField draft={draft} set={set} />

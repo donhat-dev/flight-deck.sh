@@ -28,7 +28,7 @@ import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
 import SummaryPanel from "./SummaryPanel.jsx";
 import { useBlip, useRadars } from "./data.js";
-import { QUADRANTS, quadrantOf } from "./geometry.js";
+import { QUADRANTS, boardQuadrants } from "./geometry.js";
 
 const NAV = [
   { k: "radar", label: "Radar", hash: "#/" },
@@ -134,6 +134,7 @@ function Chrome({ active, board }) {
 }
 
 function FullView({ board, granularity, onGranularity }) {
+  const quads = boardQuadrants(board);
   // Selection is component state, not a route. Clicking a blip does not navigate at
   // all now, so there is nothing for the URL to preserve and nothing for the back
   // button to walk — a hash per click would put twenty entries in the history for one
@@ -161,11 +162,11 @@ function FullView({ board, granularity, onGranularity }) {
           `max-inline-size: 100%`, so it shrinks to the room left over on its own. */}
       <div className="rdr-full-row">
         <div className="rdr-full-stage">
-          <Radar mode="full" blips={board.blips} selectedNum={picked}
+          <Radar mode="full" blips={board.blips} selectedNum={picked} quadrants={quads}
                  onSelect={(num) => setPicked((cur) => (cur === num ? null : num))} />
         </div>
         {blip && (
-          <SummaryPanel blip={blip}
+          <SummaryPanel blip={blip} quadrants={quads}
                         onClose={() => setPicked(null)}
                         onOpenDetail={() => go(`#/blip/${blip.num}`)} />
         )}
@@ -177,6 +178,7 @@ function FullView({ board, granularity, onGranularity }) {
 }
 
 function BlipView({ board, num, reloadBoard }) {
+  const quads = boardQuadrants(board);
   // The detail is a SECOND request. The board already carries every blip's position,
   // which is all the drawing needs; one blip's whole move history is only wanted when
   // a reader opens it, and fetching 34 histories to draw one circle would pull most of
@@ -196,7 +198,7 @@ function BlipView({ board, num, reloadBoard }) {
     );
   }
 
-  const quadrant = quadrantOf(onBoard.quadrant);
+  const quadrant = quads.find((q) => q.k === onBoard.quadrant) ?? quads[0];
   const siblings = board.blips.filter((b) => b.quadrant === onBoard.quadrant);
 
   return (
@@ -256,7 +258,7 @@ function BlipView({ board, num, reloadBoard }) {
           </div>
           <div className="rdr-quadrant-stage">
             <Radar mode="quadrant" blips={siblings} quadrant={onBoard.quadrant}
-                   selectedNum={num} width={530} height={640}
+                   selectedNum={num} width={530} height={640} quadrants={quads}
                    onSelect={(n) => go(`#/blip/${n}`)} />
           </div>
         </section>
@@ -280,6 +282,7 @@ function BlipView({ board, num, reloadBoard }) {
         <MoveBlipModal
           slug={board.slug}
           blip={blip}
+          quadrants={quads}
           periods={board.periods}
           onClose={() => setMoving(false)}
           onRecorded={() => { setMoving(false); reload(); reloadBoard(); }}
@@ -331,7 +334,7 @@ export default function RadarPage() {
           <Status empty onRetry={reload} />
         </main>
       ) : route.name === "index" ? (
-        <BlipIndex blips={board.blips} radars={radars}
+        <BlipIndex blips={board.blips} radars={radars} quadrants={boardQuadrants(board)}
                    currentPeriod={board.periods.find((p) => p.current)?.key}
                    onOpen={(num) => go(`#/blip/${num}`)} />
       ) : route.name === "blip" ? (

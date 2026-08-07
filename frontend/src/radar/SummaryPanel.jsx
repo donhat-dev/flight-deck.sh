@@ -33,7 +33,7 @@
 import React from "react";
 
 import BlipMark from "./BlipGlyph.jsx";
-import { RING_LABEL, quadrantOf } from "./geometry.js";
+import { QUADRANTS, RING_LABEL } from "./geometry.js";
 
 /** `Q3 2026 → Trial` split back into its two halves, so the transition can be shown as
  *  one. `lastMove` is built server-side and is the only place the pair travels together. */
@@ -42,8 +42,8 @@ function transition(blip) {
   return `${blip.period ?? ""}  ·  ${RING_LABEL[blip.ring]}`;
 }
 
-export default function SummaryPanel({ blip, onOpenDetail, onClose }) {
-  const quadrant = quadrantOf(blip.quadrant).label;
+export default function SummaryPanel({ blip, onOpenDetail, onClose, quadrants = QUADRANTS }) {
+  const quadrant = (quadrants.find((q) => q.k === blip.quadrant) ?? quadrants[0]).label;
   const ring = blip.ring ? RING_LABEL[blip.ring] : "not yet placed";
   const related = blip.related ?? [];
   return (
