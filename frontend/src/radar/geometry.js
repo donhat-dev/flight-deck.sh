@@ -46,6 +46,29 @@ export const QUADRANTS = [
 
 export const quadrantOf = (k) => QUADRANTS.find((q) => q.k === k) || QUADRANTS[0];
 
+/**
+ * Which way a move from `from` to `to` travels: `in` toward Adopt, `out` toward
+ * Caution, `held` when the ring does not change.
+ *
+ * This is the ONE derivation the client is allowed to repeat, and only because the
+ * server cannot do it: the move-blip form has to label a choice the reader has not
+ * made yet, and a hypothetical has nothing on the server to derive from. Once the
+ * move is recorded the page refetches and the server's own `state` replaces this
+ * preview, so a disagreement between the two would be visible immediately rather
+ * than persisted — which is why a second copy of the ring order is tolerable here
+ * and is not anywhere else.
+ *
+ * Read off `RINGS` rather than a table of its own, so the order has one home.
+ */
+export function directionTo(from, to) {
+  const a = RINGS.indexOf(to);
+  const b = RINGS.indexOf(from);
+  if (a < 0 || b < 0) return "new";
+  if (a === b) return "held";
+  // Lower index is nearer the centre, which is nearer Adopt.
+  return a < b ? "in" : "out";
+}
+
 /** [inner, outer] edge fractions of one ring. */
 export function ringBand(ring) {
   const i = RINGS.indexOf(ring);

@@ -23,6 +23,7 @@ import PaletteToggle from "../ui/PaletteToggle.jsx";
 import BlipIndex from "./BlipIndex.jsx";
 import BlipPanel from "./BlipPanel.jsx";
 import HistoryBar from "./HistoryBar.jsx";
+import MoveBlipModal from "./MoveBlipModal.jsx";
 import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
 import { OPEN_RADAR, useBlip, useRadar, useRadars } from "./data.js";
@@ -128,12 +129,13 @@ function FullView({ board, granularity, onGranularity }) {
   );
 }
 
-function BlipView({ board, num }) {
+function BlipView({ board, num, reloadBoard }) {
   // The detail is a SECOND request. The board already carries every blip's position,
   // which is all the drawing needs; one blip's whole move history is only wanted when
   // a reader opens it, and fetching 34 histories to draw one circle would pull most of
   // the ledger down for nothing.
   const { blip, error, loading, reload } = useBlip(board.slug, num);
+  const [moving, setMoving] = useState(false);
   const onBoard = board.blips.find((b) => b.num === num);
 
   if (!onBoard) {
@@ -171,7 +173,14 @@ function BlipView({ board, num }) {
           <h1 className="rdr-h1">{board.title}</h1>
         </div>
         <button type="button" className="rdr-btn">Export</button>
-        <button type="button" className="rdr-btn" data-variant="primary">Move blip</button>
+        {/* Disabled until the DETAIL has arrived, not just the board. The modal
+            needs the move count and the blip's own ring to say what a choice means,
+            and opening it against a half-loaded blip would show "0 moves on record"
+            for a blip with four. */}
+        <button type="button" className="rdr-btn" data-variant="primary"
+                disabled={!blip} onClick={() => setMoving(true)}>
+          Move blip
+        </button>
       </div>
 
       <div className="rdr-focus-body">
@@ -215,6 +224,20 @@ function BlipView({ board, num }) {
       </div>
 
       <HistoryBar variant="quarters" periods={board.periods} />
+
+      {/* Both surfaces are refetched, not patched. A move changes the blip's own
+          history AND its position on the board, and the ring the drawing uses is
+          derived server-side — so re-deriving it here to save a request is exactly
+          how the table and the circle come to disagree. */}
+      {moving && blip && (
+        <MoveBlipModal
+          slug={board.slug}
+          blip={blip}
+          periods={board.periods}
+          onClose={() => setMoving(false)}
+          onRecorded={() => { setMoving(false); reload(); reloadBoard(); }}
+        />
+      )}
     </main>
   );
 }
@@ -250,7 +273,7 @@ export default function RadarPage() {
         <RadarList radars={radars ?? [board]} openSlug={board.slug}
                    onOpen={() => go("#/")} />
       ) : route.name === "blip" ? (
-        <BlipView board={board} num={route.num} />
+        <BlipView board={board} num={route.num} reloadBoard={reload} />
       ) : (
         <FullView board={board} granularity={granularity} onGranularity={onGranularity} />
       )}

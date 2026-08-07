@@ -12,7 +12,7 @@ import { describe, expect, it } from "vitest";
 
 import { BLIPS } from "./fixtures.js";
 import {
-  QUADRANTS, RINGS, RING_EDGE, arcFacing, isStale, placeBlips, polar,
+  QUADRANTS, RINGS, RING_EDGE, arcFacing, directionTo, isStale, placeBlips, polar,
   quadrantOf, ringBand, sectorPath,
 } from "./geometry.js";
 
@@ -154,6 +154,40 @@ describe("the movement arc faces the direction the blip travelled", () => {
     // and inventing one would claim a movement that did not happen.
     expect(arcFacing("held", 30)).toBeNull();
     expect(arcFacing("new", 30)).toBeNull();
+  });
+});
+
+describe("a proposed move's direction agrees with the server's", () => {
+  // The one derivation the client repeats. It has to match `service._direction`,
+  // which orders the rings caution < assess < trial < adopt and calls a step toward
+  // Adopt `in`. If these two ever disagree the form previews one direction and the
+  // radar then draws the other, which is the exact failure the "derive server-side"
+  // rule exists to prevent — so the agreement is pinned here.
+  it("calls a step toward Adopt inward and a step toward Caution outward", () => {
+    expect(directionTo("adopt", "trial")).toBe("out");
+    expect(directionTo("adopt", "caution")).toBe("out");
+    expect(directionTo("caution", "adopt")).toBe("in");
+    expect(directionTo("assess", "trial")).toBe("in");
+  });
+
+  it("calls re-selecting the same ring a hold, not a move", () => {
+    // Not `null` and not an error: holding a position with fresh evidence is a real
+    // move the store accepts, and the form has to be able to label it.
+    for (const r of RINGS) expect(directionTo(r, r)).toBe("held");
+  });
+
+  it("treats a blip with no ring yet as entering, whatever it enters at", () => {
+    expect(directionTo(null, "assess")).toBe("new");
+    expect(directionTo(undefined, "adopt")).toBe("new");
+  });
+
+  it("agrees with the radial order the drawing already uses", () => {
+    // Derived from RINGS rather than a table of its own, so this checks the two are
+    // still the same order: an inward move must always shorten the radius.
+    for (let i = 1; i < RINGS.length; i++) {
+      expect(directionTo(RINGS[i], RINGS[i - 1])).toBe("in");
+      expect(ringBand(RINGS[i - 1])[1]).toBeLessThan(ringBand(RINGS[i])[1]);
+    }
   });
 });
 

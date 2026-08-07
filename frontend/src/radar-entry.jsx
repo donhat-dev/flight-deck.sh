@@ -13,6 +13,7 @@ import "./radar-full.css";
 import "./radar-blip.css";
 import "./radar-index.css";
 import "./radar-list.css";
+import "./radar-move.css";
 
 // The radar opens in Night. The blips are the only saturated thing on the page and
 // they read strongest against the dark canvas; the palette switch owns it after

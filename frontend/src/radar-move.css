@@ -1,0 +1,250 @@
+/* ============================================================
+   Radar — the move-blip modal.
+
+   composition: screen
+
+   A modal is a screen while it is open, which is why this sheet declares itself one
+   even though it renders on top of another. The scrim is what makes that true rather
+   than a claim: the blip panel behind it is dimmed and inert, so it is no longer
+   competing for the reader's attention and the two anchors are never live at once.
+
+   Anchor order inside the modal is inverted from what a form usually gets. The
+   controls — ring, period, evidence kind — all carry defaults or come from closed
+   sets, so they are quick and near-mechanical. The REASON has no default and cannot
+   be reconstructed from the repo later, so it takes the height, the reading-size
+   type, and the only accent border on the surface.
+
+   Depth: none rationed. The modal's lift is `--fdx-shadow-block`, ground material,
+   and the keys reuse the primitives already defined in radar.css.
+   ============================================================ */
+
+/* ---- the overlay ------------------------------------------------------- */
+
+.rdr-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--rdr-gutter);
+  /* Near-opaque, because a veil has to actually stop the reading. At 78% the blip
+     panel behind was still legible — evidence titles and dates could be read
+     through it — which both invites a reader to keep reading the old position and
+     breaks this sheet's claim to be the screen while it is open. The depth ink is a
+     very dark warm brown in both themes, so at this strength it dims rather than
+     tints. */
+  background: color-mix(in srgb, var(--fdx-depth-ink) 93%, transparent);
+}
+
+/* A real button rather than a div with onClick, so closing by clicking away is
+   reachable without a mouse. Removed from the tab order because the modal's own
+   Cancel key is the labelled way out; this is the shortcut, not the affordance. */
+.rdr-scrim-hit {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+}
+
+.rdr-modal {
+  position: relative;
+  z-index: 1;
+  width: min(47.5rem, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface);
+  box-shadow: var(--fdx-shadow-block);
+}
+
+/* ---- head -------------------------------------------------------------- */
+
+.rdr-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+  padding: 1.15rem 1.3rem 1rem;
+  border-bottom: 1px solid var(--rdr-ring-edge);
+}
+.rdr-modal-titles { flex: 1 1 auto; min-width: 0; }
+.rdr-modal-title {
+  margin: 0.3rem 0 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.rdr-modal-meta {
+  margin: 0.35rem 0 0;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+
+/* ---- fields ------------------------------------------------------------ */
+
+/* The body scrolls, not the page: the radar behind is a fixed-height surface, and
+   letting the modal grow past it would put the Record key off screen. */
+.rdr-modal-body { flex: 1 1 auto; min-height: 0; overflow: auto; }
+
+.rdr-field { padding: 1.1rem 1.3rem; border-top: 1px solid var(--rdr-ring-edge); }
+.rdr-field:first-of-type { border-top: 0; }
+
+/* Both required fields wear this, so the refusal is visible BEFORE the submit
+   rather than after it. */
+.rdr-required {
+  margin-left: 0.5rem;
+  border: 1px solid var(--fdx-orange);
+  padding: 0.1rem 0.4rem;
+  font-size: 0.5625rem;
+  letter-spacing: 0.06em;
+  color: var(--fdx-orange);
+}
+
+.rdr-field-hint {
+  margin: 0.55rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--fdx-text-muted);
+}
+
+.rdr-inline-field {
+  margin-top: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.rdr-inline-field .rdr-field-hint { margin: 0; }
+
+/* ---- ring choice ------------------------------------------------------- */
+
+/* The variant, not a second control: same border and same pressed treatment as the
+   granularity switch on the full radar, widened to four equal columns and given a
+   second line for the direction the choice implies. */
+.rdr-seg[data-variant="rings"] { margin-top: 0.6rem; }
+.rdr-seg[data-variant="rings"] .rdr-seg-key {
+  flex: 1 1 0;
+  flex-direction: column;
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.6rem 0.5rem 0.55rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+.rdr-ring-key-label { letter-spacing: 0.08em; }
+/* Reserves its line whether or not there is a word in it, so picking a different
+   ring never shifts the row's height. */
+.rdr-ring-key-note {
+  min-height: 0.85rem;
+  font-size: 0.5625rem;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  opacity: 0.75;
+}
+
+/* ---- the reason, the anchor -------------------------------------------- */
+
+.rdr-field[data-anchor="why"] .rdr-eyebrow { color: var(--fdx-text); }
+
+/* composition: anchor
+   The largest field, the only accent border, and the only place in the modal where
+   text is set at reading size. */
+.rdr-why-input {
+  margin-top: 0.7rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 7rem;
+  resize: vertical;
+  border: 1.5px solid var(--fdx-orange);
+  background: var(--fdx-surface-raised);
+  color: var(--fdx-text);
+  padding: 0.85rem 0.95rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.rdr-why-input::placeholder { color: var(--fdx-text-muted); }
+.rdr-why-input:focus-visible {
+  outline: none;
+  box-shadow: 3px 3px 0 var(--fdx-orange);
+}
+
+/* The rule, not a hint: it states what the field is FOR, which is the one thing a
+   reader filling it in a hurry gets wrong. */
+.rdr-field-rule {
+  margin: 0.6rem 0 0;
+  font-size: 0.75rem;
+  line-height: 1.55;
+  color: var(--fdx-text-muted);
+  max-width: 42rem;
+}
+
+/* ---- evidence rows ----------------------------------------------------- */
+
+.rdr-ev-rows { list-style: none; margin: 0.7rem 0 0.8rem; padding: 0; }
+.rdr-ev-row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) 9.5rem auto;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.rdr-input, .rdr-select {
+  min-width: 0;
+  border: 1px solid var(--fdx-depth-muted);
+  background: var(--fdx-surface-raised);
+  color: var(--fdx-text);
+  padding: 0.5rem 0.6rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.75rem;
+}
+.rdr-input::placeholder { color: var(--fdx-text-muted); }
+.rdr-input:focus-visible, .rdr-select:focus-visible {
+  outline: none;
+  border-color: var(--fdx-orange);
+}
+.rdr-ev-row .rdr-icon-btn { padding: 0.4rem 0.5rem; }
+.rdr-ev-row .rdr-icon-btn svg { width: 1rem; height: 1rem; }
+.rdr-ev-row .rdr-icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ---- foot -------------------------------------------------------------- */
+
+.rdr-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1.3rem 1rem;
+  border-top: 1px solid var(--rdr-ring-edge);
+  background: var(--fdx-surface-raised);
+  flex-wrap: wrap;
+}
+/* Restates the whole transition, because the radar encodes direction as an arc and
+   the form has to agree with the drawing before the move is recorded. */
+.rdr-modal-arrow {
+  /* Takes the slack, so the keys stay on the right whether or not a message sits
+     between them and the arrow. */
+  flex: 1 1 auto;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+/* A refusal is something the reader can fix, so it takes caution rather than
+   failure. Caution is not failure — the two never share a colour here. */
+.rdr-modal-blocked {
+  flex: 0 1 auto;
+  font-size: 0.75rem;
+  color: var(--fdx-warning);
+  text-align: right;
+}
+/* A failed request IS a failure, and it is the only thing on this surface allowed
+   the critical colour. */
+.rdr-modal-failed {
+  flex: 0 1 auto;
+  font-size: 0.75rem;
+  color: var(--fdx-critical);
+  text-align: right;
+}
+.rdr-modal-foot .rdr-btn:disabled { opacity: 0.45; cursor: not-allowed; box-shadow: none; }
