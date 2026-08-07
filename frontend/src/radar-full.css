@@ -60,7 +60,12 @@
 /* ---- the summary, subordinate to the drawing ---------------------------- */
 
 .rdr-side {
-  flex: 0 1 29rem;
+  /* A PROPORTION, not a rem basis: the ask is "about half the width", and a fixed basis
+     only lands on half at one window size. Percentage flex-basis resolves against the
+     row, so the split holds as the window changes. Capped because past ~54rem the panel
+     stops being a panel and the radar stops being the subject. */
+  flex: 0 1 48%;
+  max-width: 54rem;
   min-width: 0;
   /* STRETCH, not centred. The panel now carries prose rather than four metadata rows,
      and a block of text floating at the vertical middle of a tall column reads as a
@@ -125,6 +130,10 @@
    evidence list: the height they spent on facts stated elsewhere now buys prose a
    reader will actually read. */
 .rdr-side-lede {
+  /* Line LENGTH, not panel width. The panel got wider; 18px prose spanning all of it runs
+     ~90 characters, and past about 75 a reader loses their place on the return sweep. The
+     width the prose does not take goes to the related grid below. */
+  max-width: 38rem;
   margin: 0.6rem 0 0;
   font-size: 1.125rem;
   font-weight: 500;
@@ -169,7 +178,9 @@
   margin: 0.65rem 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* auto-fill, not a fixed count: the row grows from two cards to three as the panel
+     widens, instead of leaving half of it empty. */
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   gap: 0.5rem;
 }
 .rdr-side-related li {
