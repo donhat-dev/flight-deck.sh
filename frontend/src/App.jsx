@@ -630,6 +630,26 @@ export default function App() {
             Systems
           </div>
           {SYS_NAV.map(navBtn)}
+          {/* Radar belongs to Systems, but it cannot be a SYS_NAV entry: it is its
+              own Vite entry rather than a view in this SPA, so it has to be an
+              anchor. Styled exactly like navBtn on purpose — a link that looked
+              different would read as broken — with the arrow as the only signal that
+              it leaves the dashboard, the same contract Radio uses under Planes. */}
+          <a
+            href="/radar.html"
+            onClick={() => setNavOpen(false)}
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm  text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
+            style={{ fontWeight: "var(--fdx-weight-label)" }}
+          >
+            {/* A crosshair, not a diamond. `◈` was the first choice and at 16px it
+                was indistinguishable from Treasures' `◆`, which is the one thing an
+                icon in a scannable list must not be. Checked against the real font
+                stack — Space Grotesk has this codepoint, so it is not a tofu box on
+                the machine that matters. */}
+            <span className="w-4 text-center text-base leading-none opacity-80">⌖</span>
+            Radar
+            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
+          </a>
           {/* Radio is a separate Vite entry, not a view in this SPA, so it is an
               anchor rather than a setView button. Styled like navBtn on purpose:
               a link that looked different would read as broken, and the arrow is
@@ -646,25 +666,6 @@ export default function App() {
           >
             <span className="w-4 text-center text-base leading-none opacity-80">◎</span>
             Radio
-            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
-          </a>
-          {/* Radar, same shape and same reason: its own Vite entry, so an anchor
-              rather than a setView button. It sits beside Radio because both are
-              pages that leave the dashboard, and grouping them is what makes the
-              arrow mean "this one opens a different surface". */}
-          <a
-            href="/radar.html"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm  text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
-            style={{ fontWeight: "var(--fdx-weight-label)" }}
-          >
-            {/* A crosshair, not a diamond. `◈` was the first choice and at 16px it
-                was indistinguishable from Treasures' `◆` two rows up, which is the
-                one thing an icon in a scannable list must not be. Checked against
-                the real font stack — Space Grotesk has this codepoint, so it is not
-                a tofu box on the machine that matters. */}
-            <span className="w-4 text-center text-base leading-none opacity-80">⌖</span>
-            Radar
             <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
           </a>
         </nav>
