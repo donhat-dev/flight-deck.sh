@@ -26,7 +26,7 @@ import HistoryBar from "./HistoryBar.jsx";
 import MoveBlipModal from "./MoveBlipModal.jsx";
 import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
-import { OPEN_RADAR, useBlip, useRadar, useRadars } from "./data.js";
+import { useBlip, useRadars } from "./data.js";
 import { QUADRANTS, quadrantOf } from "./geometry.js";
 
 const NAV = [
@@ -63,7 +63,7 @@ const go = (hash) => { window.location.hash = hash; window.scrollTo(0, 0); };
  * here yet" and "we could not ask" look identical to a reader and mean opposite
  * things, and only one of them is worth a retry button.
  */
-function Status({ loading, error, empty, onRetry }) {
+export function Status({ loading, error, empty, noRadars, onRetry }) {
   if (loading) {
     return <div className="rdr-status"><p className="rdr-status-line">Loading the radar…</p></div>;
   }
@@ -74,6 +74,21 @@ function Status({ loading, error, empty, onRetry }) {
           Could not load the radar. {error.message}
         </p>
         <button type="button" className="rdr-btn" onClick={onRetry}>Try again</button>
+      </div>
+    );
+  }
+  {/* Three empties, not one. "No radars at all" and "a radar with nothing on it" are
+      different situations with different next actions, and both used to be reachable
+      only as the ERROR above — the install with no radars got "Could not load the
+      radar", a failure message for something that had not failed. */}
+  if (noRadars) {
+    return (
+      <div className="rdr-status">
+        <p className="rdr-status-line">No radars yet.</p>
+        <p className="rdr-status-hint">
+          A radar is one initiative. Create one with the radar MCP
+          (<code>radar_create</code>), then put something on it with a reason.
+        </p>
       </div>
     );
   }
@@ -248,10 +263,22 @@ export default function RadarPage() {
   const onGranularity = useCallback((g) => setGranularity(g), []);
   const active = route.name === "blip" ? "radar" : route.name;
 
-  const { board, error, loading, reload } = useRadar(OPEN_RADAR);
-  const { radars } = useRadars();
+  // ONE request. `/radars` already returns each radar as a complete board, so the open
+  // one is picked out of the list rather than fetched a second time by slug.
+  const { radars, error, loading, reload } = useRadars();
 
-  const blocked = loading || error || !board || board.blips.length === 0;
+  // Which radar is open is now state, not a constant. `null` means "whichever the API
+  // listed first", which is what the deleted OPEN_RADAR constant only claimed to be.
+  const [chosen, setChosen] = useState(null);
+  const board = radars?.find((r) => r.slug === chosen) ?? radars?.[0] ?? null;
+
+  // Two different blocks, because they block different things. With no radars there is
+  // nothing any view can render. With a radar that simply has no blips yet, the Radars
+  // list must stay reachable — it is how a reader gets to a different one, and a single
+  // flag used to lock that door too.
+  const noRadars = !loading && !error && (radars?.length ?? 0) === 0;
+  const dead = loading || error || noRadars || !board;
+  const noBlips = !dead && board.blips.length === 0;
 
   return (
     <div className="rdr-page">
@@ -260,18 +287,21 @@ export default function RadarPage() {
           competing with it. The radar title returns to the full radar, so the view
           is not a dead end. */}
       {route.name !== "blip" && <Chrome active={active} board={board} />}
-      {blocked ? (
+      {dead ? (
         <main className="rdr-status-wrap">
-          <Status loading={loading} error={error} onRetry={reload}
-                  empty={!loading && !error && !!board && board.blips.length === 0} />
+          <Status loading={loading} error={error} noRadars={noRadars} onRetry={reload} />
+        </main>
+      ) : route.name === "radars" ? (
+        <RadarList radars={radars} openSlug={board.slug}
+                   onOpen={(slug) => { setChosen(slug); go("#/"); }} />
+      ) : noBlips ? (
+        <main className="rdr-status-wrap">
+          <Status empty onRetry={reload} />
         </main>
       ) : route.name === "index" ? (
-        <BlipIndex blips={board.blips} radars={radars ?? [board]}
+        <BlipIndex blips={board.blips} radars={radars}
                    currentPeriod={board.periods.find((p) => p.current)?.key}
                    onOpen={(num) => go(`#/blip/${num}`)} />
-      ) : route.name === "radars" ? (
-        <RadarList radars={radars ?? [board]} openSlug={board.slug}
-                   onOpen={() => go("#/")} />
       ) : route.name === "blip" ? (
         <BlipView board={board} num={route.num} reloadBoard={reload} />
       ) : (

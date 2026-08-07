@@ -35,14 +35,17 @@ function useFetch(path, deps) {
   return { ...state, reload: load };
 }
 
+/**
+ * Every radar, each as a COMPLETE board.
+ *
+ * `/radars` returns what `/{slug}` returns, per radar — same derivation, same shape.
+ * So this is the page's only board request: the open radar is picked out of this list
+ * rather than fetched again. It used to be both, which meant the same board arrived
+ * twice per load and the two copies could in principle disagree.
+ */
 export const useRadars = () => {
   const r = useFetch("/api/radar/radars");
   return { ...r, radars: r.data?.radars ?? null };
-};
-
-export const useRadar = (slug) => {
-  const r = useFetch(`/api/radar/${encodeURIComponent(slug)}`);
-  return { ...r, board: r.data };
 };
 
 export const useBlip = (slug, num) => {
@@ -62,5 +65,11 @@ export function moveBlip(slug, num, { ring, period, why, evidence }) {
               { ring, period, why, evidence });
 }
 
-/** The radar a fresh page opens on: whichever the API lists first. */
-export const OPEN_RADAR = "subscription-migration";
+/* There is deliberately no OPEN_RADAR constant any more.
+ *
+ * It held the literal slug "subscription-migration" under a comment claiming it was
+ * "whichever the API lists first" — the comment described the intent and the code
+ * hardcoded one install's data. The moment that radar was deleted the page opened on a
+ * 404 and reported "Could not load the radar", which is a failure message for a
+ * situation that was not a failure. The page now takes the first radar the API lists,
+ * so the comment and the behaviour are the same thing. */

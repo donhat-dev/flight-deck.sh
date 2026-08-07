@@ -51,8 +51,12 @@ export default function RadarList({ radars, openSlug, onOpen }) {
       <ul className="rdr-cards">
         {radars.map((r) => ((r = { ...r, open: r.slug === openSlug }),
           <li key={r.slug}>
+            {/* Every card opens its radar. The click used to be gated on `r.open`, so
+                the only clickable card was the one already open and the list was
+                decoration — with more than one radar there was no way to reach the
+                others. */}
             <button type="button" className="rdr-card" aria-current={r.open ? "true" : undefined}
-                    onClick={() => r.open && onOpen?.(r.slug)}>
+                    onClick={() => onOpen?.(r.slug)}>
               <span className="rdr-card-top">
                 <Mini />
                 <span className="rdr-card-title">
