@@ -549,3 +549,42 @@ def test_a_label_for_a_key_that_does_not_exist_is_refused(wired):
     assert "unknown quadrant key" in out["error"]
     out = call("radar_update", {"slug": "r", "quadrants": {"lang": "  "}})
     assert "non-empty label" in out["error"]
+
+
+# ---------------------------------------------------------- prose is markdown, not HTML
+
+def test_html_in_a_description_is_refused_with_the_markdown_rule(wired):
+    out = call("radar_blip_add", {"slug": "r", "name": "X", "quadrant": "tools",
+                                  "why": "w", "period": "Q3",
+                                  "description": "renders a <div class='x'>panel</div>"})
+    assert "markdown, not HTML" in out["error"]
+    assert call("radar_get", {"slug": "r"})["blipCount"] == 0   # and no debris
+
+
+def test_html_in_a_why_is_refused_on_move_and_on_correction(wired):
+    placed()
+    out = call("radar_move", {"slug": "r", "num": 1, "ring": "adopt", "period": "Q4",
+                              "why": "see <b>this</b>", "evidence": EV})
+    assert "markdown, not HTML" in out["error"]
+    move_id = call("radar_blip", {"slug": "r", "num": 1})["moves"][0]["id"]
+    out = call("radar_move_update", {"slug": "r", "num": 1, "move_id": move_id,
+                                     "why": "<script>x</script>"})
+    assert "markdown, not HTML" in out["error"]
+
+
+def test_xml_inside_backticks_is_legitimate_prose(wired):
+    """The carve-out that keeps the guard usable here: Odoo prose SAYS `<field ...>`.
+    A guard that refused XML inside code spans would refuse the workspace's own
+    vocabulary, and the cheapest way past it would be dropping the backticks — the
+    exact opposite of what the rule wants."""
+    out = entered(name="Odoo view fix",
+                  description="the upgrade re-adds `<field name=\"tz\"/>` to the view")
+    assert "error" not in out
+    assert "<field" in out["description"]
+
+
+def test_markdown_itself_passes(wired):
+    out = placed(name="OCA contract", ring="trial",
+                 description="**The base** `subscription_oca` builds on — see "
+                             "[OCA](https://github.com/OCA/contract).\n\n- one\n- two")
+    assert out["description"].startswith("**The base**")

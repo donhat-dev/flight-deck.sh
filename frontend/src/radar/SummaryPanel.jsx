@@ -33,6 +33,7 @@
 import React from "react";
 
 import BlipMark from "./BlipGlyph.jsx";
+import Prose from "./markdown.jsx";
 import { QUADRANTS, RING_LABEL } from "./geometry.js";
 
 /** `Q3 2026 → Trial` split back into its two halves, so the transition can be shown as
@@ -86,7 +87,7 @@ export default function SummaryPanel({ blip, onOpenDetail, onClose, quadrants = 
         {blip.description && (
           <section className="rdr-side-block">
             <h3 className="rdr-eyebrow">What it is</h3>
-            <p className="rdr-side-lede">{blip.description}</p>
+            <Prose text={blip.description} className="rdr-side-lede" />
           </section>
         )}
 
@@ -94,7 +95,7 @@ export default function SummaryPanel({ blip, onOpenDetail, onClose, quadrants = 
           <h3 className="rdr-eyebrow">
             {blip.ring ? `Why it is in ${RING_LABEL[blip.ring]}` : "Why it is on the radar"}
           </h3>
-          <p className="rdr-side-lede" data-weight="argument">{blip.why}</p>
+          <Prose text={blip.why} className="rdr-side-lede" data-weight="argument" />
         </section>
 
       {/* The move line and the related list scroll WITH the prose rather than sitting

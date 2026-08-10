@@ -14,6 +14,7 @@
 import React, { useState } from "react";
 
 import BlipMark from "./BlipGlyph.jsx";
+import Prose from "./markdown.jsx";
 import { RINGS, RING_LABEL, isStale } from "./geometry.js";
 
 /** `2026-08-04` reads as `04 Aug` in a list where the year is never in question. */
@@ -74,7 +75,7 @@ function Summary({ blip }) {
     <>
       <Position ring={blip.ring} />
       <section className="rdr-block rdr-lede-block">
-        <p className="rdr-lede">{blip.why}</p>
+        <Prose text={blip.why} className="rdr-lede" />
       </section>
       <section className="rdr-block">
         <h3 className="rdr-eyebrow">
@@ -115,7 +116,7 @@ function Why({ blip }) {
                   {m.ring ? RING_LABEL[m.ring] : "Entered"}
                 </span>
               </p>
-              <p className="rdr-move-why">{m.why}</p>
+              <Prose text={m.why} className="rdr-move-why" />
               {m.evidence?.length > 0 && (
                 <p className="rdr-move-ev">
                   {m.evidence.map((e) => (

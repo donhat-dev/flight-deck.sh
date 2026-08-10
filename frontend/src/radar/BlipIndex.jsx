@@ -14,6 +14,7 @@
 import React, { useMemo, useState } from "react";
 
 import { QUADRANTS, RINGS, RING_LABEL, isStale } from "./geometry.js";
+import { plain } from "./markdown.jsx";
 
 
 
@@ -138,7 +139,7 @@ export default function BlipIndex({ blips, radars, currentPeriod, onOpen,
                     <span className="rdr-ring-badge" data-ring={b.ring}>{RING_LABEL[b.ring]}</span>
                   </td>
                   <td data-col="lastMove">{b.lastMove}</td>
-                  <td data-col="why">{b.why}</td>
+                  <td data-col="why">{plain(b.why)}</td>
                   <td data-col="evidenceAgeDays">
                     <span className="rdr-fresh" data-stale={isStale(b) ? "true" : undefined}>
                       {b.evidenceAgeDays}d

@@ -119,6 +119,30 @@ def _ensure_column(conn, table, column) -> None:
         conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
 
 
+def prose_or_refuse(text, field) -> str | None:
+    """Blip prose is a MARKDOWN SUBSET (bold, italic, `code`, links, - lists), never HTML.
+
+    Markdown is the storage format because the WYSIWYG path already exists for it
+    (Milkdown, in use for Treasures), and because plain text IS valid markdown — every
+    blip written before this rule renders unchanged. Raw HTML is refused fail-closed:
+    stored markup would ride into the panel as text today and as an injection surface the
+    day someone renders it, and the cheapest time to refuse both is on write.
+
+    Code spans are stripped BEFORE the check, deliberately: Odoo prose legitimately says
+    `<field name="tz">`, and a guard that refuses XML inside backticks would refuse the
+    exact vocabulary this workspace writes in.
+    """
+    if text is None:
+        return None
+    import re
+    outside_code = re.sub(r"`[^`]*`", "", text)
+    if re.search(r"</?[a-zA-Z]", outside_code):
+        raise ValueError(
+            f"{field} takes markdown, not HTML — use **bold**, *italic*, `code`, "
+            f"[links](https://…) and `- ` lists; wrap XML/HTML examples in backticks")
+    return text
+
+
 def now_iso() -> str:
     """Microseconds, not seconds, because `ts` is what ORDERS the history.
 
@@ -271,6 +295,7 @@ def add_blip(conn, *, radar, num=None, name, quadrant, description=None, ref=Non
         raise ValueError("a blip needs a name")
     if get_radar(conn, radar) is None:
         raise LookupError(f"no radar {radar!r} — create it before adding blips to it")
+    prose_or_refuse(description, "description")
     num = next_num(conn, radar) if num is None else int(num)
     _refuse_taken_num(conn, radar, num)
     bid = new_id("blip")
@@ -334,6 +359,8 @@ def update_blip(conn, blip_id, *, name=_KEEP, quadrant=_KEEP, num=_KEEP,
     for col, val in (("description", description), ("ref", ref)):
         if val is _KEEP:
             continue
+        if col == "description":
+            prose_or_refuse(val if isinstance(val, str) else None, "description")
         sets.append(f"{col} = ?")
         # Empty string clears it, so a caller can remove a definition without needing
         # to know that null and "" are different here.
@@ -512,6 +539,7 @@ def add_move(conn, *, blip, ring, period, why, evidence=None, session_id=None,
     """
     if not (why or "").strip():
         raise ValueError("a move needs a reason: `why` is required")
+    prose_or_refuse(why, "why")
     if ring is not None and ring not in RINGS:
         raise ValueError(f"unknown ring {ring!r} — one of {', '.join(RINGS)}")
     mid = new_id("move")
@@ -573,6 +601,7 @@ def update_move(conn, move_id, *, ring=_KEEP, period=_KEEP, why=_KEEP) -> dict:
     new_why = cur["why"] if why is _KEEP else why
     if not (new_why or "").strip():
         raise ValueError("a move needs a reason: `why` cannot be cleared")
+    prose_or_refuse(new_why, "why")
     if new_ring is not None and new_ring not in RINGS:
         raise ValueError(f"unknown ring {new_ring!r} — one of {', '.join(RINGS)}")
     sets, args = ["why = ?"], [new_why.strip()]

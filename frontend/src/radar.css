@@ -407,3 +407,31 @@ html, body, #root { height: 100%; }
 
 .rdr-empty { padding: 4rem var(--rdr-gutter); display: flex; flex-direction: column; gap: 1rem; align-items: flex-start; }
 .rdr-empty-line { margin: 0; padding: 1.25rem var(--rdr-gutter); color: var(--fdx-text-muted); }
+
+/* ---- blip prose (the markdown subset) ----------------------------------- */
+
+/* Inline code inside blip prose. Slightly smaller than the text around it because the
+   mono face runs wider at the same size, and on a subtle raised chip so a model name
+   reads as a NAME without stealing the emphasis bold already owns. */
+.rdr-side-lede code, .rdr-lede code, .rdr-move-why code {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.85em;
+  background: color-mix(in srgb, var(--fdx-surface) 55%, var(--fdx-surface-raised));
+  border: 1px solid var(--rdr-ring-edge);
+  padding: 0.05em 0.3em;
+}
+
+/* A bullet list written in prose keeps the prose's own type via the shared class; this
+   only supplies the list geometry the reset removed. */
+ul.rdr-prose-list { margin: 0.6rem 0 0; padding-left: 1.1rem; list-style: disc; }
+ul.rdr-prose-list li { margin-top: 0.3rem; }
+ul.rdr-prose-list li::marker { color: var(--fdx-orange); }
+
+/* Links inside prose: underlined, text-coloured. The accent stays reserved for the
+   ring/action vocabulary, and an underline is what says "leaves this panel". */
+.rdr-side-lede a, .rdr-lede a, .rdr-move-why a {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--fdx-orange);
+  text-underline-offset: 0.15em;
+}

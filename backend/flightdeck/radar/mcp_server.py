@@ -307,10 +307,13 @@ _SESSION = {"type": "string",
                            "says a decision happened but not who made it."}
 _DESCRIPTION = {
     "type": "string",
-    "description": "WHAT THE THING IS, in one or two sentences, independent of any ring. "
-                   "This is a property of the blip and not of a move: a definition is "
-                   "not a decision, so it must not change when the position changes. "
-                   "Keep the argument for the ring in the move's `why` instead.",
+    "description": "What the thing is and what it does in our system, in plain words, "
+                   "independent of any ring. This is a property of the blip and not of "
+                   "a move: a definition is not a decision, so it must not change when "
+                   "the position changes. Keep the argument for the ring in the move's "
+                   "`why` instead. MARKDOWN SUBSET, never HTML: **bold**, *italic*, "
+                   "`code`, [links](https://…), `- ` lists; wrap XML/HTML examples in "
+                   "backticks — raw tags are refused on write.",
 }
 _REF = {"type": "string",
         "description": "one external link — repo, docs, or spec. Evidence goes on the "
@@ -379,8 +382,9 @@ TOOLS = {
         {"slug": {"type": "string"}, "name": {"type": "string"},
          "quadrant": _QUADRANT,
          "why": {"type": "string",
-                 "description": "why this is on the radar. This sentence is what the "
-                                "radar shows a year from now, not the ring."},
+                 "description": "why this is on the radar: the reason for the position, "
+                                "the main evidence, and any real trade-off. Markdown "
+                                "subset, never HTML."},
          "period": {"type": "string", "description": "e.g. 'Q3 2026'"},
          "num": {"type": "integer", "description": "omit for the next free number"},
          "ring": _RING, "evidence": _EVIDENCE, "session_id": _SESSION,
@@ -431,7 +435,7 @@ TOOLS = {
          "period": {"type": "string", "description": "e.g. 'Q3 2026'"},
          "why": {"type": "string",
                  "description": "required. What changed, and what it means for this "
-                                "choice."},
+                                "choice. Markdown subset, never HTML."},
          "evidence": _EVIDENCE, "session_id": _SESSION},
         ["slug", "num", "ring", "period", "why"]),
     "radar_move_update": (

@@ -188,7 +188,7 @@ function WhyField({ draft, set }) {
         maxLength={2000}
         value={draft.why}
         onChange={(e) => set({ why: e.target.value })}
-        placeholder="What changed, and what it means for this choice."
+        placeholder="What changed, and what it means for this choice. Markdown: **bold**, `code`, [links](https://…), - lists."
         aria-describedby="rdr-why-rule"
       />
       <p className="rdr-field-rule" id="rdr-why-rule">
