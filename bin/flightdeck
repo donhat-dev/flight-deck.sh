@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# The `flightdeck` agent CLI. Resolves the repo from its own location (through a
+# symlink), so `make cli` can drop a link in ~/.local/bin and every call still finds
+# the right venv and backend regardless of the caller's cwd.
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec env PYTHONPATH="$HERE/backend" "$HERE/.venv/bin/python" -m flightdeck.cli "$@"

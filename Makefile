@@ -129,3 +129,10 @@ vn = 'ăâêôơưđáàảãạắằẳẵặấầẩẫậếềểễệố
 print('satoshi ok: 5 weights, ASCII 95/95, Vietnamese complete')"
 
 .PHONY: satoshi
+
+# Symlink the agent CLI into ~/.local/bin. The shim resolves the repo through the
+# symlink, so this works from any cwd afterwards.
+cli:
+	mkdir -p $(HOME)/.local/bin
+	ln -sf $(CURDIR)/bin/flightdeck $(HOME)/.local/bin/flightdeck
+	@$(HOME)/.local/bin/flightdeck --version

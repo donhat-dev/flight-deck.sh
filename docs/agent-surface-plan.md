@@ -1,8 +1,12 @@
 # Agent surface plan — one core, CLI first, MCP as a shim
 
-Status: PLAN, not started. Decision requested: consolidate the two FlightDeck MCP
-servers, or replace them with a CLI in the agent-browser mould. This plan recommends a
-third shape that subsumes both, with the evidence for it.
+Status: IMPLEMENTED 2026-08-11, phases 1–4. Two deliberate divergences from the target
+shape below: the MCP frontend went further than an in-process shim — it SPAWNS the CLI
+per `tools/call` (playwright-cli/mcp mould), so a tool fix reaches even running sessions
+on their next call; and the domain TOOLS tables stayed in `radar/mcp_server.py` /
+`treasures/mcp_server.py` rather than moving to `tools.py` files, keeping both test
+suites green without a single import edit. The rest of this document is the original
+decision record.
 
 ## The problem, measured
 

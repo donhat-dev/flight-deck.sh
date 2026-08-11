@@ -1,12 +1,8 @@
 {
   "mcpServers": {
-    "treasures": {
+    "flightdeck": {
       "command": "/home/nathando/Documents/Projects/flight-deck.sh/.venv/bin/python",
-      "args": ["/home/nathando/Documents/Projects/flight-deck.sh/backend/flightdeck/treasures/mcp_server.py"]
-    },
-    "radar": {
-      "command": "/home/nathando/Documents/Projects/flight-deck.sh/.venv/bin/python",
-      "args": ["/home/nathando/Documents/Projects/flight-deck.sh/backend/flightdeck/radar/mcp_server.py"]
+      "args": ["/home/nathando/Documents/Projects/flight-deck.sh/backend/flightdeck/mcp_server.py"]
     }
   }
 }

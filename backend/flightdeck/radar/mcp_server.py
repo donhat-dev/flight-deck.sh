@@ -27,15 +27,14 @@ require `confirm=true` and all report what they cascaded. One of them refuses ou
 the case that would leave the board lying: a blip's last move cannot be deleted, because a
 blip with no move has a position nobody decided.
 
-It runs outside FlightDeck's process, so it resolves its own configuration the same way
-the treasures server does: repo-root `.env`, then config.toml through flightdeck.config.
-`handle()` is a pure function of a request dict, which is what the tests exercise.
+The runtime — config resolution, connection lifecycle, the idle reaper, the
+commit-after-every-call rule — lives in `flightdeck.agentsurface.runtime`, shared with
+every other domain. This module holds only what is radar-specific: the tool functions
+and the TOOLS table the registry collects. `handle()` and `main()` remain as a scoped
+compatibility server, because a Claude session that spawned the old `radar` .mcp.json
+entry keeps running this file until that session ends.
 """
-import json
-import os
 import sys
-import threading
-import time
 from pathlib import Path
 
 # Allow `python .../radar/mcp_server.py` from any cwd: backend/ is two levels up from
@@ -44,91 +43,16 @@ BACKEND = Path(__file__).resolve().parents[2]
 if str(BACKEND) not in sys.path:
     sys.path.insert(0, str(BACKEND))
 
-from flightdeck import config, db                     # noqa: E402
-from flightdeck.radar import service, store           # noqa: E402
+from flightdeck.agentsurface import registry, runtime  # noqa: E402
+from flightdeck.radar import service, store            # noqa: E402
 
-_state = {"cfg": None, "conn": None, "used_at": 0.0}
-
-# Same reclaim policy as the treasures server, and for the same measured reason: an MCP
-# server lives as long as its Claude Code session, so a held write connection becomes
-# one idle PostgreSQL connection per parked session, growing and never shrinking.
-_IDLE_TTL = float(os.environ.get("RADAR_CONN_IDLE_TTL", "180"))
-_REAP_EVERY = 20.0
-_lock = threading.RLock()
-
-
-def _load_dotenv() -> None:
-    """systemd injects .env for the web app; an MCP server gets no such help."""
-    env_path = BACKEND.parent / ".env"
-    if not env_path.is_file():
-        return
-    for line in env_path.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        key, _, value = line.partition("=")
-        os.environ.setdefault(key.strip(), value.strip())
-
-
-def configure(cfg: dict | None = None) -> None:
-    """Wire the engine + schema once. Tests pass an explicit cfg."""
-    if cfg is None:
-        _load_dotenv()
-        cfg = config.load(os.environ.get(
-            "TOKEN_AUDIT_CONFIG", str(BACKEND / "config.toml")))
-    db.configure(cfg)
-    conn = db.open_write(cfg["db_path"])
-    try:
-        store.init(conn)
-    finally:
-        conn.close()
-    with _lock:
-        _state["cfg"] = cfg
-        _state["conn"] = None
-        _state["used_at"] = 0.0
-    _start_reaper()
-
-
-def _conn():
-    with _lock:
-        if _state["cfg"] is None:
-            configure()
-        if _state["conn"] is None:
-            _state["conn"] = db.open_write(_state["cfg"]["db_path"])
-        _state["used_at"] = time.monotonic()
-        return _state["conn"]
-
-
-def release_idle(ttl: float = None) -> bool:
-    """Close the write connection if unused for `ttl` seconds. True when it closed."""
-    limit = _IDLE_TTL if ttl is None else ttl
-    with _lock:
-        conn = _state["conn"]
-        if conn is None or time.monotonic() - _state["used_at"] < limit:
-            return False
-        _state["conn"] = None
-        try:
-            conn.close()
-        except Exception:
-            pass
-        return True
-
-
-def _start_reaper() -> None:
-    if _state.get("reaper"):
-        return
-
-    def loop():
-        while True:
-            time.sleep(_REAP_EVERY)
-            try:
-                release_idle()
-            except Exception:
-                pass
-
-    thread = threading.Thread(target=loop, name="radar-conn-reaper", daemon=True)
-    _state["reaper"] = thread
-    thread.start()
+# The shared runtime, under the names this module always exported. Tests reach through
+# these (`_state["conn"] = Spy()`, `release_idle(ttl=0)`), and keeping them is what let
+# the consolidation land without rewriting two test suites.
+configure = runtime.configure
+release_idle = runtime.release_idle
+_state = runtime._state
+_conn = runtime.conn
 
 
 # --- helpers ------------------------------------------------------------------
@@ -479,61 +403,12 @@ TOOLS = {
 
 
 def handle(req: dict):
-    """Map one JSON-RPC request to a response dict (None for notifications)."""
-    mid = req.get("id")
-    method = req.get("method")
-    params = req.get("params") or {}
-    if method == "initialize":
-        return {"jsonrpc": "2.0", "id": mid, "result": {
-            "protocolVersion": "2024-11-05", "capabilities": {"tools": {}},
-            "serverInfo": {"name": "radar", "version": "0.1"}}}
-    if method == "notifications/initialized":
-        return None
-    if method == "tools/list":
-        return {"jsonrpc": "2.0", "id": mid, "result": {"tools": [
-            {"name": n, "description": d,
-             "inputSchema": {"type": "object", "properties": p, "required": r}}
-            for n, (_f, d, p, r) in TOOLS.items()]}}
-    if method == "tools/call":
-        name = params.get("name")
-        args = params.get("arguments") or {}
-        entry = TOOLS.get(name)
-        try:
-            out = entry[0](**args) if entry else {"error": f"unknown tool {name}"}
-        except Exception as e:                      # surface as data, never crash
-            out = {"error": f"{type(e).__name__}: {e}"}
-        finally:
-            # Commit after EVERY call, read or write. The write connection is not
-            # autocommit, so a read-only call would otherwise leave the session "idle
-            # in transaction" holding a lock — the treasures server learned this by
-            # blocking an unrelated migration for 14 hours.
-            if _state["conn"] is not None:
-                try:
-                    _state["conn"].commit()
-                except Exception:
-                    pass
-        return {"jsonrpc": "2.0", "id": mid, "result": {
-            "content": [{"type": "text",
-                         "text": json.dumps(out, ensure_ascii=False, default=str)}]}}
-    if mid is not None:
-        return {"jsonrpc": "2.0", "id": mid,
-                "error": {"code": -32601, "message": f"method {method}"}}
-    return None
+    """The scoped compatibility server: radar tools only, under the old server name."""
+    return registry.handle(req, TOOLS, server="radar")
 
 
 def main() -> None:
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            req = json.loads(line)
-        except ValueError:
-            continue
-        resp = handle(req)
-        if resp is not None:
-            sys.stdout.write(json.dumps(resp) + "\n")
-            sys.stdout.flush()
+    registry.serve_stdio(TOOLS, server="radar")
 
 
 if __name__ == "__main__":
