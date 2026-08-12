@@ -225,6 +225,64 @@ export function arcPath(cx, cy, r, deg0, deg1, flat = 1) {
   return `M ${f(a.x)} ${f(a.y)} A ${f(R)} ${f(R)} 0 ${large} 0 ${f(b.x)} ${f(b.y)}`;
 }
 
+/** Per turn, which way the quarter opens: (ex, ey) multiply the local offsets. */
+const BAND_SIGN = [[1, 1], [-1, 1], [-1, -1], [1, -1]];
+
+/** Where a circle of radius r leaves each band: X at |Y| = gh, Y at |X| = gv. */
+function bandEnds(r, gh, gv) {
+  return {
+    atH: Math.sqrt(Math.max(0, r * r - gh * gh)),
+    atV: Math.sqrt(Math.max(0, r * r - gv * gv)),
+  };
+}
+
+/**
+ * The band-clip construction that replaced the translated-centre one above.
+ *
+ * Four quarter discs around four translated centres bulge toward their own
+ * corners and read as a four-leaf clover; `sectorPath`'s `flat` factor only
+ * ever compensated for that bulge without curing it — the arcs it drew were
+ * no longer true circles. This is the correct construction, verified by
+ * measurement: keep ONE centre and cut two straight strips out of the single
+ * disc, a horizontal one of half-width `gh` and a vertical one of half-width
+ * `gv`. Nothing is translated, so every arc this draws sits on the same
+ * circle — the assembled figure cannot read as a clover and needs no
+ * flattening. The angular extent shrinks as the radius shrinks, because a
+ * constant-width strip eats a bigger angular bite the closer a ring sits to
+ * the centre; that is the correct behaviour for a straight corridor, not a
+ * defect to smooth over. A ring whose outer radius does not clear the corner
+ * at `hypot(gv, gh)` lies entirely inside the cross the two strips form, and
+ * returns an empty path rather than a degenerate one.
+ */
+export function bandSectorPath(cx, cy, rIn, rOut, turn, gh, gv) {
+  const corner = Math.hypot(gv, gh);
+  if (rOut <= corner) return "";
+  const [ex, ey] = BAND_SIGN[turn];
+  const sweep = ex * ey > 0 ? 0 : 1;
+  const f = (n) => Math.round(n * 100) / 100;
+  const pt = (X, Y) => `${f(cx + ex * X)} ${f(cy - ey * Y)}`;
+  const o = bandEnds(rOut, gh, gv);
+  const head = `M ${pt(o.atH, gh)} A ${f(rOut)} ${f(rOut)} 0 0 ${sweep} ${pt(gv, o.atV)}`;
+  if (rIn <= corner) return `${head} L ${pt(gv, gh)} Z`;
+  const i = bandEnds(rIn, gh, gv);
+  return `${head} L ${pt(gv, i.atV)} `
+    + `A ${f(rIn)} ${f(rIn)} 0 0 ${1 - sweep} ${pt(i.atH, gh)} Z`;
+}
+
+/** The open-arc counterpart of `bandSectorPath`, for ring boundaries — same
+ *  reason `arcPath` exists apart from `sectorPath`: a filled band's stroke
+ *  would outline its radial cuts too. Same clip, same empty-path rule. */
+export function bandArcPath(cx, cy, r, turn, gh, gv) {
+  const corner = Math.hypot(gv, gh);
+  if (r <= corner) return "";
+  const [ex, ey] = BAND_SIGN[turn];
+  const sweep = ex * ey > 0 ? 0 : 1;
+  const f = (n) => Math.round(n * 100) / 100;
+  const pt = (X, Y) => `${f(cx + ex * X)} ${f(cy - ey * Y)}`;
+  const e = bandEnds(r, gh, gv);
+  return `M ${pt(e.atH, gh)} A ${f(r)} ${f(r)} 0 0 ${sweep} ${pt(gv, e.atV)}`;
+}
+
 /**
  * Give every blip a place, as `{ rFrac, deg }`.
  *
@@ -236,9 +294,18 @@ export function arcPath(cx, cy, r, deg0, deg1, flat = 1) {
  * When `quadrant` is given, every blip is placed in the 0-90 degree sector — the
  * single-quadrant view draws only that sector, so its local frame always starts
  * at zero regardless of which quadrant is on screen.
+ *
+ * `bands` opts into the full view's band-clip geometry: `{ h, v, pad }`, all as
+ * fractions of the radar radius. Under a fixed angular margin a blip near a
+ * quadrant edge at small radius could land inside a corridor, because the
+ * angular room a constant-width strip leaves GROWS as the radius shrinks — the
+ * opposite of what a fixed `spanDeg` margin assumes. `bands` is optional and
+ * `null` by default so existing callers (the quadrant view, the tests) see no
+ * change at all — the two placements must stay byte-identical when `bands` is
+ * absent.
  */
 export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread = 0.19,
-                                     edges = RING_EDGE } = {}) {
+                                     edges = RING_EDGE, bands = null } = {}) {
   const groups = new Map();
   for (const b of blips) {
     const key = `${b.quadrant}|${b.ring}`;
@@ -255,11 +322,30 @@ export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread 
     const floor = list[0].ring === RINGS[0] ? rOut * 0.28 : rIn;
     const base = Math.max(mid, floor + band * 0.2);
     const turn = quadrant ? 0 : quadrantOf(list[0].quadrant).turn;
-    const margin = (90 - spanDeg) / 2;
+    // A blip must clear both strips, its own drawn radius included. Below this radius
+    // there is no angle in the quadrant that does, so the radius is what gives.
+    const clear = bands
+      ? Math.hypot(bands.h + bands.pad, bands.v + bands.pad) * 1.02
+      : 0;
     list.forEach((b, i) => {
-      const deg = turn * 90 + margin + ((i + 0.5) / list.length) * spanDeg;
       const nudge = list.length > 1 ? (i % 2 ? 1 : -1) * band * radialSpread : 0;
-      out.push({ ...b, rFrac: Math.min(rOut * 0.94, base + nudge), deg });
+      const rFrac = Math.min(rOut * 0.94, Math.max(base + nudge, clear));
+      let deg;
+      if (bands) {
+        // Odd turns sweep from the vertical axis, so the two strips swap roles.
+        const [first, second] = turn % 2 === 0
+          ? [bands.h, bands.v] : [bands.v, bands.h];
+        const lo = (Math.asin(Math.min(1, (first + bands.pad) / rFrac)) * 180) / Math.PI;
+        const hi = (Math.acos(Math.min(1, (second + bands.pad) / rFrac)) * 180) / Math.PI;
+        const mid = (lo + hi) / 2;
+        deg = hi > lo
+          ? turn * 90 + lo + ((i + 0.5) / list.length) * (hi - lo)
+          : turn * 90 + mid;
+      } else {
+        const margin = (90 - spanDeg) / 2;
+        deg = turn * 90 + margin + ((i + 0.5) / list.length) * spanDeg;
+      }
+      out.push({ ...b, rFrac, deg });
     });
   }
   // Stable order so React keys and the DOM order do not shuffle between renders.

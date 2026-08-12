@@ -15,7 +15,7 @@
 import React, { useMemo, useState } from "react";
 
 import Radar, {
-  ARC_FLAT, GAP_H, GAP_V, panelCenter, ringGeometry,
+  GAP_H, GAP_V, ringGeometry,
 } from "./Radar.jsx";
 import {
   QUADRANTS, RINGS, RING_LABEL, arcPath, polar, ringBand, ringEdges,
@@ -25,7 +25,7 @@ import {
  *  read off the panel is the number the real radar works with. */
 const S = 720;
 
-const DEFAULTS = { gapH: GAP_H, gapV: GAP_V, flat: ARC_FLAT };
+const DEFAULTS = { gapH: GAP_H, gapV: GAP_V, flat: 1.05 };
 
 /** Named states worth one click. `clover` is the bug the flattening was added for:
  *  wide gaps and no flattening, which is where the four-leaf reading came from. */
@@ -75,7 +75,7 @@ function synthBlips(counts) {
  * single circle of the same radius would have put it.
  */
 function arcFacts({ turn, rr, flat, gapH, gapV }) {
-  const P = panelCenter(turn, S, gapH, gapV);
+  const P = { x: S / 2, y: S / 2 };
   const deg0 = turn * 90;
   const A = polar(P.x, P.y, rr, deg0);
   const B = polar(P.x, P.y, rr, deg0 + 90);
@@ -208,7 +208,7 @@ export default function GeometryLab() {
 
   const blips = useMemo(() => synthBlips(counts), [counts]);
   const edges = useMemo(() => ringEdges(counts), [counts]);
-  const { r } = ringGeometry("full", S, S, gapH);
+  const { r } = ringGeometry("full", S, S);
   const rr = ringBand(ring, edges)[1] * r;
   const f = arcFacts({ turn, rr, flat, gapH, gapV });
   const q = QUADRANTS[turn];
@@ -286,7 +286,7 @@ export default function GeometryLab() {
             <span className="rlab-group-name">Overlays</span>
             <div className="rlab-chips">
               <Toggle on={show.ghost} onChange={() => flip("ghost")}>One-circle ghost</Toggle>
-              <Toggle on={show.centres} onChange={() => flip("centres")}>Panel centres</Toggle>
+              <Toggle on={show.centres} onChange={() => flip("centres")}>Centre</Toggle>
               <Toggle on={show.build} onChange={() => flip("build")}>Construction</Toggle>
               <Toggle on={show.unflat} onChange={() => flip("unflat")}>Unflattened arc</Toggle>
               <Toggle on={show.blips} onChange={() => flip("blips")}>Blips</Toggle>
@@ -297,7 +297,7 @@ export default function GeometryLab() {
         <div className="rlab-stage-col">
           <div className="rlab-stage">
             <Radar mode="full" blips={show.blips ? blips : []} edges={edges}
-                   gapH={gapH} gapV={gapV} flat={flat} width={S} height={S} />
+                   gapH={gapH} gapV={gapV} width={S} height={S} />
 
             {/* Same viewBox, same box, so a coordinate here is a coordinate there. */}
             <svg className="rlab-overlay" viewBox={`0 0 ${S} ${S}`} aria-hidden="true">
@@ -313,15 +313,6 @@ export default function GeometryLab() {
 
               {show.centres && (
                 <>
-                  {QUADRANTS.map((qq) => {
-                    const p = panelCenter(qq.turn, S, gapH, gapV);
-                    return (
-                      <g key={qq.k} className="rlab-centre">
-                        <line x1={p.x - 7} y1={p.y} x2={p.x + 7} y2={p.y} />
-                        <line x1={p.x} y1={p.y - 7} x2={p.x} y2={p.y + 7} />
-                      </g>
-                    );
-                  })}
                   <g className="rlab-centre" data-true="true">
                     <line x1={S / 2 - 11} y1={S / 2} x2={S / 2 + 11} y2={S / 2} />
                     <line x1={S / 2} y1={S / 2 - 11} x2={S / 2} y2={S / 2 + 11} />

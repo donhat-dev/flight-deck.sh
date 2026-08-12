@@ -2,10 +2,12 @@
  * The radar itself, as SVG.
  *
  * One component serves both views because the difference is a frame, not a
- * drawing: the full radar centres the origin and sweeps 360°, the quadrant view
- * puts the origin in the bottom-left corner and sweeps 90°. Everything past that
- * — ring bands, blip placement, the movement arc — is the same math, and keeping
- * it in one place is what stops the two views from drifting apart.
+ * drawing: the full radar sweeps 360° around a single centre with two straight
+ * strips cut out of the disc (the label corridor and the vertical seam), the
+ * quadrant view puts the origin in the bottom-left corner and sweeps 90° with
+ * nothing cut out at all. Everything past that — ring bands, blip placement,
+ * the movement arc — is the same math, and keeping it in one place is what
+ * stops the two views from drifting apart.
  *
  * Colour lives in the stylesheet, not here. Each blip carries `data-quadrant` and
  * the sheet maps that to `--rdr-q`, so the palette is themeable, is visible to the
@@ -15,8 +17,8 @@ import React from "react";
 
 import { BlipGlyph } from "./BlipGlyph.jsx";
 import {
-  QUADRANTS, RINGS, RING_EDGE, RING_LABEL, arcFacing, arcPath, isStale, placeBlips,
-  polar, quadrantOf, ringBand, sectorPath, spreadMids,
+  QUADRANTS, RINGS, RING_EDGE, RING_LABEL, arcFacing, arcPath, bandArcPath, bandSectorPath,
+  isStale, placeBlips, polar, quadrantOf, ringBand, sectorPath, spreadMids,
 } from "./geometry.js";
 
 /** Minimum distance between adjacent ring-label anchors, in user units. Sized for
@@ -45,10 +47,10 @@ const D_SELECTED = 30;
  *  in charge of the pair. */
 const NUM_RATIO = 0.44;
 
-export function ringGeometry(mode, width, height, gapH = GAP_H) {
+export function ringGeometry(mode, width, height) {
   if (mode === "full") {
     const s = Math.min(width, height);
-    return { cx: s / 2, cy: s / 2, r: (s - gapH) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
+    return { cx: s / 2, cy: s / 2, r: s / 2 - 6, vb: `0 0 ${s} ${s}`, s };
   }
   // Quadrant: origin bottom-left, with room under the axis for the ring labels.
   const pad = 20;
@@ -88,49 +90,22 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
   );
 }
 
-/** The two gaps between quadrants, in user units — kept as separate constants
- *  because they answer different questions.
+/** The two strips cut out of the single disc, in user units — kept as separate
+ *  constants because they answer different questions.
  *
- *  GAP_H is the horizontal corridor: the LABEL ROW. The full radar is drawn as
- *  two half discs, split along the HORIZONTAL axis, because a single disc leaves
- *  nowhere to put readable ring labels except on top of the drawing. It is sized
- *  to the ring-label line with a little air, nothing more — the ring names read
+ *  GAP_H is the horizontal corridor: the LABEL ROW. It is a strip removed along
+ *  the horizontal axis because a single unbroken disc leaves nowhere to put
+ *  readable ring labels except on top of the drawing. It is sized to the
+ *  ring-label line with a little air, nothing more — the ring names read
  *  left-to-right, so they only ever need a horizontal row that fits them.
  *
- *  GAP_V is the vertical gap between the left and right quadrants. It carries no
+ *  GAP_V is the vertical strip between the left and right quadrants. It carries no
  *  text — the ring names never run top-to-bottom — so it is only a SEAM: wide
  *  enough to mark where one quadrant ends and the next begins, far too narrow
  *  for a label. That is why it is a second, much smaller constant rather than
- *  the same GAP reused on both axes. */
+ *  the same width reused on both axes. */
 export const GAP_H = 36;
 export const GAP_V = 10;
-
-/** The drawn-arc radius multiplier for the full view only.
- *
- *  Full mode draws four quarter discs around four translated centres
- *  (`panelCenter`), and each one bulges toward its own corner — assembled, the
- *  four bulges read as a four-leaf clover instead of one circle. `sectorPath`
- *  and `arcPath` take a `flat` factor that draws the connecting arc on a
- *  radius this much larger while leaving every endpoint exactly where the
- *  placement math put it, so only the mid-quadrant bulge moves — about 2% of
- *  `r` — which is enough for the eye to stop seeing lobes. The quadrant view
- *  draws a single panel with nothing to assemble against, so it keeps true
- *  circles and never receives this factor. */
-export const ARC_FLAT = 1.05;
-
-/** Each quadrant's own centre: the inner corner of its half. `deg` stays GLOBAL
- *  (turn 1 still sweeps 90–180°), so this is still only a translation of centres —
- *  none of the placement math changes. Both offsets apply now: y opens the
- *  horizontal corridor (turns 0/1 are the top half, turns 2/3 the bottom half),
- *  and x opens the vertical seam (turns 0/3 are the right panels, turns 1/2 the
- *  left). */
-export function panelCenter(turn, s, gapH = GAP_H, gapV = GAP_V) {
-  const offH = gapH / 2;
-  const offV = gapV / 2;
-  const x = turn === 0 || turn === 3 ? s / 2 + offV : s / 2 - offV;
-  const y = turn <= 1 ? s / 2 - offH : s / 2 + offH;
-  return { x, y };
-}
 
 export default function Radar({
   mode = "full",
@@ -152,13 +127,15 @@ export default function Radar({
   // defaults, so the radar has one layout and the lab cannot drift from it.
   gapH = GAP_H,
   gapV = GAP_V,
-  flat = ARC_FLAT,
 }) {
-  const { cx, cy, r, vb, s } = ringGeometry(mode, width, height, gapH);
+  const { cx, cy, r, vb, s } = ringGeometry(mode, width, height);
   const turns = mode === "full" ? QUADRANTS.map((q) => q.turn) : [0];
-  const placed = placeBlips(blips, { quadrant, edges });
-  const centerFor = (turn) => (mode === "full" ? panelCenter(turn, s, gapH, gapV) : { x: cx, y: cy });
-  const arcFlat = mode === "full" ? flat : 1;
+  const gh = gapH / 2;
+  const gv = gapV / 2;
+  const bands = mode === "full"
+    ? { h: gh / r, v: gv / r, pad: (D / 2 + 2) / r }
+    : null;
+  const placed = placeBlips(blips, { quadrant, edges, bands });
 
   return (
     <svg className="rdr-canvas" viewBox={vb} role="img"
@@ -167,18 +144,16 @@ export default function Radar({
       {/* Rings outer-first so the inner ones paint on top of their neighbours'
           edges rather than under them. FILL only — the boundary is drawn below as
           an open arc, because stroking a closed sector also strokes its two radial
-          cuts, and those read as a chamfer at every panel's square corner. */}
+          cuts, and those read as a chamfer where the band meets the strip edge. */}
       {[...RINGS].reverse().map((ring) => {
         const [lo, hi] = ringBand(ring, edges);
         return turns.map((turn) => {
-          const c = centerFor(turn);
+          const d = mode === "full"
+            ? bandSectorPath(cx, cy, lo * r, hi * r, turn, gh, gv)
+            : sectorPath(cx, cy, lo * r, hi * r, 0, 90);
+          if (!d) return null;
           return (
-            <path
-              key={`${ring}-${turn}`}
-              className="rdr-ring"
-              data-ring={ring}
-              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90, arcFlat)}
-            />
+            <path key={`${ring}-${turn}`} className="rdr-ring" data-ring={ring} d={d} />
           );
         });
       })}
@@ -187,14 +162,12 @@ export default function Radar({
       {RINGS.map((ring) => {
         const [, hi] = ringBand(ring, edges);
         return turns.map((turn) => {
-          const c = centerFor(turn);
+          const d = mode === "full"
+            ? bandArcPath(cx, cy, hi * r, turn, gh, gv)
+            : arcPath(cx, cy, hi * r, 0, 90);
+          if (!d) return null;
           return (
-            <path
-              key={`edge-${ring}-${turn}`}
-              className="rdr-ring-arc"
-              data-ring={ring}
-              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90, arcFlat)}
-            />
+            <path key={`edge-${ring}-${turn}`} className="rdr-ring-arc" data-ring={ring} d={d} />
           );
         });
       })}
@@ -209,7 +182,7 @@ export default function Radar({
             const [lo, hi] = ringBand(ring, edges);
             return ((lo + hi) / 2) * r;
           }),
-          // The anchor is textAnchor="middle" and sits GAP_V/2+mid (full) or cx+mid
+          // The anchor is textAnchor="middle" and sits s/2+mid (full) or cx+mid
           // (quadrant) from the viewBox edge, so the bound must leave half of the
           // widest word (CAUTION, ~80 units) inside the drawing, or that half gets
           // clipped by the SVG edge — r-44 keeps the whole word on canvas in both modes.
@@ -218,7 +191,7 @@ export default function Radar({
         if (mode === "full") {
           return RINGS.map((ring, i) => [-1, 1].map((side) => (
             <text key={`${ring}-${side}`} className="rdr-ring-label" data-ring={ring}
-                  x={s / 2 + side * (gapV / 2 + mids[i])} y={s / 2} textAnchor="middle"
+                  x={s / 2 + side * mids[i]} y={s / 2} textAnchor="middle"
                   dominantBaseline="central">
               {RING_LABEL[ring].toUpperCase()}
             </text>
@@ -247,13 +220,10 @@ export default function Radar({
         );
       })}
 
-      {placed.map((b) => {
-        const c = centerFor(quadrantOf(b.quadrant).turn);
-        return (
-          <Blip key={b.num} b={b} cx={c.x} cy={c.y} r={r}
-                selected={b.num === selectedNum} onSelect={onSelect} />
-        );
-      })}
+      {placed.map((b) => (
+        <Blip key={b.num} b={b} cx={cx} cy={cy} r={r}
+              selected={b.num === selectedNum} onSelect={onSelect} />
+      ))}
     </svg>
   );
 }

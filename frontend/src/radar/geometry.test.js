@@ -12,8 +12,8 @@ import { describe, expect, it } from "vitest";
 
 import { BLIPS } from "./fixtures.js";
 import {
-  QUADRANTS, RINGS, RING_EDGE, arcFacing, directionTo, isStale, placeBlips, polar,
-  quadrantOf, ringBand, ringEdges, sectorPath, spreadMids,
+  QUADRANTS, RINGS, RING_EDGE, arcFacing, bandArcPath, bandSectorPath, directionTo,
+  isStale, placeBlips, polar, quadrantOf, ringBand, ringEdges, sectorPath, spreadMids,
 } from "./geometry.js";
 
 describe("polar is measured the way a reader reads it", () => {
@@ -286,6 +286,74 @@ describe("sector paths close", () => {
     expect(nums(round)[0]).toBe(nums(flat)[0]);
     expect(nums(round)[1]).toBe(nums(flat)[1]);
     expect(nums(round).slice(-2)).toEqual(nums(flat).slice(-2));
+  });
+});
+
+describe("gaps cut as straight bands keep every arc on one circle", () => {
+  // The band-clip model's whole claim is that nothing is translated, so every
+  // point this draws has to measure back to ONE centre — unlike the old
+  // per-quadrant apex, there is no averaging that could paper over a mistake.
+  const nums = (d) => (d.match(/-?\d+(\.\d+)?/g) || []).map(Number);
+
+  it("puts both ends of every quarter's boundary arc on the true circle", () => {
+    for (let turn = 0; turn < 4; turn += 1) {
+      const d = bandArcPath(200, 200, 150, turn, 18, 5);
+      const [x1, y1, , , , , , x2, y2] = nums(d);
+      expect(Math.abs(Math.hypot(x1 - 200, y1 - 200) - 150)).toBeLessThanOrEqual(0.02);
+      expect(Math.abs(Math.hypot(x2 - 200, y2 - 200) - 150)).toBeLessThanOrEqual(0.02);
+    }
+  });
+
+  it("leaves the gap a constant-width strip, not a wedge that narrows with radius", () => {
+    // One end sits where the circle crosses the horizontal strip's edge (its y
+    // offset from centre is exactly gh); the other sits where it crosses the
+    // vertical strip's edge (its x offset is exactly gv). A wedge would drift both.
+    for (let turn = 0; turn < 4; turn += 1) {
+      const d = bandArcPath(200, 200, 150, turn, 18, 5);
+      const [x1, y1, , , , , , x2, y2] = nums(d);
+      expect(Math.abs(Math.abs(y1 - 200) - 18)).toBeLessThanOrEqual(0.02);
+      expect(Math.abs(Math.abs(x2 - 200) - 5)).toBeLessThanOrEqual(0.02);
+    }
+  });
+
+  it("renders nothing for a ring that never clears the corner the two strips form", () => {
+    // hypot(5, 18) ≈ 18.68: an outer radius under that sits entirely inside the
+    // cross, and drawing a degenerate path there is worse than drawing none.
+    expect(bandSectorPath(200, 200, 0, 15, 0, 18, 5)).toBe("");
+    expect(bandSectorPath(200, 200, 0, 60, 0, 18, 5)).not.toBe("");
+  });
+
+  it("degrades the inner boundary to the corner point once it stops clearing the cross", () => {
+    // rIn=0 has no inner arc to close against — same reasoning `sectorPath` uses
+    // for the innermost ring — so it closes on the corner with one `A`; an inner
+    // radius that itself clears the cross gets its own arc, and a second `A`.
+    expect((bandSectorPath(200, 200, 0, 150, 0, 18, 5).match(/ A /g) || []).length).toBe(1);
+    expect((bandSectorPath(200, 200, 100, 150, 0, 18, 5).match(/ A /g) || []).length).toBe(2);
+  });
+
+  it("keeps a band-aware blip's angle open enough to clear both strips", () => {
+    // The angular margin a straight strip leaves grows as the radius shrinks, so
+    // this has to be checked directly against the strip half-widths, not against
+    // a fixed span like the unbanded placement uses.
+    const bands = { h: 18 / 350, v: 5 / 350, pad: 13 / 350 };
+    const list = [];
+    let num = 1;
+    for (const ring of [RINGS[0], RINGS[RINGS.length - 1]]) {
+      for (const q of QUADRANTS) {
+        list.push({ num: num++, name: `${q.k}-${ring}`, ring, quadrant: q.k, state: "held" });
+      }
+    }
+    const placed = placeBlips(list, { bands });
+    expect(placed.length).toBeGreaterThan(0); // anti-vacuity
+    for (const b of placed) {
+      const rad = (b.deg * Math.PI) / 180;
+      expect(Math.abs(b.rFrac * Math.sin(rad))).toBeGreaterThanOrEqual(18 / 350);
+      expect(Math.abs(b.rFrac * Math.cos(rad))).toBeGreaterThanOrEqual(5 / 350);
+    }
+  });
+
+  it("changes nothing when bands is not given — the option is opt-in", () => {
+    expect(placeBlips(BLIPS)).toEqual(placeBlips(BLIPS, {}));
   });
 });
 
