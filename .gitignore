@@ -226,4 +226,5 @@ backend/audit.local.db*
 __pycache__/
 .pytest_cache/
 .superpowers/
+.worktrees/
 frontend/dist/
