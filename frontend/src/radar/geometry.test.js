@@ -271,6 +271,22 @@ describe("sector paths close", () => {
     expect((d.match(/ A /g) || []).length).toBe(1);
     expect(d).toContain("M 100 100");
   });
+
+  it("flattening changes only the bulge, never the endpoints", () => {
+    // The clover fix: a larger A-radius through the same endpoints sags the arc
+    // toward the centre. The endpoints are where bands meet the corridor cuts,
+    // so they must not move by even a rounding step.
+    const nums = (d) => d.match(/-?\d+(\.\d+)?/g).map(Number);
+    const round = sectorPath(0, 0, 100, 200, 0, 90);
+    const flat = sectorPath(0, 0, 100, 200, 0, 90, 1.05);
+    const [rx, ry] = [nums(flat)[2], nums(flat)[3]];
+    expect(rx).toBeCloseTo(210, 6);
+    expect(ry).toBeCloseTo(210, 6);
+    // First point (M) and the arc target points are identical in both paths.
+    expect(nums(round)[0]).toBe(nums(flat)[0]);
+    expect(nums(round)[1]).toBe(nums(flat)[1]);
+    expect(nums(round).slice(-2)).toEqual(nums(flat).slice(-2));
+  });
 });
 
 describe("staleness is a property of the evidence, not of the blip", () => {

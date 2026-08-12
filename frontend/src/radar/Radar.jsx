@@ -105,6 +105,19 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
 const GAP_H = 36;
 const GAP_V = 10;
 
+/** The drawn-arc radius multiplier for the full view only.
+ *
+ *  Full mode draws four quarter discs around four translated centres
+ *  (`panelCenter`), and each one bulges toward its own corner — assembled, the
+ *  four bulges read as a four-leaf clover instead of one circle. `sectorPath`
+ *  and `arcPath` take a `flat` factor that draws the connecting arc on a
+ *  radius this much larger while leaving every endpoint exactly where the
+ *  placement math put it, so only the mid-quadrant bulge moves — about 2% of
+ *  `r` — which is enough for the eye to stop seeing lobes. The quadrant view
+ *  draws a single panel with nothing to assemble against, so it keeps true
+ *  circles and never receives this factor. */
+const ARC_FLAT = 1.05;
+
 /** Each quadrant's own centre: the inner corner of its half. `deg` stays GLOBAL
  *  (turn 1 still sweeps 90–180°), so this is still only a translation of centres —
  *  none of the placement math changes. Both offsets apply now: y opens the
@@ -156,7 +169,8 @@ export default function Radar({
               key={`${ring}-${turn}`}
               className="rdr-ring"
               data-ring={ring}
-              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90)}
+              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90,
+                mode === "full" ? ARC_FLAT : 1)}
             />
           );
         });
@@ -172,7 +186,8 @@ export default function Radar({
               key={`edge-${ring}-${turn}`}
               className="rdr-ring-arc"
               data-ring={ring}
-              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90)}
+              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90,
+                mode === "full" ? ARC_FLAT : 1)}
             />
           );
         });

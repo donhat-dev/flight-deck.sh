@@ -167,22 +167,36 @@ export function polar(cx, cy, r, deg) {
  * The sweep flags are 0 then 1 because the outer edge is traced counter-clockwise
  * (increasing degrees, which is anti-clockwise on screen in a y-down space) and
  * the inner edge has to come back the other way to close the band.
+ *
+ * `flat` scales ONLY the radii the `A` commands draw with, never the endpoints.
+ * An SVG arc through two fixed points is underdetermined by radius alone — the
+ * same two points sit on infinitely many circles, and a larger one bows less
+ * between them. That is the whole fix for the full radar's four-leaf-clover look:
+ * each quadrant is a donut sector drawn around its own translated centre (so the
+ * assembled figure is four discs, not one), and each one bulges toward its own
+ * corner. Handing this function a `flat` slightly above 1 draws the connecting
+ * arc on a bigger circle while `a`/`b`/`c`/`d` — where the band meets its
+ * neighbours and where blips are placed — stay computed from the true `rIn`/`rOut`,
+ * so the bulge sags a couple percent of the radius inward and nothing that reads
+ * or aligns against the endpoints moves at all.
  */
-export function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
+export function sectorPath(cx, cy, rIn, rOut, deg0, deg1, flat = 1) {
   const large = Math.abs(deg1 - deg0) > 180 ? 1 : 0;
   const a = polar(cx, cy, rOut, deg0);
   const b = polar(cx, cy, rOut, deg1);
   const c = polar(cx, cy, rIn, deg1);
   const d = polar(cx, cy, rIn, deg0);
+  const Ro = rOut * flat;
+  const Ri = rIn * flat;
   const f = (n) => Math.round(n * 100) / 100;
   if (rIn <= 0) {
     return `M ${f(cx)} ${f(cy)} L ${f(a.x)} ${f(a.y)} `
-      + `A ${f(rOut)} ${f(rOut)} 0 ${large} 0 ${f(b.x)} ${f(b.y)} Z`;
+      + `A ${f(Ro)} ${f(Ro)} 0 ${large} 0 ${f(b.x)} ${f(b.y)} Z`;
   }
   return `M ${f(a.x)} ${f(a.y)} `
-    + `A ${f(rOut)} ${f(rOut)} 0 ${large} 0 ${f(b.x)} ${f(b.y)} `
+    + `A ${f(Ro)} ${f(Ro)} 0 ${large} 0 ${f(b.x)} ${f(b.y)} `
     + `L ${f(c.x)} ${f(c.y)} `
-    + `A ${f(rIn)} ${f(rIn)} 0 ${large} 1 ${f(d.x)} ${f(d.y)} Z`;
+    + `A ${f(Ri)} ${f(Ri)} 0 ${large} 1 ${f(d.x)} ${f(d.y)} Z`;
 }
 
 /**
@@ -194,13 +208,21 @@ export function sectorPath(cx, cy, rIn, rOut, deg0, deg1) {
  * at each axis and read as the quadrant having been chamfered: the ring looks like
  * it stops short of the circle instead of continuing round it. Splitting fill from
  * edge is what makes the seams a gap rather than a bevel.
+ *
+ * `flat` scales only the `A` radius, same trick and same reason as in `sectorPath`:
+ * the endpoints `a`/`b` are where this boundary meets its neighbour's, so they stay
+ * on the true circle of radius `r` while the stroke connecting them bows on a
+ * radius `flat` times larger. That is enough to stop a ring boundary drawn around a
+ * translated quadrant centre from reading as its own small arc bulging into the
+ * corner — the same few-percent sag that flattens the fills, applied to the line.
  */
-export function arcPath(cx, cy, r, deg0, deg1) {
+export function arcPath(cx, cy, r, deg0, deg1, flat = 1) {
   const large = Math.abs(deg1 - deg0) > 180 ? 1 : 0;
   const a = polar(cx, cy, r, deg0);
   const b = polar(cx, cy, r, deg1);
+  const R = r * flat;
   const f = (n) => Math.round(n * 100) / 100;
-  return `M ${f(a.x)} ${f(a.y)} A ${f(r)} ${f(r)} 0 ${large} 0 ${f(b.x)} ${f(b.y)}`;
+  return `M ${f(a.x)} ${f(a.y)} A ${f(R)} ${f(R)} 0 ${large} 0 ${f(b.x)} ${f(b.y)}`;
 }
 
 /**
