@@ -355,6 +355,56 @@ describe("gaps cut as straight bands keep every arc on one circle", () => {
   it("changes nothing when bands is not given — the option is opt-in", () => {
     expect(placeBlips(BLIPS)).toEqual(placeBlips(BLIPS, {}));
   });
+
+  it("never lets two blips in one ring and quadrant overlap", () => {
+    // The regression this exists for: at small radius the strips leave only a
+    // couple of degrees, and spreading a group across that window stacked two
+    // Adopt blips 0.8 units apart on the live radar.
+    const bands = { h: 18 / 354, v: 5 / 354, pad: 13 / 354 };
+    const list = [];
+    let n = 1;
+    for (const q of QUADRANTS) {
+      for (const ring of RINGS) {
+        for (let i = 0; i < 5; i += 1) {
+          list.push({ num: n++, name: `b${n}`, quadrant: q.k, ring, state: "held" });
+        }
+      }
+    }
+    const placed = placeBlips(list, { bands });
+    expect(placed.length).toBe(list.length);
+    const xy = (b) => ({
+      x: b.rFrac * Math.cos((b.deg * Math.PI) / 180),
+      y: b.rFrac * Math.sin((b.deg * Math.PI) / 180),
+    });
+    const groups = new Map();
+    for (const b of placed) {
+      const k = `${b.quadrant}|${b.ring}`;
+      groups.set(k, [...(groups.get(k) || []), b]);
+    }
+    for (const [k, members] of groups) {
+      for (let i = 0; i < members.length; i += 1) {
+        for (let j = i + 1; j < members.length; j += 1) {
+          const a = xy(members[i]); const c = xy(members[j]);
+          // One blip diameter, less a little, expressed as a radius fraction.
+          expect(Math.hypot(a.x - c.x, a.y - c.y), `${k}: #${members[i].num} vs #${members[j].num}`)
+            .toBeGreaterThan((22 / 354) * 0.95);
+        }
+      }
+    }
+  });
+
+  it("keeps every blip inside its own ring band", () => {
+    // Giving up radius must not become spilling into the neighbouring ring.
+    const bands = { h: 18 / 354, v: 5 / 354, pad: 13 / 354 };
+    const list = RINGS.flatMap((ring, ri) => [0, 1, 2, 3].map((i) => ({
+      num: ri * 4 + i + 1, name: `b`, quadrant: QUADRANTS[i].k, ring, state: "held",
+    })));
+    for (const b of placeBlips(list, { bands })) {
+      const [lo, hi] = ringBand(b.ring);
+      expect(b.rFrac, `#${b.num} ${b.ring}`).toBeGreaterThanOrEqual(lo);
+      expect(b.rFrac, `#${b.num} ${b.ring}`).toBeLessThanOrEqual(hi);
+    }
+  });
 });
 
 describe("staleness is a property of the evidence, not of the blip", () => {

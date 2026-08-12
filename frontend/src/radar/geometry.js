@@ -283,6 +283,35 @@ export function bandArcPath(cx, cy, r, turn, gh, gv) {
   return `M ${pt(e.atH, gh)} A ${f(r)} ${f(r)} 0 0 ${sweep} ${pt(gv, e.atV)}`;
 }
 
+/** The angular window a straight strip pair leaves at radius `rho`, in radians,
+ *  measured from the quadrant's own starting axis. Odd turns sweep from the
+ *  vertical axis, so the two strips swap which one bounds which end. */
+function bandWindow(rho, turn, bands) {
+  const [first, second] = turn % 2 === 0 ? [bands.h, bands.v] : [bands.v, bands.h];
+  return [
+    Math.asin(Math.min(1, (first + bands.pad) / rho)),
+    Math.acos(Math.min(1, (second + bands.pad) / rho)),
+  ];
+}
+
+/** The smallest radius whose window is long enough to seat `need` of arc length.
+ *
+ *  A walk outward rather than a closed form, and deliberately so: what a blip needs
+ *  is a LENGTH (its own diameter plus air), which only becomes an angle once a
+ *  radius is chosen, so the constraint appears on both sides of the equation. The
+ *  window grows monotonically with radius, so stepping outward converges, and the
+ *  band's own outer edge is the stop — a ring that cannot seat its blips has to
+ *  crowd them rather than spill into the next ring. */
+function seatRadius(need, turn, bands, cap, start) {
+  let rho = Math.max(start, 1e-3);
+  for (let i = 0; i < 60 && rho < cap; i += 1) {
+    const [lo, hi] = bandWindow(rho, turn, bands);
+    if (hi > lo && (hi - lo) * rho >= need) return rho;
+    rho *= 1.04;
+  }
+  return cap;
+}
+
 /**
  * Give every blip a place, as `{ rFrac, deg }`.
  *
@@ -296,13 +325,19 @@ export function bandArcPath(cx, cy, r, turn, gh, gv) {
  * at zero regardless of which quadrant is on screen.
  *
  * `bands` opts into the full view's band-clip geometry: `{ h, v, pad }`, all as
- * fractions of the radar radius. Under a fixed angular margin a blip near a
- * quadrant edge at small radius could land inside a corridor, because the
- * angular room a constant-width strip leaves GROWS as the radius shrinks — the
- * opposite of what a fixed `spanDeg` margin assumes. `bands` is optional and
- * `null` by default so existing callers (the quadrant view, the tests) see no
- * change at all — the two placements must stay byte-identical when `bands` is
- * absent.
+ * fractions of the radar radius. A fixed angular margin cannot work under this
+ * model: the room a constant-width strip leaves depends on the radius it is
+ * measured at, shrinking to nothing as radius shrinks, so no single `spanDeg`
+ * is ever both safe near the centre and unwasteful farther out. Once the window
+ * is only a couple of degrees wide, spreading a group of blips across it at one
+ * radius is not enough — the blips themselves have width, and a window a few
+ * degrees wide can seat one blip, not four. So a group gives up radius before it
+ * gives up separation: it walks outward (`seatRadius`) until the window is long
+ * enough to hold it, and splits onto two arcs when even that will not seat it
+ * without crowding, buying radial separation on top of the angular kind. `bands`
+ * is optional and `null` by default so existing callers (the quadrant view, the
+ * tests) see no change at all — the two placements must stay byte-identical when
+ * `bands` is absent.
  */
 export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread = 0.19,
                                      edges = RING_EDGE, bands = null } = {}) {
@@ -315,37 +350,47 @@ export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread 
   const out = [];
   for (const [, list] of groups) {
     const [rIn, rOut] = ringBand(list[0].ring, edges);
-    const mid = (rIn + rOut) / 2;
     const band = rOut - rIn;
+    const turn = quadrant ? 0 : quadrantOf(list[0].quadrant).turn;
+
+    if (bands) {
+      // TWO arcs, not one. The window at a single radius can seat only so many
+      // blips, and a crowded inner ring would otherwise stack them: putting
+      // alternate blips on a second arc buys radial separation on top of the
+      // angular kind, which is what keeps neighbours apart when the window is
+      // still narrow. `radialSpread` sets how far apart the two arcs sit, with one
+      // blip diameter as the floor.
+      const cap = rOut * 0.94;
+      const sep = 2 * bands.pad;                       // a diameter plus air
+      const perArc = Math.ceil(list.length / 2);
+      const inner = Math.min(cap, seatRadius(perArc * sep, turn, bands, cap,
+                                             Math.max(rIn + band * 0.1, sep)));
+      const outer = Math.min(cap, inner + Math.max(sep, band * radialSpread * 2));
+      const [lo, hi] = bandWindow(inner, turn, bands);
+      const span = hi > lo ? hi - lo : 0;
+      list.forEach((b, i) => {
+        const local = span
+          ? lo + ((i + 0.5) / list.length) * span
+          : (lo + hi) / 2;
+        out.push({
+          ...b,
+          rFrac: i % 2 ? outer : inner,
+          deg: turn * 90 + (local * 180) / Math.PI,
+        });
+      });
+      continue;
+    }
+
+    const mid = (rIn + rOut) / 2;
     // The innermost ring reaches r=0, where there is no room for a circle. Push
     // its blips off the origin instead of letting one land on the centre point.
     const floor = list[0].ring === RINGS[0] ? rOut * 0.28 : rIn;
     const base = Math.max(mid, floor + band * 0.2);
-    const turn = quadrant ? 0 : quadrantOf(list[0].quadrant).turn;
-    // A blip must clear both strips, its own drawn radius included. Below this radius
-    // there is no angle in the quadrant that does, so the radius is what gives.
-    const clear = bands
-      ? Math.hypot(bands.h + bands.pad, bands.v + bands.pad) * 1.02
-      : 0;
+    const margin = (90 - spanDeg) / 2;
     list.forEach((b, i) => {
+      const deg = turn * 90 + margin + ((i + 0.5) / list.length) * spanDeg;
       const nudge = list.length > 1 ? (i % 2 ? 1 : -1) * band * radialSpread : 0;
-      const rFrac = Math.min(rOut * 0.94, Math.max(base + nudge, clear));
-      let deg;
-      if (bands) {
-        // Odd turns sweep from the vertical axis, so the two strips swap roles.
-        const [first, second] = turn % 2 === 0
-          ? [bands.h, bands.v] : [bands.v, bands.h];
-        const lo = (Math.asin(Math.min(1, (first + bands.pad) / rFrac)) * 180) / Math.PI;
-        const hi = (Math.acos(Math.min(1, (second + bands.pad) / rFrac)) * 180) / Math.PI;
-        const mid = (lo + hi) / 2;
-        deg = hi > lo
-          ? turn * 90 + lo + ((i + 0.5) / list.length) * (hi - lo)
-          : turn * 90 + mid;
-      } else {
-        const margin = (90 - spanDeg) / 2;
-        deg = turn * 90 + margin + ((i + 0.5) / list.length) * spanDeg;
-      }
-      out.push({ ...b, rFrac, deg });
+      out.push({ ...b, rFrac: Math.min(rOut * 0.94, base + nudge), deg });
     });
   }
   // Stable order so React keys and the DOM order do not shuffle between renders.
