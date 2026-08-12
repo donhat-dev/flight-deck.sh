@@ -139,3 +139,54 @@ def test_draw_rejects_subjective_skip_reason(tmp_path):
     )
     assert result.returncode == 2
     assert "invalid_skip_reason" in result.stdout
+
+
+def test_draw_requires_24_available_candidates_per_role(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    canvas = load_records(candidate_dir, "canvas_ui")
+    for item in canvas[1:]:
+        item["availability"] = "inaccessible"
+    save_records(candidate_dir, "canvas_ui", canvas)
+
+    result = run_cli("draw", "--candidate-dir", str(candidate_dir), "--seed", "fixed")
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert {
+        item["code"] for item in payload["errors"]
+    } >= {"pool_too_small"}
+
+
+def test_validation_reports_malformed_field_types_and_other_record_errors(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    canvas = load_records(candidate_dir, "canvas_ui")
+    canvas[0]["id"] = ["not", "a", "string"]
+    canvas[0]["platform"] = ["not", "a", "string"]
+    canvas[0]["availability"] = {"not": "a string"}
+    canvas[1].pop("title")
+    canvas[1]["creator"] = {"not": "a string"}
+    save_records(candidate_dir, "canvas_ui", canvas)
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    codes = [item["code"] for item in payload["errors"]]
+    assert result.returncode == 2
+    assert codes.count("invalid_field_type") >= 4
+    assert "required_field_missing" in codes
+
+
+def test_validate_pool_loads_only_the_requested_manifest(tmp_path):
+    candidate_dir = tmp_path / "candidates"
+    candidate_dir.mkdir()
+    records = [make_record("canvas_ui", index) for index in range(24)]
+    (candidate_dir / ROLE_FILES["canvas_ui"]).write_text(json.dumps(records), encoding="utf-8")
+
+    result = run_cli(
+        "validate-pool", "--candidate-dir", str(candidate_dir), "--role", "canvas_ui"
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["errors"] == []
+    assert set(payload["checksums"]) == {"canvas_ui"}

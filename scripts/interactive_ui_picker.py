@@ -56,10 +56,14 @@ def error(code: str, message: str, **details: object) -> dict[str, object]:
     return {"code": code, "message": message, **details}
 
 
-def load_pools(candidate_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, object]]]:
+def load_pools(
+    candidate_dir: Path, roles: set[str]
+) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, object]]]:
     pools: dict[str, list[dict[str, Any]]] = {}
     errors: list[dict[str, object]] = []
     for role, filename in ROLES.items():
+        if role not in roles:
+            continue
         path = candidate_dir / filename
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
@@ -84,32 +88,53 @@ def load_pools(candidate_dir: Path) -> tuple[dict[str, list[dict[str, Any]]], li
 
 def validate_pool(role: str, records: list[dict[str, Any]]) -> list[dict[str, object]]:
     errors: list[dict[str, object]] = []
-    if len(records) < MIN_POOL_SIZE:
-        errors.append(error("pool_too_small", "Candidate pool is smaller than the required minimum.", role=role, minimum=MIN_POOL_SIZE, actual=len(records)))
-
     ids: set[str] = set()
     platforms: Counter[str] = Counter()
     creators: Counter[str] = Counter()
     categories: set[str] = set()
+    available_count = 0
     for index, item in enumerate(records):
         missing = sorted(REQUIRED_FIELDS - item.keys())
         if missing:
             errors.append(error("required_field_missing", "Candidate is missing required fields.", role=role, index=index, fields=missing))
-            continue
         forbidden = sorted(FORBIDDEN_PRE_DRAW_FIELDS & item.keys())
         if forbidden:
-            errors.append(error("forbidden_pre_draw_field", "Candidate contains a forbidden pre-draw field.", role=role, id=item["id"], fields=forbidden))
-        if item["role"] != role:
-            errors.append(error("role_mismatch", "Candidate role does not match its manifest.", role=role, id=item["id"], actual=item["role"]))
-        if item["availability"] not in ALLOWED_AVAILABILITY:
-            errors.append(error("invalid_availability", "Candidate availability is not permitted.", role=role, id=item["id"], availability=item["availability"]))
-        candidate_id = item["id"]
-        if candidate_id in ids:
-            errors.append(error("candidate_id_reused", "Candidate IDs must be unique within a pool.", role=role, id=candidate_id))
-        ids.add(candidate_id)
-        platforms[item["platform"]] += 1
-        creators[item["creator"]] += 1
-        categories.add(item["category"])
+            errors.append(error("forbidden_pre_draw_field", "Candidate contains a forbidden pre-draw field.", role=role, id=item.get("id", index), fields=forbidden))
+
+        invalid_fields = [
+            field for field in sorted(REQUIRED_FIELDS & item.keys())
+            if not isinstance(item[field], str)
+        ]
+        for field in invalid_fields:
+            errors.append(error("invalid_field_type", "Candidate fields must be strings.", role=role, index=index, field=field))
+
+        candidate_id = item.get("id")
+        label: object = candidate_id if isinstance(candidate_id, str) else index
+        item_role = item.get("role")
+        if isinstance(item_role, str) and item_role != role:
+            errors.append(error("role_mismatch", "Candidate role does not match its manifest.", role=role, id=label, actual=item_role))
+        availability = item.get("availability")
+        if isinstance(availability, str):
+            if availability not in ALLOWED_AVAILABILITY:
+                errors.append(error("invalid_availability", "Candidate availability is not permitted.", role=role, id=label, availability=availability))
+            elif availability == "ok":
+                available_count += 1
+        if isinstance(candidate_id, str):
+            if candidate_id in ids:
+                errors.append(error("candidate_id_reused", "Candidate IDs must be unique within a pool.", role=role, id=candidate_id))
+            ids.add(candidate_id)
+        platform = item.get("platform")
+        if isinstance(platform, str):
+            platforms[platform] += 1
+        creator = item.get("creator")
+        if isinstance(creator, str):
+            creators[creator] += 1
+        category = item.get("category")
+        if isinstance(category, str):
+            categories.add(category)
+
+    if available_count < MIN_POOL_SIZE:
+        errors.append(error("pool_too_small", "Candidate pool has fewer available candidates than the required minimum.", role=role, minimum=MIN_POOL_SIZE, actual=available_count))
 
     for platform, count in sorted(platforms.items()):
         if count > MAX_PER_PLATFORM:
@@ -123,8 +148,8 @@ def validate_pool(role: str, records: list[dict[str, Any]]) -> list[dict[str, ob
 
 
 def validate(candidate_dir: Path, roles: set[str] | None = None) -> tuple[dict[str, list[dict[str, Any]]], dict[str, object]]:
-    pools, errors = load_pools(candidate_dir)
-    active_roles = roles or set(ROLES)
+    active_roles = set(ROLES) if roles is None else roles
+    pools, errors = load_pools(candidate_dir, active_roles)
     for role in ROLES:
         if role in active_roles:
             errors.extend(validate_pool(role, pools[role]))
