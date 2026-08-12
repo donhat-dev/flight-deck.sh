@@ -22,7 +22,7 @@ import {
 /** Minimum distance between adjacent ring-label anchors, in user units. Sized for
  *  the widest word — CAUTION at the corridor's 14px bold mono with tracking — so
  *  no pair of neighbours can touch whatever the occupancy sizing does to the bands. */
-const LABEL_GAP = 78;
+export const LABEL_GAP = 78;
 
 /** Blip diameter in user units. Still bigger than a dot on purpose — the blips are
  *  the content and the rings are only the frame — but no longer 30.
@@ -45,10 +45,10 @@ const D_SELECTED = 30;
  *  in charge of the pair. */
 const NUM_RATIO = 0.44;
 
-function ringGeometry(mode, width, height) {
+export function ringGeometry(mode, width, height, gapH = GAP_H) {
   if (mode === "full") {
     const s = Math.min(width, height);
-    return { cx: s / 2, cy: s / 2, r: (s - GAP_H) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
+    return { cx: s / 2, cy: s / 2, r: (s - gapH) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
   }
   // Quadrant: origin bottom-left, with room under the axis for the ring labels.
   const pad = 20;
@@ -102,8 +102,8 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
  *  enough to mark where one quadrant ends and the next begins, far too narrow
  *  for a label. That is why it is a second, much smaller constant rather than
  *  the same GAP reused on both axes. */
-const GAP_H = 36;
-const GAP_V = 10;
+export const GAP_H = 36;
+export const GAP_V = 10;
 
 /** The drawn-arc radius multiplier for the full view only.
  *
@@ -116,7 +116,7 @@ const GAP_V = 10;
  *  `r` — which is enough for the eye to stop seeing lobes. The quadrant view
  *  draws a single panel with nothing to assemble against, so it keeps true
  *  circles and never receives this factor. */
-const ARC_FLAT = 1.05;
+export const ARC_FLAT = 1.05;
 
 /** Each quadrant's own centre: the inner corner of its half. `deg` stays GLOBAL
  *  (turn 1 still sweeps 90–180°), so this is still only a translation of centres —
@@ -124,9 +124,9 @@ const ARC_FLAT = 1.05;
  *  horizontal corridor (turns 0/1 are the top half, turns 2/3 the bottom half),
  *  and x opens the vertical seam (turns 0/3 are the right panels, turns 1/2 the
  *  left). */
-function panelCenter(turn, s) {
-  const offH = GAP_H / 2;
-  const offV = GAP_V / 2;
+export function panelCenter(turn, s, gapH = GAP_H, gapV = GAP_V) {
+  const offH = gapH / 2;
+  const offV = gapV / 2;
   const x = turn === 0 || turn === 3 ? s / 2 + offV : s / 2 - offV;
   const y = turn <= 1 ? s / 2 - offH : s / 2 + offH;
   return { x, y };
@@ -146,11 +146,19 @@ export default function Radar({
   // Ring edges sized by the board's own occupancy (geometry.ringEdges). The fixed
   // RING_EDGE default keeps standalone renders and old callers working.
   edges = RING_EDGE,
+  // The three layout numbers, as props defaulting to the module constants. They are
+  // props ONLY so the geometry lab can drive the real component with its own values
+  // instead of a second copy of this drawing — every caller in the app takes the
+  // defaults, so the radar has one layout and the lab cannot drift from it.
+  gapH = GAP_H,
+  gapV = GAP_V,
+  flat = ARC_FLAT,
 }) {
-  const { cx, cy, r, vb, s } = ringGeometry(mode, width, height);
+  const { cx, cy, r, vb, s } = ringGeometry(mode, width, height, gapH);
   const turns = mode === "full" ? QUADRANTS.map((q) => q.turn) : [0];
   const placed = placeBlips(blips, { quadrant, edges });
-  const centerFor = (turn) => (mode === "full" ? panelCenter(turn, s) : { x: cx, y: cy });
+  const centerFor = (turn) => (mode === "full" ? panelCenter(turn, s, gapH, gapV) : { x: cx, y: cy });
+  const arcFlat = mode === "full" ? flat : 1;
 
   return (
     <svg className="rdr-canvas" viewBox={vb} role="img"
@@ -169,8 +177,7 @@ export default function Radar({
               key={`${ring}-${turn}`}
               className="rdr-ring"
               data-ring={ring}
-              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90,
-                mode === "full" ? ARC_FLAT : 1)}
+              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90, arcFlat)}
             />
           );
         });
@@ -186,8 +193,7 @@ export default function Radar({
               key={`edge-${ring}-${turn}`}
               className="rdr-ring-arc"
               data-ring={ring}
-              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90,
-                mode === "full" ? ARC_FLAT : 1)}
+              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90, arcFlat)}
             />
           );
         });
@@ -212,7 +218,7 @@ export default function Radar({
         if (mode === "full") {
           return RINGS.map((ring, i) => [-1, 1].map((side) => (
             <text key={`${ring}-${side}`} className="rdr-ring-label" data-ring={ring}
-                  x={s / 2 + side * (GAP_V / 2 + mids[i])} y={s / 2} textAnchor="middle"
+                  x={s / 2 + side * (gapV / 2 + mids[i])} y={s / 2} textAnchor="middle"
                   dominantBaseline="central">
               {RING_LABEL[ring].toUpperCase()}
             </text>

@@ -1,0 +1,268 @@
+/* ============================================================
+   Radar geometry lab.
+
+   NOT a screen: it declares no composition anchor, because it has no single
+   subject competing for attention — it is a workbench, and the drawing, the
+   construction diagram and the numbers are all equally the point. Depth is
+   borders only, no offsets, for the same reason.
+
+   It reuses the radar's own sheets (that is the whole idea — the lab draws the
+   real component) and overrides only the three page-level rules radar.css sets
+   for a full-height, non-scrolling poster. A workbench scrolls.
+   ============================================================ */
+
+html, body, #root { height: auto; min-height: 100%; }
+
+.rdr-page.rlab {
+  height: auto;
+  overflow: visible;
+  display: block;
+  padding: 1.75rem var(--rdr-gutter) 4rem;
+}
+
+/* ---- head --------------------------------------------------------------- */
+
+.rlab-head { max-width: 46rem; margin-bottom: 1.75rem; }
+.rlab-title {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.rlab-lede {
+  margin: 0.6rem 0 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--fdx-text-muted);
+}
+
+/* ---- layout ------------------------------------------------------------- */
+
+/* Controls, drawing, evidence — left to right, in the order the eye needs them.
+   The drawing takes the slack because it is the thing being adjusted. */
+.rlab-body {
+  display: grid;
+  grid-template-columns: 17rem minmax(22rem, 1fr) 25rem;
+  gap: 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 1400px) {
+  .rlab-body { grid-template-columns: 17rem 1fr; }
+  .rlab-facts { grid-column: 1 / -1; display: flex; gap: 1.5rem; align-items: flex-start; }
+}
+@media (max-width: 900px) {
+  .rlab-body { grid-template-columns: 1fr; }
+  .rlab-facts { flex-direction: column; }
+}
+
+/* ---- controls ----------------------------------------------------------- */
+
+.rlab-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  border: 1px solid var(--rdr-ring-edge);
+  padding: 1.1rem;
+}
+
+.rlab-presets { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.rlab-preset {
+  border: 1px solid var(--fdx-depth-muted);
+  background: none;
+  color: var(--fdx-text);
+  padding: 0.4rem 0.65rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.rlab-preset:hover { background: var(--fdx-surface-raised); }
+
+.rlab-slider { display: flex; flex-direction: column; gap: 0.4rem; }
+.rlab-slider-top { display: flex; justify-content: space-between; align-items: baseline; }
+.rlab-slider-name {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.rlab-slider-val {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--fdx-orange);
+}
+.rlab-slider input { width: 100%; accent-color: var(--fdx-orange); }
+
+.rlab-note {
+  margin: 0;
+  border-left: 2px solid var(--fdx-warning);
+  padding-left: 0.6rem;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--fdx-text-muted);
+}
+
+.rlab-group { display: flex; flex-direction: column; gap: 0.5rem; }
+.rlab-group-name {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+.rlab-counts { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; }
+.rlab-count { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.6875rem; }
+.rlab-count span { color: var(--fdx-text-muted); }
+.rlab-count input {
+  border: 1px solid var(--fdx-depth-muted);
+  background: none;
+  color: var(--fdx-text);
+  padding: 0.25rem 0.4rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.8125rem;
+  width: 100%;
+}
+
+.rlab-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.rlab-chip, .rlab-toggle {
+  border: 1px solid var(--fdx-depth-muted);
+  background: none;
+  color: var(--fdx-text-muted);
+  padding: 0.3rem 0.55rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.625rem;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.rlab-chip[aria-pressed="true"], .rlab-toggle[aria-pressed="true"] {
+  border-color: transparent;
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+  font-weight: 700;
+}
+
+/* ---- stage -------------------------------------------------------------- */
+
+.rlab-stage-col { display: flex; flex-direction: column; gap: 0.85rem; }
+
+/* Two SVGs, one box. Both carry viewBox `0 0 S S`, so stacking them on an
+   identical square means a coordinate in the overlay lands exactly on the same
+   coordinate in the component's own drawing — which is what lets the lab annotate
+   the real radar instead of a copy of it. */
+.rlab-stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--rdr-ring-edge);
+}
+.rlab-stage > .rdr-canvas,
+.rlab-stage > .rlab-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.rlab-overlay { pointer-events: none; }
+
+.rlab-caption {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  color: var(--fdx-text-muted);
+}
+.rlab-caption strong { color: var(--fdx-text); font-weight: 700; }
+
+/* ---- annotations -------------------------------------------------------- */
+
+/* The one-circle reference: what the eye expects the four quarters to add up to. */
+.rlab-ghost {
+  fill: none;
+  stroke: var(--fdx-text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 2 6;
+  opacity: 0.5;
+}
+
+/* The arc as it would be WITHOUT flattening — the difference is the fix. */
+.rlab-unflat {
+  fill: none;
+  stroke: var(--fdx-critical);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  opacity: 0.9;
+}
+
+.rlab-centre line { stroke: var(--fdx-text-muted); stroke-width: 1.2; }
+.rlab-centre[data-true="true"] line { stroke: var(--fdx-orange); stroke-width: 2; }
+
+.rlab-chord { stroke: var(--fdx-signal, var(--fdx-orange)); stroke-width: 1.4; }
+.rlab-radius { stroke: var(--fdx-text-muted); stroke-width: 1; stroke-dasharray: 4 4; }
+.rlab-bisector { stroke: var(--fdx-text-muted); stroke-width: 0.9; stroke-dasharray: 1 5; }
+.rlab-sagitta { stroke: var(--fdx-warning); stroke-width: 3; }
+
+.rlab-pt { fill: var(--fdx-orange); stroke: var(--fdx-surface); stroke-width: 1.5; }
+.rlab-pt-ghost { fill: none; stroke: var(--fdx-text); stroke-width: 1.6; }
+.rlab-pt-label {
+  fill: var(--fdx-text);
+  font-family: var(--fdx-font-mono);
+  font-size: 13px;
+  font-weight: 700;
+}
+.rlab-measure {
+  fill: var(--fdx-text-muted);
+  font-family: var(--fdx-font-mono);
+  font-size: 12px;
+}
+
+/* ---- facts -------------------------------------------------------------- */
+
+.rlab-facts { display: flex; flex-direction: column; gap: 1.25rem; }
+
+.rlab-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--rdr-ring-edge);
+  background: var(--rdr-ring-quiet);
+}
+.rlab-family { fill: none; stroke: var(--fdx-text-muted); stroke-width: 1; opacity: 0.35; }
+.rlab-arc-live { fill: none; stroke: var(--fdx-orange); stroke-width: 2.5; }
+
+.rlab-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+.rlab-table th, .rlab-table td {
+  border-bottom: 1px solid var(--rdr-ring-edge);
+  padding: 0.4rem 0.5rem;
+  text-align: left;
+  vertical-align: baseline;
+}
+.rlab-table th {
+  font-weight: 400;
+  color: var(--fdx-text-muted);
+  white-space: nowrap;
+}
+.rlab-table td:first-of-type {
+  font-family: var(--fdx-font-mono);
+  font-weight: 700;
+  color: var(--fdx-text);
+  text-align: right;
+  white-space: nowrap;
+}
+.rlab-table td:last-child {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.6875rem;
+  color: var(--fdx-text-muted);
+}
+/* The two rows that answer the question the lab was built for. */
+.rlab-row-key th { color: var(--fdx-text); }
+.rlab-row-key td:first-of-type { color: var(--fdx-orange); }

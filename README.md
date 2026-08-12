@@ -121,7 +121,8 @@ backend/flightdeck  ── FastAPI, single process ── SQLite (WAL) or Postgr
         ▲                                          ▲
         │ /api (vite proxy)                        │ same store
 frontend/ ── React 18 + Vite ──────────────  flightdeck.mcp_server (FastMCP)
-  entries: index.html · component-lab.html · home-concept.html · home-concept-v2.html
+  entries: index.html · radar.html · radio.html · component-lab.html
+           radar-lab.html (radar geometry workbench) · home-concept{,-v2}.html
 ```
 
 - **Backend** — FastAPI on uvicorn, one process by design. Ingest parses

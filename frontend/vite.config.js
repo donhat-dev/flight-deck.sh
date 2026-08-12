@@ -16,6 +16,7 @@ export default defineConfig({
         homeConceptV2: `${rootDir}home-concept-v2.html`,
         radio: `${rootDir}radio.html`,
         radar: `${rootDir}radar.html`,
+        radarLab: `${rootDir}radar-lab.html`,
       },
     },
   },
