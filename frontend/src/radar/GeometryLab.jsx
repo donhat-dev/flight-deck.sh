@@ -1,16 +1,15 @@
 /**
- * Radar geometry lab — the arc construction, made visible and adjustable.
+ * Radar geometry lab — the band-clip construction, made visible and adjustable.
  *
- * Exists because the radar's shape is the product of three numbers that are not
- * obvious from looking at it: the corridor width, the seam width, and the factor
- * the drawn arcs are flattened by. Reading the code tells you what they do; moving
- * them tells you why they are set where they are. The clover the flattening fixes
- * is one preset away, which is faster than any explanation of it.
+ * Exists because the radar's shape is the product of two numbers that are not
+ * obvious from looking at it: the width of the horizontal strip (the label
+ * corridor) and the width of the vertical strip (the seam). Reading the code
+ * tells you what they do; moving them tells you why they are set where they are.
  *
- * It renders the REAL `Radar` component, driven through its `gapH`/`gapV`/`flat`
- * props, and draws the annotations in a second SVG on exactly the same viewBox.
- * There is deliberately NO second copy of the drawing here: a lab that reimplements
- * what it documents starts lying the first time the original changes.
+ * It renders the REAL `Radar` component, driven through its `gapH`/`gapV` props,
+ * and draws the annotations in a second SVG on exactly the same viewBox. There is
+ * deliberately NO second copy of the drawing here: a lab that reimplements what
+ * it documents starts lying the first time the original changes.
  */
 import React, { useMemo, useState } from "react";
 
@@ -18,26 +17,28 @@ import Radar, {
   GAP_H, GAP_V, ringGeometry,
 } from "./Radar.jsx";
 import {
-  QUADRANTS, RINGS, RING_LABEL, arcPath, polar, ringBand, ringEdges,
+  QUADRANTS, RINGS, RING_LABEL, arcPath, ringBand, ringEdges,
 } from "./geometry.js";
 
 /** The lab's canvas, in user units. Same frame the app asks for, so every number
  *  read off the panel is the number the real radar works with. */
 const S = 720;
 
-const DEFAULTS = { gapH: GAP_H, gapV: GAP_V, flat: 1.05 };
+const DEFAULTS = { gapH: GAP_H, gapV: GAP_V };
 
-/** Named states worth one click. `clover` is the bug the flattening was added for:
- *  wide gaps and no flattening, which is where the four-leaf reading came from. */
+/** Named states worth one click. The four-leaf reading the old presets built
+ *  towards is no longer reachable from here — it took four translated centres,
+ *  and this construction only ever has one. These four instead show what the
+ *  two strip widths do on their own: the app's own numbers, a wide label
+ *  corridor, a symmetric cross, and no gaps at all. */
 const PRESETS = [
-  { k: "app", label: "App default", vals: { gapH: 36, gapV: 10, flat: 1.05 } },
-  { k: "one", label: "One disc", vals: { gapH: 0, gapV: 0, flat: 1 } },
-  { k: "clover", label: "Clover (the bug)", vals: { gapH: 72, gapV: 72, flat: 1 } },
-  { k: "over", label: "Over-flattened", vals: { gapH: 36, gapV: 10, flat: 1.35 } },
+  { k: "app", label: "App default", vals: { gapH: 36, gapV: 10 } },
+  { k: "wide", label: "Wide corridor", vals: { gapH: 90, gapV: 10 } },
+  { k: "cross", label: "Even cross", vals: { gapH: 60, gapV: 60 } },
+  { k: "none", label: "No gaps", vals: { gapH: 0, gapV: 0 } },
 ];
 
 const fmt = (n, d = 1) => (Number.isFinite(n) ? n.toFixed(d) : "—");
-const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
 /**
  * Blips from ring counts, so the occupancy sizing has something to size for.
@@ -61,47 +62,34 @@ function synthBlips(counts) {
 }
 
 /**
- * Every point the `A` command implies, for one quarter arc.
+ * The band-clip construction, read back as numbers.
  *
- * This is the whole geometry of the flattening in one function. An SVG arc is given
- * a radius and an END POINT, never a centre — so for two fixed endpoints, choosing a
- * radius chooses which circle passes through both, and the centre follows from
- * Pythagoras on the chord. A bigger radius puts the centre further behind the chord
- * (`h` grows) and leaves less of the circle in front of it (`sag` shrinks), which is
- * flattening without moving an endpoint.
- *
- * `sag` is the sagitta: chord to arc at its deepest. `drift` measures the thing the
- * eye actually complains about — how far this quarter's apex sits from where one
- * single circle of the same radius would have put it.
+ * The radar's shape is now a CLIP: one disc, minus a horizontal strip and a
+ * vertical strip. There is no bulge to measure and no drawn radius to compare
+ * against a true one — every arc IS on the true circle by construction. What is
+ * left worth marking is where a ring's arc runs into each strip (H and V, both
+ * exactly `rr` from the centre) and how much angle the strip leaves open at that
+ * radius, which is the thing a reader actually needs when placing a label.
  */
-function arcFacts({ turn, rr, flat, gapH, gapV }) {
-  const P = { x: S / 2, y: S / 2 };
-  const deg0 = turn * 90;
-  const A = polar(P.x, P.y, rr, deg0);
-  const B = polar(P.x, P.y, rr, deg0 + 90);
-  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-  const d = dist(A, B);
-  const half = d / 2;
-  // A radius under half the chord cannot reach both endpoints, and SVG scales it up
-  // to exactly half rather than failing: the semicircle is the most curved arc two
-  // fixed points admit, and the slider can be pushed into it.
-  const asked = rr * flat;
-  const R = Math.max(asked, half);
-  const h = Math.sqrt(Math.max(0, R * R - half * half));
-  const pm = dist(M, P) || 1;
-  const u = { x: (M.x - P.x) / pm, y: (M.y - P.y) / pm };
-  const C = { x: M.x - u.x * h, y: M.y - u.y * h };
-  const sag = R - h;
-  const apex = { x: M.x + u.x * sag, y: M.y + u.y * sag };
-  // Where one circle of this radius, around the page centre, would put the apex.
-  const apexOne = { x: S / 2 + u.x * rr, y: S / 2 + u.y * rr };
-  return {
-    P, A, B, M, C, u, d, R, h, sag, apex, apexOne,
-    clamped: asked < half,
-    drift: dist(apex, apexOne),
-    sagTrue: rr * (1 - 1 / Math.SQRT2),
-    offset: Math.hypot(gapV / 2, gapH / 2),
-  };
+function bandFacts({ turn, rr, gapH, gapV }) {
+  const gh = gapH / 2;
+  const gv = gapV / 2;
+  const P = { x: S / 2, y: S / 2 };                 // the centre never moves
+  const [ex, ey] = [[1, 1], [-1, 1], [-1, -1], [1, -1]][turn];
+  const atH = Math.sqrt(Math.max(0, rr * rr - gh * gh));
+  const atV = Math.sqrt(Math.max(0, rr * rr - gv * gv));
+  // The two points where this ring's arc runs into the two strips. Both are exactly
+  // rr from the centre, which is the whole property the model buys.
+  const H = { x: P.x + ex * atH, y: P.y - ey * gh };
+  const V = { x: P.x + ex * gv, y: P.y - ey * atV };
+  const corner = Math.hypot(gv, gh);
+  // Odd turns sweep from the vertical axis, so the strips swap which end they bound.
+  const [first, second] = turn % 2 === 0 ? [gh, gv] : [gv, gh];
+  const lo = (Math.asin(Math.min(1, first / rr)) * 180) / Math.PI;
+  const hi = (Math.acos(Math.min(1, second / rr)) * 180) / Math.PI;
+  return { P, H, V, corner, gh, gv, lo, hi, span: Math.max(0, hi - lo),
+           rH: Math.hypot(H.x - P.x, H.y - P.y), rV: Math.hypot(V.x - P.x, V.y - P.y),
+           swallowed: rr <= corner };
 }
 
 function Slider({ label, value, min, max, step, onChange, suffix = "" }) {
@@ -127,102 +115,109 @@ function Toggle({ on, onChange, children }) {
 }
 
 /**
- * The construction drawn on its own, at a size where the labels fit.
+ * The three constructions the radar does NOT use, kept as the decision record.
  *
- * The radar itself is a bad teacher for this: four arcs at once, each cut by a
- * corridor, and the centre of any one of them sits under a neighbouring panel. Here
- * one quarter gets the whole frame, with the family of arcs the same two endpoints
- * admit drawn faintly behind the current one.
+ * Each was tried, each measured, each rejected — the numbers are from a controlled
+ * comparison at radius 200 with a 26-unit gap, not a live function of the sliders,
+ * so they are captions here rather than table rows. Only the outer ring edge of
+ * all four quadrants is drawn against a dashed reference circle: enough to show
+ * the outline shape, nothing to read numbers off.
  */
-function ArcDiagram({ flat }) {
-  const rr = 160;
-  const P = { x: 70, y: 250 };
-  const A = polar(P.x, P.y, rr, 0);
-  const B = polar(P.x, P.y, rr, 90);
-  const M = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
-  const half = dist(A, B) / 2;
-  const asked = rr * flat;
-  const R = Math.max(asked, half);
-  const h = Math.sqrt(Math.max(0, R * R - half * half));
-  const u = { x: Math.SQRT1_2, y: -Math.SQRT1_2 };
-  const C = { x: M.x - u.x * h, y: M.y - u.y * h };
-  const apex = { x: M.x + u.x * (R - h), y: M.y + u.y * (R - h) };
-  const family = [Math.SQRT1_2, 0.85, 1, 1.2, 1.5];
+function AlternativesFigure() {
+  const CX = 120;
+  const CY = 120;
+  const R = 100;
+  const OFFSET = 13;
+  const turns = [0, 1, 2, 3];
+
+  const inset = ((13 / 100) * 180) / Math.PI / 2;
+  const rotated = turns.map((turn) => (
+    <path key={turn} className="rlab-arc-live"
+          d={arcPath(CX, CY, R, turn * 90 + inset, turn * 90 + 90 - inset)} />
+  ));
+
+  const slidCentres = turns.map((turn) => {
+    const bis = ((turn * 90 + 45) * Math.PI) / 180;
+    return { turn, cx: CX + OFFSET * Math.cos(bis), cy: CY - OFFSET * Math.sin(bis) };
+  });
+  const slid = slidCentres.map(({ turn, cx, cy }) => (
+    <path key={turn} className="rlab-arc-live"
+          d={arcPath(cx, cy, R, turn * 90, turn * 90 + 90)} />
+  ));
+  const slidAndCompensated = slidCentres.map(({ turn, cx, cy }) => (
+    <path key={turn} className="rlab-arc-live"
+          d={arcPath(cx, cy, R, turn * 90, turn * 90 + 90, 1.05)} />
+  ));
+
+  const alts = [
+    {
+      key: "rotated", title: "Rotated apart, one centre", dev: "0.03", arcs: rotated,
+      why: "a wedge-shaped gap cannot carry a label row of constant height.",
+    },
+    {
+      key: "slid", title: "Slid outward, four centres", dev: "4.99", arcs: slid,
+      why: "it is an exploded pie.",
+    },
+    {
+      key: "comp", title: "Slid + arcs flattened 5%", dev: "1.17", arcs: slidAndCompensated,
+      why: "it compensates the symptom and leaves the arcs off true.",
+    },
+  ];
 
   return (
-    <svg className="rlab-diagram" viewBox="18 46 266 256"
-         aria-label="One quarter arc: chord, centre, radius and sagitta">
-      {/* The family: same two endpoints, five radii. Curvature is a choice here. */}
-      {family.map((f) => (
-        <path key={f} className="rlab-family"
-              d={arcPath(P.x, P.y, rr, 0, 90, f)} />
-      ))}
-      <path className="rlab-arc-live" d={arcPath(P.x, P.y, rr, 0, 90, flat)} />
-
-      <line className="rlab-chord" x1={A.x} y1={A.y} x2={B.x} y2={B.y} />
-      <line className="rlab-radius" x1={C.x} y1={C.y} x2={A.x} y2={A.y} />
-      <line className="rlab-radius" x1={C.x} y1={C.y} x2={B.x} y2={B.y} />
-      {/* The bisector: every centre that can reach both endpoints lies on it. */}
-      <line className="rlab-bisector"
-            x1={C.x - u.x * 40} y1={C.y - u.y * 40}
-            x2={apex.x + u.x * 26} y2={apex.y + u.y * 26} />
-      <line className="rlab-sagitta" x1={M.x} y1={M.y} x2={apex.x} y2={apex.y} />
-
-      {/* Anchored away from each other by hand: five labelled points in one quarter
-          frame collide under any single uniform offset, and the diagram is only worth
-          drawing if every letter is readable. */}
-      {[[A, "A", 9, 13, "start"], [B, "B", 9, -7, "start"], [M, "M", 9, -7, "start"],
-        [C, "C", -9, 15, "end"], [apex, "apex", 9, -8, "start"]].map(
-        ([pt, t, dx, dy, anchor]) => (
-          <g key={t}>
-            <circle className="rlab-pt" cx={pt.x} cy={pt.y} r={4} />
-            <text className="rlab-pt-label" x={pt.x + dx} y={pt.y + dy}
-                  textAnchor={anchor}>{t}</text>
-          </g>
+    <div>
+      <p className="rlab-alts-head">
+        Constructions the radar does NOT use — deviations measured at radius 200
+        with a 26-unit gap.
+      </p>
+      <div className="rlab-alts">
+        {alts.map((a) => (
+          <figure key={a.key} className="rlab-alt">
+            <svg className="rlab-diagram" viewBox="0 0 240 240" aria-label={a.title}>
+              <circle className="rlab-ghost" cx={CX} cy={CY} r={R} />
+              {a.arcs}
+            </svg>
+            <figcaption>
+              <b>{a.title}</b>
+              <span className="dev">deviation {a.dev}</span> — rejected: {a.why}
+            </figcaption>
+          </figure>
         ))}
-      {/* Each measure rides the segment it measures. */}
-      <text className="rlab-measure" x={M.x - 18} y={M.y + 22} textAnchor="end">
-        d = {fmt(half * 2)}
-      </text>
-      <text className="rlab-measure" x={(C.x + A.x) / 2} y={(C.y + A.y) / 2 + 18}
-            textAnchor="middle">R = {fmt(R)}</text>
-      <text className="rlab-measure" x={(C.x + M.x) / 2 - 12} y={(C.y + M.y) / 2 + 16}
-            textAnchor="end">h = {fmt(h)}</text>
-      <text className="rlab-measure"
-            x={M.x + u.x * ((R - h) / 2) + 15} y={M.y + u.y * ((R - h) / 2) + 19}
-            textAnchor="start">s = {fmt(R - h)}</text>
-    </svg>
+      </div>
+    </div>
   );
 }
 
 export default function GeometryLab() {
   const [gapH, setGapH] = useState(DEFAULTS.gapH);
   const [gapV, setGapV] = useState(DEFAULTS.gapV);
-  const [flat, setFlat] = useState(DEFAULTS.flat);
   const [counts, setCounts] = useState({ adopt: 9, trial: 4, assess: 3, caution: 3 });
   const [turn, setTurn] = useState(0);
   const [ring, setRing] = useState("caution");
   const [show, setShow] = useState({
-    ghost: true, centres: true, build: true, unflat: true, blips: true,
+    strips: true, centre: true, arcEnds: true, blips: true,
   });
 
   const blips = useMemo(() => synthBlips(counts), [counts]);
   const edges = useMemo(() => ringEdges(counts), [counts]);
   const { r } = ringGeometry("full", S, S);
   const rr = ringBand(ring, edges)[1] * r;
-  const f = arcFacts({ turn, rr, flat, gapH, gapV });
+  const f = bandFacts({ turn, rr, gapH, gapV });
   const q = QUADRANTS[turn];
   const flip = (k) => setShow((s) => ({ ...s, [k]: !s[k] }));
-  const apply = (v) => { setGapH(v.gapH); setGapV(v.gapV); setFlat(v.flat); };
+  const apply = (v) => { setGapH(v.gapH); setGapV(v.gapV); };
 
   return (
     <div className="rdr-page rlab">
       <header className="rlab-head">
         <h1 className="rlab-title">Radar geometry</h1>
         <p className="rlab-lede">
-          The real radar component, driven by the three numbers that decide its shape.
-          The annotations are the construction an SVG arc command implies but never
-          states: two fixed endpoints, one radius, and the centre that follows.
+          The real radar component, driven by the two numbers that decide its shape.
+          The radar is one disc with a horizontal strip and a vertical strip cut out
+          of it — never four discs around four centres — so every arc it draws sits
+          on the same circle and both corridors stay a constant width at any radius.
+          The annotations below mark where a ring's arc meets a strip edge, and how
+          much angular room the strip leaves open at that radius.
         </p>
       </header>
 
@@ -239,14 +234,6 @@ export default function GeometryLab() {
                   onChange={setGapH} />
           <Slider label="GAP_V · vertical seam" value={gapV} min={0} max={140} step={2}
                   onChange={setGapV} />
-          <Slider label="ARC_FLAT · drawn radius ×" value={flat} min={0.64} max={1.5}
-                  step={0.01} onChange={setFlat} />
-          {f.clamped && (
-            <p className="rlab-note">
-              Radius below half the chord — SVG scales it back up to a semicircle,
-              the most curved arc these two endpoints allow.
-            </p>
-          )}
 
           <div className="rlab-group">
             <span className="rlab-group-name">Blips per ring</span>
@@ -285,10 +272,9 @@ export default function GeometryLab() {
           <div className="rlab-group">
             <span className="rlab-group-name">Overlays</span>
             <div className="rlab-chips">
-              <Toggle on={show.ghost} onChange={() => flip("ghost")}>One-circle ghost</Toggle>
-              <Toggle on={show.centres} onChange={() => flip("centres")}>Centre</Toggle>
-              <Toggle on={show.build} onChange={() => flip("build")}>Construction</Toggle>
-              <Toggle on={show.unflat} onChange={() => flip("unflat")}>Unflattened arc</Toggle>
+              <Toggle on={show.strips} onChange={() => flip("strips")}>Strips</Toggle>
+              <Toggle on={show.centre} onChange={() => flip("centre")}>Centre</Toggle>
+              <Toggle on={show.arcEnds} onChange={() => flip("arcEnds")}>Arc ends</Toggle>
               <Toggle on={show.blips} onChange={() => flip("blips")}>Blips</Toggle>
             </div>
           </div>
@@ -301,17 +287,27 @@ export default function GeometryLab() {
 
             {/* Same viewBox, same box, so a coordinate here is a coordinate there. */}
             <svg className="rlab-overlay" viewBox={`0 0 ${S} ${S}`} aria-hidden="true">
-              {show.ghost && RINGS.map((k) => (
-                <circle key={k} className="rlab-ghost" cx={S / 2} cy={S / 2}
-                        r={ringBand(k, edges)[1] * r} />
-              ))}
-
-              {show.unflat && (
-                <path className="rlab-unflat"
-                      d={arcPath(f.P.x, f.P.y, rr, turn * 90, turn * 90 + 90, 1)} />
+              {show.strips && (
+                <>
+                  <rect className="rlab-strip" x={0} y={S / 2 - f.gh} width={S} height={2 * f.gh} />
+                  <rect className="rlab-strip" x={S / 2 - f.gv} y={0} width={2 * f.gv} height={S} />
+                </>
               )}
 
-              {show.centres && (
+              {show.arcEnds && (
+                <>
+                  {RINGS.map((k) => (
+                    <circle key={k} className="rlab-ghost" cx={S / 2} cy={S / 2}
+                            r={ringBand(k, edges)[1] * r} />
+                  ))}
+                  <circle className="rlab-pt" cx={f.H.x} cy={f.H.y} r={4} />
+                  <text className="rlab-pt-label" x={f.H.x + 9} y={f.H.y - 9}>H</text>
+                  <circle className="rlab-pt" cx={f.V.x} cy={f.V.y} r={4} />
+                  <text className="rlab-pt-label" x={f.V.x + 9} y={f.V.y - 9}>V</text>
+                </>
+              )}
+
+              {show.centre && (
                 <>
                   <g className="rlab-centre" data-true="true">
                     <line x1={S / 2 - 11} y1={S / 2} x2={S / 2 + 11} y2={S / 2} />
@@ -320,61 +316,56 @@ export default function GeometryLab() {
                   <text className="rlab-pt-label" x={S / 2 + 15} y={S / 2 + 22}>O</text>
                 </>
               )}
-
-              {show.build && (
-                <>
-                  <line className="rlab-chord" x1={f.A.x} y1={f.A.y} x2={f.B.x} y2={f.B.y} />
-                  <line className="rlab-radius" x1={f.C.x} y1={f.C.y} x2={f.A.x} y2={f.A.y} />
-                  <line className="rlab-radius" x1={f.C.x} y1={f.C.y} x2={f.B.x} y2={f.B.y} />
-                  <line className="rlab-bisector"
-                        x1={f.C.x} y1={f.C.y}
-                        x2={f.apex.x + f.u.x * 22} y2={f.apex.y + f.u.y * 22} />
-                  <line className="rlab-sagitta" x1={f.M.x} y1={f.M.y}
-                        x2={f.apex.x} y2={f.apex.y} />
-                  {/* Same letters as the isolated diagram, so the two read as one
-                      explanation rather than two drawings. */}
-                  {[[f.A, "A"], [f.B, "B"], [f.M, "M"], [f.C, "C"], [f.apex, "apex"]].map(
-                    ([pt, t]) => (
-                      <g key={t}>
-                        <circle className="rlab-pt" cx={pt.x} cy={pt.y} r={t === "C" ? 5 : 4} />
-                        <text className="rlab-pt-label" x={pt.x + 9} y={pt.y - 9}>{t}</text>
-                      </g>
-                    ))}
-                  {/* Hollow: where a single circle would have put this apex. */}
-                  <circle className="rlab-pt-ghost" cx={f.apexOne.x} cy={f.apexOne.y} r={6} />
-                </>
-              )}
             </svg>
           </div>
 
           <p className="rlab-caption">
             Annotating the <strong>{q.label}</strong> quadrant at the outer edge of
-            <strong> {RING_LABEL[ring]}</strong>. C is the centre SVG derives for the
-            drawn arc; the hollow ring is where one circle around O would have put the
-            same apex. The gap between them is the four-leaf reading.
+            <strong> {RING_LABEL[ring]}</strong>. H and V mark where this ring's arc
+            runs into the horizontal and vertical strips — both sit exactly rr from
+            O, which is the property the single-centre construction buys.
           </p>
+          {show.arcEnds && (
+            <p className="rlab-caption">
+              The dashed reference circle and the drawn ring edge land on top of
+              each other here — under this construction they are not two curves to
+              compare, they are the same curve.
+            </p>
+          )}
         </div>
 
         <div className="rlab-facts">
-          <ArcDiagram flat={flat} />
+          <AlternativesFigure />
 
           <table className="rlab-table">
             <tbody>
               <tr><th>ring radius rr</th><td>{fmt(rr)}</td><td>outer edge, {RING_LABEL[ring]}</td></tr>
-              <tr><th>chord d</th><td>{fmt(f.d)}</td><td>rr·√2 — fixed by the endpoints</td></tr>
-              <tr><th>drawn radius R</th><td>{fmt(f.R)}</td><td>rr × {flat}</td></tr>
-              <tr><th>centre offset h</th><td>{fmt(f.h)}</td><td>√(R² − (d/2)²)</td></tr>
-              <tr><th>sagitta s</th><td>{fmt(f.sag)}</td><td>R − h — the bulge</td></tr>
-              <tr><th>s at flat = 1</th><td>{fmt(f.sagTrue)}</td><td>rr(1 − 1/√2)</td></tr>
-              <tr className="rlab-row-key">
-                <th>bulge removed</th>
-                <td>{fmt(f.sagTrue - f.sag)}</td>
-                <td>{fmt(((f.sagTrue - f.sag) / (rr || 1)) * 100, 2)}% of rr</td>
+              <tr>
+                <th>strip half-widths</th>
+                <td>{fmt(f.gh)} / {fmt(f.gv)}</td>
+                <td>GAP_H/2 and GAP_V/2</td>
               </tr>
-              <tr><th>panel offset |PO|</th><td>{fmt(f.offset)}</td><td>√((GAP_V/2)² + (GAP_H/2)²)</td></tr>
+              <tr><th>arc end H</th><td>{fmt(f.rH)}</td><td>distance from O — equals rr</td></tr>
+              <tr><th>arc end V</th><td>{fmt(f.rV)}</td><td>distance from O — equals rr</td></tr>
+              <tr>
+                <th>angular window</th>
+                <td>{fmt(f.lo)}° → {fmt(f.hi)}°</td>
+                <td>what the strips leave at this radius</td>
+              </tr>
               <tr className="rlab-row-key">
-                <th>apex drift</th><td>{fmt(f.drift)}</td>
-                <td>drawn apex vs one circle</td>
+                <th>window width</th>
+                <td>{fmt(f.span)}°</td>
+                <td>shrinks as the radius shrinks</td>
+              </tr>
+              <tr>
+                <th>cross corner</th>
+                <td>{fmt(f.corner)}</td>
+                <td>hypot(gv, gh) — a ring inside this vanishes</td>
+              </tr>
+              <tr className="rlab-row-key">
+                <th>outline deviation</th>
+                <td>0.00</td>
+                <td>one centre: every arc on one circle</td>
               </tr>
               <tr>
                 <th>ring edges</th>
@@ -382,6 +373,12 @@ export default function GeometryLab() {
                   {RINGS.map((k) => `${RING_LABEL[k]} ${(edges[k] * 100).toFixed(0)}%`).join(" · ")}
                 </td>
               </tr>
+              {f.swallowed && (
+                <tr>
+                  <th>swallowed</th>
+                  <td colSpan={2}>This ring lies entirely inside the cross the two strips form.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

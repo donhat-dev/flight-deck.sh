@@ -181,7 +181,8 @@ html, body, #root { height: auto; min-height: 100%; }
 
 /* ---- annotations -------------------------------------------------------- */
 
-/* The one-circle reference: what the eye expects the four quarters to add up to. */
+/* The one-circle reference: under the band-clip construction every drawn arc
+   lands on this circle by construction, so the overlay shows them coinciding. */
 .rlab-ghost {
   fill: none;
   stroke: var(--fdx-text-muted);
@@ -190,35 +191,19 @@ html, body, #root { height: auto; min-height: 100%; }
   opacity: 0.5;
 }
 
-/* The arc as it would be WITHOUT flattening — the difference is the fix. */
-.rlab-unflat {
-  fill: none;
-  stroke: var(--fdx-critical);
-  stroke-width: 1.5;
-  stroke-dasharray: 5 4;
-  opacity: 0.9;
-}
+/* The two strips are removed from the disc, so showing them means drawing what is
+   NOT there — hence a wash rather than a fill. */
+.rlab-strip { fill: var(--fdx-orange); opacity: 0.14; }
 
 .rlab-centre line { stroke: var(--fdx-text-muted); stroke-width: 1.2; }
 .rlab-centre[data-true="true"] line { stroke: var(--fdx-orange); stroke-width: 2; }
 
-.rlab-chord { stroke: var(--fdx-signal, var(--fdx-orange)); stroke-width: 1.4; }
-.rlab-radius { stroke: var(--fdx-text-muted); stroke-width: 1; stroke-dasharray: 4 4; }
-.rlab-bisector { stroke: var(--fdx-text-muted); stroke-width: 0.9; stroke-dasharray: 1 5; }
-.rlab-sagitta { stroke: var(--fdx-warning); stroke-width: 3; }
-
 .rlab-pt { fill: var(--fdx-orange); stroke: var(--fdx-surface); stroke-width: 1.5; }
-.rlab-pt-ghost { fill: none; stroke: var(--fdx-text); stroke-width: 1.6; }
 .rlab-pt-label {
   fill: var(--fdx-text);
   font-family: var(--fdx-font-mono);
   font-size: 13px;
   font-weight: 700;
-}
-.rlab-measure {
-  fill: var(--fdx-text-muted);
-  font-family: var(--fdx-font-mono);
-  font-size: 12px;
 }
 
 /* ---- facts -------------------------------------------------------------- */
@@ -232,7 +217,6 @@ html, body, #root { height: auto; min-height: 100%; }
   border: 1px solid var(--rdr-ring-edge);
   background: var(--rdr-ring-quiet);
 }
-.rlab-family { fill: none; stroke: var(--fdx-text-muted); stroke-width: 1; opacity: 0.35; }
 .rlab-arc-live { fill: none; stroke: var(--fdx-orange); stroke-width: 2.5; }
 
 .rlab-table {
@@ -266,3 +250,28 @@ html, body, #root { height: auto; min-height: 100%; }
 /* The two rows that answer the question the lab was built for. */
 .rlab-row-key th { color: var(--fdx-text); }
 .rlab-row-key td:first-of-type { color: var(--fdx-orange); }
+
+/* ---- rejected alternatives ------------------------------------------------ */
+
+/* The rejected constructions, three to a row, small on purpose: they are a decision
+   record, not something to read numbers off. */
+.rlab-alts { display: flex; gap: 0.6rem; }
+.rlab-alt { flex: 1; min-width: 0; }
+.rlab-alt figcaption {
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  line-height: 1.5;
+  color: var(--fdx-text-muted);
+  padding-top: 0.35rem;
+}
+.rlab-alt figcaption b { display: block; color: var(--fdx-text); font-size: 0.625rem; }
+.rlab-alt figcaption .dev { color: var(--fdx-orange); }
+.rlab-alts-head {
+  margin: 0 0 0.5rem;
+  font-family: var(--fdx-font-mono);
+  font-size: 0.5625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
