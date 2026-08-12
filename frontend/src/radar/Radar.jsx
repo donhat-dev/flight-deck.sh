@@ -15,19 +15,14 @@ import React from "react";
 
 import { BlipGlyph } from "./BlipGlyph.jsx";
 import {
-  QUADRANTS, RINGS, RING_LABEL, arcFacing, arcPath, isStale, placeBlips, polar,
-  quadrantOf, ringBand, sectorPath,
+  QUADRANTS, RINGS, RING_EDGE, RING_LABEL, arcFacing, arcPath, isStale, placeBlips,
+  polar, quadrantOf, ringBand, sectorPath, spreadMids,
 } from "./geometry.js";
 
-/** Width of the quadrant seam, in user units.
- *
- * A CONSTANT WIDTH, drawn as an overlay, rather than an angular gap cut out of each
- * sector. An angular gap is a wedge: 1.1 degrees is 17px of missing ring at the
- * outer radius and 6px at the inner one, so every quadrant loses a visible bite out
- * of its outer corner and the four corners never reach their axis. Overlaying a
- * line in the page colour cuts the same corridor at the same width everywhere and
- * leaves the corners square, which is what the reference radar shows. */
-const SEAM_W = 3;
+/** Minimum distance between adjacent ring-label anchors, in user units. Sized for
+ *  the widest word — CAUTION at the corridor's 14px bold mono with tracking — so
+ *  no pair of neighbours can touch whatever the occupancy sizing does to the bands. */
+const LABEL_GAP = 78;
 
 /** Blip diameter in user units. Still bigger than a dot on purpose — the blips are
  *  the content and the rings are only the frame — but no longer 30.
@@ -53,7 +48,7 @@ const NUM_RATIO = 0.44;
 function ringGeometry(mode, width, height) {
   if (mode === "full") {
     const s = Math.min(width, height);
-    return { cx: s / 2, cy: s / 2, r: s / 2 - 4, vb: `0 0 ${s} ${s}` };
+    return { cx: s / 2, cy: s / 2, r: (s - GAP) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
   }
   // Quadrant: origin bottom-left, with room under the axis for the ring labels.
   const pad = 20;
@@ -93,6 +88,29 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
   );
 }
 
+/** The corridor between the four quarter panels, in user units.
+
+    Wide on purpose: it is not a seam any more, it is the LABEL ROW. The full radar is
+    drawn Thoughtworks-style — four separate quarter discs pulled apart — because a
+    single disc leaves nowhere to put readable ring labels except on top of the
+    drawing. The horizontal corridor carries the ring names (both halves, mirrored,
+    exactly as the reference draws them); the corners carry the quadrant names at
+    display size. */
+const GAP = 72;
+
+/** Each quadrant's own centre: the inner corner of its panel. `deg` stays GLOBAL
+ *  (turn 1 still sweeps 90–180°), so pulling the panels apart is only a translation
+ *  of centres — none of the placement math changes. */
+function panelCenter(turn, s) {
+  const off = GAP / 2;
+  return {
+    0: { x: s / 2 + off, y: s / 2 - off },
+    1: { x: s / 2 - off, y: s / 2 - off },
+    2: { x: s / 2 - off, y: s / 2 + off },
+    3: { x: s / 2 + off, y: s / 2 + off },
+  }[turn];
+}
+
 export default function Radar({
   mode = "full",
   blips,
@@ -104,10 +122,14 @@ export default function Radar({
   // The board labels. Geometry (keys, turns) stays the module constant; only the words
   // a radar calls its quadrants come from outside, because they are per-radar prose.
   quadrants = QUADRANTS,
+  // Ring edges sized by the board's own occupancy (geometry.ringEdges). The fixed
+  // RING_EDGE default keeps standalone renders and old callers working.
+  edges = RING_EDGE,
 }) {
-  const { cx, cy, r, vb } = ringGeometry(mode, width, height);
+  const { cx, cy, r, vb, s } = ringGeometry(mode, width, height);
   const turns = mode === "full" ? QUADRANTS.map((q) => q.turn) : [0];
-  const placed = placeBlips(blips, { quadrant });
+  const placed = placeBlips(blips, { quadrant, edges });
+  const centerFor = (turn) => (mode === "full" ? panelCenter(turn, s) : { x: cx, y: cy });
 
   return (
     <svg className="rdr-canvas" viewBox={vb} role="img"
@@ -116,76 +138,93 @@ export default function Radar({
       {/* Rings outer-first so the inner ones paint on top of their neighbours'
           edges rather than under them. FILL only — the boundary is drawn below as
           an open arc, because stroking a closed sector also strokes its two radial
-          cuts, and those read as a chamfer at every quadrant seam. */}
+          cuts, and those read as a chamfer at every panel's square corner. */}
       {[...RINGS].reverse().map((ring) => {
-        const [lo, hi] = ringBand(ring);
-        return turns.map((turn) => (
-          <path
-            key={`${ring}-${turn}`}
-            className="rdr-ring"
-            data-ring={ring}
-            d={sectorPath(cx, cy, lo * r, hi * r, turn * 90, turn * 90 + 90)}
-          />
-        ));
+        const [lo, hi] = ringBand(ring, edges);
+        return turns.map((turn) => {
+          const c = centerFor(turn);
+          return (
+            <path
+              key={`${ring}-${turn}`}
+              className="rdr-ring"
+              data-ring={ring}
+              d={sectorPath(c.x, c.y, lo * r, hi * r, turn * 90, turn * 90 + 90)}
+            />
+          );
+        });
       })}
 
       {/* Ring boundaries: one open arc per ring per quadrant, concentric only. */}
       {RINGS.map((ring) => {
-        const [, hi] = ringBand(ring);
-        return turns.map((turn) => (
-          <path
-            key={`edge-${ring}-${turn}`}
-            className="rdr-ring-arc"
-            data-ring={ring}
-            d={arcPath(cx, cy, hi * r, turn * 90, turn * 90 + 90)}
-          />
-        ));
+        const [, hi] = ringBand(ring, edges);
+        return turns.map((turn) => {
+          const c = centerFor(turn);
+          return (
+            <path
+              key={`edge-${ring}-${turn}`}
+              className="rdr-ring-arc"
+              data-ring={ring}
+              d={arcPath(c.x, c.y, hi * r, turn * 90, turn * 90 + 90)}
+            />
+          );
+        });
       })}
 
-      {/* The seams, drawn OVER the rings in the page colour so the corridor is the
-          same width at every radius. Below the blips: a blip is never placed on a
-          seam, so nothing it could hide is ever there. */}
-      {mode === "full" && (
-        <g className="rdr-seams">
-          <rect x={cx - SEAM_W / 2} y={cy - r} width={SEAM_W} height={r * 2} />
-          <rect x={cx - r} y={cy - SEAM_W / 2} width={r * 2} height={SEAM_W} />
-        </g>
-      )}
-
-      {/* Ring labels ride the seam in the full view and the axis in the quadrant
-          view — both are places no blip is allowed to sit, so a label can never
-          land on top of one. */}
-      {RINGS.map((ring) => {
-        const [lo, hi] = ringBand(ring);
-        const mid = ((lo + hi) / 2) * r;
-        const at = mode === "full"
-          ? { x: cx, y: cy - mid, anchor: "middle" }
-          : { x: cx + mid, y: cy + 20, anchor: "middle" };
-        return (
+      {/* Ring labels. Full view: in the horizontal corridor, both halves, mirrored —
+          the reference layout, and the reason the corridor exists. Quadrant view: under
+          the axis, as before. Band midpoints move with the occupancy-sized edges, so a
+          busy ring's label rides its wider band automatically. */}
+      {(() => {
+        const mids = spreadMids(
+          RINGS.map((ring) => {
+            const [lo, hi] = ringBand(ring, edges);
+            return ((lo + hi) / 2) * r;
+          }),
+          // The anchor is textAnchor="middle" and sits GAP/2+mid (full) or cx+mid
+          // (quadrant) from the viewBox edge, so the bound must leave half of the
+          // widest word (CAUTION, ~80 units) inside the drawing, or that half gets
+          // clipped by the SVG edge — r-44 keeps the whole word on canvas in both modes.
+          { gap: LABEL_GAP, max: r - 44 },
+        );
+        if (mode === "full") {
+          return RINGS.map((ring, i) => [-1, 1].map((side) => (
+            <text key={`${ring}-${side}`} className="rdr-ring-label" data-ring={ring}
+                  x={s / 2 + side * (GAP / 2 + mids[i])} y={s / 2} textAnchor="middle"
+                  dominantBaseline="central">
+              {RING_LABEL[ring].toUpperCase()}
+            </text>
+          )));
+        }
+        return RINGS.map((ring, i) => (
           <text key={ring} className="rdr-ring-label" data-ring={ring}
-                x={at.x} y={at.y} textAnchor={at.anchor}>
+                x={cx + mids[i]} y={cy + 20} textAnchor="middle">
             {RING_LABEL[ring].toUpperCase()}
           </text>
-        );
-      })}
+        ));
+      })()}
 
+      {/* Quadrant names at display size, in each panel's OUTER corner — the empty
+          space the quarter-disc geometry leaves there is exactly label-sized. */}
       {mode === "full" && quadrants.map((q) => {
         const right = q.turn === 0 || q.turn === 3;
         const bottom = q.turn === 2 || q.turn === 3;
         return (
           <text key={q.k} className="rdr-quadrant-label" data-quadrant={q.k}
-                x={right ? cx * 2 - 8 : 8}
-                y={bottom ? cy * 2 - 8 : 18}
+                x={right ? s - 4 : 4}
+                y={bottom ? s - 12 : 34}
                 textAnchor={right ? "end" : "start"}>
-            {q.label.toUpperCase()}
+            {q.label}
           </text>
         );
       })}
 
-      {placed.map((b) => (
-        <Blip key={b.num} b={b} cx={cx} cy={cy} r={r}
-              selected={b.num === selectedNum} onSelect={onSelect} />
-      ))}
+      {placed.map((b) => {
+        const c = centerFor(quadrantOf(b.quadrant).turn);
+        return (
+          <Blip key={b.num} b={b} cx={c.x} cy={c.y} r={r}
+                selected={b.num === selectedNum} onSelect={onSelect} />
+        );
+      })}
     </svg>
   );
 }

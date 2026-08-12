@@ -28,7 +28,7 @@ import Radar from "./Radar.jsx";
 import RadarList from "./RadarList.jsx";
 import SummaryPanel from "./SummaryPanel.jsx";
 import { useBlip, useRadars } from "./data.js";
-import { QUADRANTS, boardQuadrants } from "./geometry.js";
+import { QUADRANTS, boardQuadrants, ringEdges } from "./geometry.js";
 
 const NAV = [
   { k: "radar", label: "Radar", hash: "#/" },
@@ -135,6 +135,7 @@ function Chrome({ active, board }) {
 
 function FullView({ board, granularity, onGranularity }) {
   const quads = boardQuadrants(board);
+  const edges = ringEdges(board.rings);
   // Selection is component state, not a route. Clicking a blip does not navigate at
   // all now, so there is nothing for the URL to preserve and nothing for the back
   // button to walk — a hash per click would put twenty entries in the history for one
@@ -163,6 +164,7 @@ function FullView({ board, granularity, onGranularity }) {
       <div className="rdr-full-row">
         <div className="rdr-full-stage">
           <Radar mode="full" blips={board.blips} selectedNum={picked} quadrants={quads}
+                 edges={edges}
                  onSelect={(num) => setPicked((cur) => (cur === num ? null : num))} />
         </div>
         {blip && (
@@ -179,6 +181,7 @@ function FullView({ board, granularity, onGranularity }) {
 
 function BlipView({ board, num, reloadBoard }) {
   const quads = boardQuadrants(board);
+  const edges = ringEdges(board.rings);
   // The detail is a SECOND request. The board already carries every blip's position,
   // which is all the drawing needs; one blip's whole move history is only wanted when
   // a reader opens it, and fetching 34 histories to draw one circle would pull most of
@@ -259,6 +262,7 @@ function BlipView({ board, num, reloadBoard }) {
           <div className="rdr-quadrant-stage">
             <Radar mode="quadrant" blips={siblings} quadrant={onBoard.quadrant}
                    selectedNum={num} width={530} height={640} quadrants={quads}
+                   edges={edges}
                    onSelect={(n) => go(`#/blip/${n}`)} />
           </div>
         </section>

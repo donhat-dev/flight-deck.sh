@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
 import { BLIPS } from "./fixtures.js";
 import {
   QUADRANTS, RINGS, RING_EDGE, arcFacing, directionTo, isStale, placeBlips, polar,
-  quadrantOf, ringBand, sectorPath,
+  quadrantOf, ringBand, ringEdges, sectorPath, spreadMids,
 } from "./geometry.js";
 
 describe("polar is measured the way a reader reads it", () => {
@@ -56,6 +56,71 @@ describe("ring bands tile the radius without gaps or overlap", () => {
 
   it("keeps the outermost edge at exactly the radar radius", () => {
     expect(RING_EDGE[RINGS[RINGS.length - 1]]).toBe(1);
+  });
+});
+
+describe("occupancy-sized edges keep density even without erasing a ring", () => {
+  it("still tiles 0 → 1 with each band beginning where the last ended", () => {
+    const edges = ringEdges({ adopt: 7, trial: 2, assess: 1, caution: 0 });
+    let prev = 0;
+    for (const ring of RINGS) {
+      const [lo, hi] = ringBand(ring, edges);
+      expect(lo).toBeCloseTo(prev, 6);
+      expect(hi).toBeGreaterThan(lo);
+      prev = hi;
+    }
+    expect(prev).toBe(1);
+  });
+
+  it("gives a busier ring more AREA, not just more width", () => {
+    // Area of a band is π(hi² − lo²); the r² terms are what the sqrt in ringEdges
+    // exists to serve, so the assertion has to be quadratic too.
+    const edges = ringEdges({ adopt: 8, trial: 1, assess: 1, caution: 1 });
+    const area = (ring) => {
+      const [lo, hi] = ringBand(ring, edges);
+      return hi * hi - lo * lo;
+    };
+    expect(area("adopt")).toBeGreaterThan(area("trial") * 2);
+  });
+
+  it("keeps an empty ring visible instead of collapsing it to a hairline", () => {
+    const edges = ringEdges({ adopt: 20, trial: 0, assess: 0, caution: 0 });
+    for (const ring of RINGS) {
+      const [lo, hi] = ringBand(ring, edges);
+      // The floor guarantees each band at least ~2% of the area, which at these
+      // radii is well over a hairline. The exact number is the floor's business;
+      // "visibly a band" is the contract.
+      expect(hi - lo).toBeGreaterThan(0.01);
+    }
+  });
+
+  it("falls back to the fixed edges when the board is empty", () => {
+    expect(ringEdges({})).toEqual(RING_EDGE);
+    expect(ringEdges()).toEqual(RING_EDGE);
+  });
+
+  it("is deterministic: same counts, same edges", () => {
+    const counts = { adopt: 3, trial: 4, assess: 2, caution: 1 };
+    expect(ringEdges(counts)).toEqual(ringEdges(counts));
+  });
+});
+
+describe("ring labels never smear into one word", () => {
+  it("leaves already-spaced anchors alone", () => {
+    expect(spreadMids([100, 250, 400], { gap: 78 })).toEqual([100, 250, 400]);
+  });
+
+  it("pushes crowded anchors apart to at least the gap", () => {
+    // The real failure this guards: occupancy sizing squeezed Trial/Assess/Caution
+    // into a 60-unit stretch and the corridor printed TRIALASSESSCAUTION.
+    const out = spreadMids([150, 300, 320, 335], { gap: 78 });
+    for (let i = 1; i < out.length; i++) expect(out[i] - out[i - 1]).toBeGreaterThanOrEqual(78);
+  });
+
+  it("respects the outer bound by pulling the tail back in", () => {
+    const out = spreadMids([300, 320, 335, 350], { gap: 78, max: 430 });
+    expect(out[out.length - 1]).toBeLessThanOrEqual(430);
+    for (let i = 1; i < out.length; i++) expect(out[i] - out[i - 1]).toBeGreaterThanOrEqual(78);
   });
 });
 

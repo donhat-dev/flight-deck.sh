@@ -82,11 +82,64 @@ export function directionTo(from, to) {
   return a < b ? "in" : "out";
 }
 
-/** [inner, outer] edge fractions of one ring. */
-export function ringBand(ring) {
+/** [inner, outer] edge fractions of one ring, under the given edge set. */
+export function ringBand(ring, edges = RING_EDGE) {
   const i = RINGS.indexOf(ring);
-  if (i < 0) return [0, RING_EDGE.adopt];
-  return [i === 0 ? 0 : RING_EDGE[RINGS[i - 1]], RING_EDGE[ring]];
+  if (i < 0) return [0, edges.adopt];
+  return [i === 0 ? 0 : edges[RINGS[i - 1]], edges[ring]];
+}
+
+/**
+ * Ring edges sized by OCCUPANCY: each band's AREA is proportional to how many blips
+ * it holds, so density is even across rings instead of even width crowding the busy
+ * one. This replaced the fixed RING_EDGE on live boards after five Adopt blips landed
+ * in the innermost — and therefore smallest — band and started overlapping while the
+ * outer rings sat near-empty.
+ *
+ * Area, not radial width: crowding is blips per unit of drawn space, and the space of
+ * an annulus grows with the SQUARE of radius. Hence the sqrt on the cumulative share.
+ *
+ * The floor keeps an empty ring visible. A zero-count band with no floor collapses to
+ * a hairline, and a hairline labelled "Caution" reads as a rendering bug rather than
+ * as an empty ring — the drawing must keep saying the ring exists.
+ */
+export function ringEdges(counts = {}, { floor = 0.1 } = {}) {
+  const total = RINGS.reduce((sum, r) => sum + (counts[r] || 0), 0);
+  if (total === 0) return { ...RING_EDGE };
+  const pad = Math.max(1, total * floor);
+  const weights = RINGS.map((r) => (counts[r] || 0) + pad);
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const edges = {};
+  let acc = 0;
+  RINGS.forEach((r, i) => {
+    acc += weights[i];
+    edges[r] = Math.sqrt(acc / sum);
+  });
+  edges[RINGS[RINGS.length - 1]] = 1;   // exact, not 0.9999…
+  return edges;
+}
+
+/**
+ * Push overlapping label anchors apart along one axis.
+ *
+ * Needed because occupancy-sized edges can make the outer rings THIN: on a board
+ * whose blips sit mostly in Adopt, Trial/Assess/Caution midpoints land within a
+ * label-width of each other and the corridor prints "TRIALASSESSCAUTION" as one
+ * smear. Bands may be as narrow as the floor allows; labels may not.
+ *
+ * Two passes. Forward enforces the gap walking outward; if that pushes the last
+ * label past `max`, the backward pass pulls the tail in while keeping the gap. The
+ * result stays as close to the true midpoints as the constraints allow, so a label
+ * still reads as belonging to its band.
+ */
+export function spreadMids(mids, { gap, max = Infinity } = {}) {
+  const out = [...mids];
+  for (let i = 1; i < out.length; i++) out[i] = Math.max(out[i], out[i - 1] + gap);
+  if (out.length && out[out.length - 1] > max) {
+    out[out.length - 1] = max;
+    for (let i = out.length - 2; i >= 0; i--) out[i] = Math.min(out[i], out[i + 1] - gap);
+  }
+  return out;
 }
 
 /**
@@ -157,7 +210,8 @@ export function arcPath(cx, cy, r, deg0, deg1) {
  * single-quadrant view draws only that sector, so its local frame always starts
  * at zero regardless of which quadrant is on screen.
  */
-export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread = 0.19 } = {}) {
+export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread = 0.19,
+                                     edges = RING_EDGE } = {}) {
   const groups = new Map();
   for (const b of blips) {
     const key = `${b.quadrant}|${b.ring}`;
@@ -166,7 +220,7 @@ export function placeBlips(blips, { quadrant = null, spanDeg = 74, radialSpread 
   }
   const out = [];
   for (const [, list] of groups) {
-    const [rIn, rOut] = ringBand(list[0].ring);
+    const [rIn, rOut] = ringBand(list[0].ring, edges);
     const mid = (rIn + rOut) / 2;
     const band = rOut - rIn;
     // The innermost ring reaches r=0, where there is no room for a circle. Push

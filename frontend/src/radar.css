@@ -293,21 +293,26 @@ html, body, #root { height: 100%; }
 .rdr-seams rect { fill: var(--fdx-surface); }
 .rdr-ring-arc[data-ring="adopt"] { stroke: color-mix(in srgb, var(--fdx-surface) 55%, var(--fdx-orange)); }
 
+/* Sized for the corridor between the quarter panels — the split layout exists to give
+   these room, so they no longer whisper. */
 .rdr-ring-label {
   font-family: var(--fdx-font-mono);
-  font-size: 0.5625rem;
-  letter-spacing: 0.16em;
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
   fill: var(--fdx-text-muted);
-  opacity: 0.55;
+  opacity: 0.9;
 }
 .rdr-ring-label[data-ring="adopt"] { fill: var(--fdx-orange); opacity: 1; }
 
+/* Display size, in the panel corner the quarter-disc geometry leaves empty. The
+   primary face, not the mono: this is a heading now, not an annotation. */
 .rdr-quadrant-label {
-  font-family: var(--fdx-font-mono);
-  font-size: 0.6875rem;
+  font-family: var(--fdx-font-primary, inherit);
+  font-size: 1.75rem;
   font-weight: 700;
-  letter-spacing: 0.1em;
-  fill: var(--fdx-text-muted);
+  letter-spacing: -0.01em;
+  fill: var(--fdx-text);
 }
 
 /* A blip is the content. Everything above is the frame that gives it a position,
