@@ -90,14 +90,19 @@ export function ringBand(ring, edges = RING_EDGE) {
 }
 
 /**
- * Ring edges sized by OCCUPANCY: each band's AREA is proportional to how many blips
- * it holds, so density is even across rings instead of even width crowding the busy
- * one. This replaced the fixed RING_EDGE on live boards after five Adopt blips landed
- * in the innermost — and therefore smallest — band and started overlapping while the
+ * Ring edges sized by OCCUPANCY: a busier ring gets more of the radius, so density
+ * stays even across rings instead of even width crowding the one everyone lands in.
+ * This replaced the fixed RING_EDGE on live boards after five Adopt blips landed in
+ * the innermost — and therefore smallest — band and started overlapping while the
  * outer rings sat near-empty.
  *
- * Area, not radial width: crowding is blips per unit of drawn space, and the space of
- * an annulus grows with the SQUARE of radius. Hence the sqrt on the cumulative share.
+ * The first version made band AREA strictly proportional to count. A real board
+ * proved that too strong: once a majority of blips sat in Adopt, that one ring
+ * swallowed roughly two thirds of the radius and the other three collapsed into
+ * slivers whose labels needed `spreadMids` just to stop overlapping. Band WIDTH
+ * proportional to the square root of the count is the damping that keeps this —
+ * a ring's size still tracks its load, but no single ring can consume the disc, so
+ * every ring stays a readable band.
  *
  * The floor keeps an empty ring visible. A zero-count band with no floor collapses to
  * a hairline, and a hairline labelled "Caution" reads as a rendering bug rather than
@@ -107,13 +112,13 @@ export function ringEdges(counts = {}, { floor = 0.1 } = {}) {
   const total = RINGS.reduce((sum, r) => sum + (counts[r] || 0), 0);
   if (total === 0) return { ...RING_EDGE };
   const pad = Math.max(1, total * floor);
-  const weights = RINGS.map((r) => (counts[r] || 0) + pad);
+  const weights = RINGS.map((r) => Math.sqrt((counts[r] || 0) + pad));
   const sum = weights.reduce((a, b) => a + b, 0);
   const edges = {};
   let acc = 0;
   RINGS.forEach((r, i) => {
     acc += weights[i];
-    edges[r] = Math.sqrt(acc / sum);
+    edges[r] = acc / sum;
   });
   edges[RINGS[RINGS.length - 1]] = 1;   // exact, not 0.9999…
   return edges;

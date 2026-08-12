@@ -72,15 +72,15 @@ describe("occupancy-sized edges keep density even without erasing a ring", () =>
     expect(prev).toBe(1);
   });
 
-  it("gives a busier ring more AREA, not just more width", () => {
-    // Area of a band is π(hi² − lo²); the r² terms are what the sqrt in ringEdges
-    // exists to serve, so the assertion has to be quadratic too.
+  it("gives a busier ring a wider band, but damped so no ring swallows the disc", () => {
     const edges = ringEdges({ adopt: 8, trial: 1, assess: 1, caution: 1 });
-    const area = (ring) => {
+    const width = (ring) => {
       const [lo, hi] = ringBand(ring, edges);
-      return hi * hi - lo * lo;
+      return hi - lo;
     };
-    expect(area("adopt")).toBeGreaterThan(area("trial") * 2);
+    expect(width("adopt")).toBeGreaterThan(width("trial"));
+    // The damping is the point: 8-of-11 blips must NOT buy 8/11 of the radius.
+    expect(width("adopt")).toBeLessThan(0.55);
   });
 
   it("keeps an empty ring visible instead of collapsing it to a hairline", () => {
