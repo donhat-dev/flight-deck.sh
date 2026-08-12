@@ -48,7 +48,7 @@ const NUM_RATIO = 0.44;
 function ringGeometry(mode, width, height) {
   if (mode === "full") {
     const s = Math.min(width, height);
-    return { cx: s / 2, cy: s / 2, r: (s - GAP) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
+    return { cx: s / 2, cy: s / 2, r: (s - GAP_H) / 2 - 6, vb: `0 0 ${s} ${s}`, s };
   }
   // Quadrant: origin bottom-left, with room under the axis for the ring labels.
   const pad = 20;
@@ -88,28 +88,35 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
   );
 }
 
-/** The corridor between the top and bottom halves, in user units.
-
-    Wide on purpose: it is not a seam any more, it is the LABEL ROW. The full radar is
-    drawn as two half discs, split only along the HORIZONTAL axis, because a single
-    disc leaves nowhere to put readable ring labels except on top of the drawing. A
-    vertical gap would buy no label room — the ring names read left-to-right, so they
-    only ever need a horizontal row — and would just break the disc apart a second
-    time for nothing. So the left and right quadrants of each half stay joined at the
-    vertical axis; only the horizontal corridor carries the ring names (both halves,
-    mirrored, exactly as the reference draws them), and the corners carry the quadrant
-    names at display size. */
-const GAP = 72;
+/** The two gaps between quadrants, in user units — kept as separate constants
+ *  because they answer different questions.
+ *
+ *  GAP_H is the horizontal corridor: the LABEL ROW. The full radar is drawn as
+ *  two half discs, split along the HORIZONTAL axis, because a single disc leaves
+ *  nowhere to put readable ring labels except on top of the drawing. It is sized
+ *  to the ring-label line with a little air, nothing more — the ring names read
+ *  left-to-right, so they only ever need a horizontal row that fits them.
+ *
+ *  GAP_V is the vertical gap between the left and right quadrants. It carries no
+ *  text — the ring names never run top-to-bottom — so it is only a SEAM: wide
+ *  enough to mark where one quadrant ends and the next begins, far too narrow
+ *  for a label. That is why it is a second, much smaller constant rather than
+ *  the same GAP reused on both axes. */
+const GAP_H = 36;
+const GAP_V = 10;
 
 /** Each quadrant's own centre: the inner corner of its half. `deg` stays GLOBAL
  *  (turn 1 still sweeps 90–180°), so this is still only a translation of centres —
- *  none of the placement math changes. x never moves: turns 0/3 (right) and turns
- *  1/2 (left) share the same vertical axis, so their quadrants meet seamlessly.
- *  Only y offsets, to open the horizontal corridor: turns 0/1 are the top half,
- *  turns 2/3 the bottom half. */
+ *  none of the placement math changes. Both offsets apply now: y opens the
+ *  horizontal corridor (turns 0/1 are the top half, turns 2/3 the bottom half),
+ *  and x opens the vertical seam (turns 0/3 are the right panels, turns 1/2 the
+ *  left). */
 function panelCenter(turn, s) {
-  const off = GAP / 2;
-  return { x: s / 2, y: turn <= 1 ? s / 2 - off : s / 2 + off };
+  const offH = GAP_H / 2;
+  const offV = GAP_V / 2;
+  const x = turn === 0 || turn === 3 ? s / 2 + offV : s / 2 - offV;
+  const y = turn <= 1 ? s / 2 - offH : s / 2 + offH;
+  return { x, y };
 }
 
 export default function Radar({
@@ -181,7 +188,7 @@ export default function Radar({
             const [lo, hi] = ringBand(ring, edges);
             return ((lo + hi) / 2) * r;
           }),
-          // The anchor is textAnchor="middle" and sits GAP/2+mid (full) or cx+mid
+          // The anchor is textAnchor="middle" and sits GAP_V/2+mid (full) or cx+mid
           // (quadrant) from the viewBox edge, so the bound must leave half of the
           // widest word (CAUTION, ~80 units) inside the drawing, or that half gets
           // clipped by the SVG edge — r-44 keeps the whole word on canvas in both modes.
@@ -190,7 +197,7 @@ export default function Radar({
         if (mode === "full") {
           return RINGS.map((ring, i) => [-1, 1].map((side) => (
             <text key={`${ring}-${side}`} className="rdr-ring-label" data-ring={ring}
-                  x={s / 2 + side * mids[i]} y={s / 2} textAnchor="middle"
+                  x={s / 2 + side * (GAP_V / 2 + mids[i])} y={s / 2} textAnchor="middle"
                   dominantBaseline="central">
               {RING_LABEL[ring].toUpperCase()}
             </text>
