@@ -190,3 +190,15 @@ def test_validate_pool_loads_only_the_requested_manifest(tmp_path):
     assert result.returncode == 0
     assert payload["errors"] == []
     assert set(payload["checksums"]) == {"canvas_ui"}
+
+
+def test_validate_pool_accepts_exact_manifest_path_interface(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    manifest = candidate_dir / ROLE_FILES["canvas_ui"]
+
+    result = run_cli("validate-pool", "--path", str(manifest), "--role", "canvas_ui")
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["errors"] == []
+    assert set(payload["checksums"]) == {"canvas_ui"}

@@ -57,14 +57,14 @@ def error(code: str, message: str, **details: object) -> dict[str, object]:
 
 
 def load_pools(
-    candidate_dir: Path, roles: set[str]
+    candidate_dir: Path, roles: set[str], manifest_paths: dict[str, Path] | None = None
 ) -> tuple[dict[str, list[dict[str, Any]]], list[dict[str, object]]]:
     pools: dict[str, list[dict[str, Any]]] = {}
     errors: list[dict[str, object]] = []
     for role, filename in ROLES.items():
         if role not in roles:
             continue
-        path = candidate_dir / filename
+        path = manifest_paths[role] if manifest_paths and role in manifest_paths else candidate_dir / filename
         try:
             value = json.loads(path.read_text(encoding="utf-8"))
         except FileNotFoundError:
@@ -147,9 +147,13 @@ def validate_pool(role: str, records: list[dict[str, Any]]) -> list[dict[str, ob
     return errors
 
 
-def validate(candidate_dir: Path, roles: set[str] | None = None) -> tuple[dict[str, list[dict[str, Any]]], dict[str, object]]:
+def validate(
+    candidate_dir: Path,
+    roles: set[str] | None = None,
+    manifest_paths: dict[str, Path] | None = None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, object]]:
     active_roles = set(ROLES) if roles is None else roles
-    pools, errors = load_pools(candidate_dir, active_roles)
+    pools, errors = load_pools(candidate_dir, active_roles, manifest_paths)
     for role in ROLES:
         if role in active_roles:
             errors.extend(validate_pool(role, pools[role]))
@@ -251,10 +255,14 @@ def main(argv: list[str] | None = None) -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in ("validate-pool", "validate", "draw"):
         command = subparsers.add_parser(name)
-        command.add_argument("--candidate-dir", required=True, type=Path)
         command.add_argument("--output", type=Path)
         if name == "validate-pool":
+            source = command.add_mutually_exclusive_group(required=True)
+            source.add_argument("--candidate-dir", type=Path)
+            source.add_argument("--path", type=Path)
             command.add_argument("--role", required=True, choices=sorted(ROLES))
+        else:
+            command.add_argument("--candidate-dir", required=True, type=Path)
         if name == "draw":
             command.add_argument("--seed")
             command.add_argument("--skip-file", type=Path)
@@ -264,7 +272,9 @@ def main(argv: list[str] | None = None) -> int:
         payload = draw(args.candidate_dir, args.seed, args.skip_file)
     else:
         roles = {args.role} if args.command == "validate-pool" else None
-        _, payload = validate(args.candidate_dir, roles)
+        manifest_paths = {args.role: args.path} if args.command == "validate-pool" and args.path else None
+        candidate_dir = args.path.parent if manifest_paths else args.candidate_dir
+        _, payload = validate(candidate_dir, roles, manifest_paths)
     emit(payload, args.output)
     return 0 if payload["valid"] else 2
 
