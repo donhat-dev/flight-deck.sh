@@ -88,27 +88,28 @@ function Blip({ b, cx, cy, r, selected, onSelect }) {
   );
 }
 
-/** The corridor between the four quarter panels, in user units.
+/** The corridor between the top and bottom halves, in user units.
 
     Wide on purpose: it is not a seam any more, it is the LABEL ROW. The full radar is
-    drawn Thoughtworks-style — four separate quarter discs pulled apart — because a
-    single disc leaves nowhere to put readable ring labels except on top of the
-    drawing. The horizontal corridor carries the ring names (both halves, mirrored,
-    exactly as the reference draws them); the corners carry the quadrant names at
-    display size. */
+    drawn as two half discs, split only along the HORIZONTAL axis, because a single
+    disc leaves nowhere to put readable ring labels except on top of the drawing. A
+    vertical gap would buy no label room — the ring names read left-to-right, so they
+    only ever need a horizontal row — and would just break the disc apart a second
+    time for nothing. So the left and right quadrants of each half stay joined at the
+    vertical axis; only the horizontal corridor carries the ring names (both halves,
+    mirrored, exactly as the reference draws them), and the corners carry the quadrant
+    names at display size. */
 const GAP = 72;
 
-/** Each quadrant's own centre: the inner corner of its panel. `deg` stays GLOBAL
- *  (turn 1 still sweeps 90–180°), so pulling the panels apart is only a translation
- *  of centres — none of the placement math changes. */
+/** Each quadrant's own centre: the inner corner of its half. `deg` stays GLOBAL
+ *  (turn 1 still sweeps 90–180°), so this is still only a translation of centres —
+ *  none of the placement math changes. x never moves: turns 0/3 (right) and turns
+ *  1/2 (left) share the same vertical axis, so their quadrants meet seamlessly.
+ *  Only y offsets, to open the horizontal corridor: turns 0/1 are the top half,
+ *  turns 2/3 the bottom half. */
 function panelCenter(turn, s) {
   const off = GAP / 2;
-  return {
-    0: { x: s / 2 + off, y: s / 2 - off },
-    1: { x: s / 2 - off, y: s / 2 - off },
-    2: { x: s / 2 - off, y: s / 2 + off },
-    3: { x: s / 2 + off, y: s / 2 + off },
-  }[turn];
+  return { x: s / 2, y: turn <= 1 ? s / 2 - off : s / 2 + off };
 }
 
 export default function Radar({
@@ -189,7 +190,7 @@ export default function Radar({
         if (mode === "full") {
           return RINGS.map((ring, i) => [-1, 1].map((side) => (
             <text key={`${ring}-${side}`} className="rdr-ring-label" data-ring={ring}
-                  x={s / 2 + side * (GAP / 2 + mids[i])} y={s / 2} textAnchor="middle"
+                  x={s / 2 + side * mids[i]} y={s / 2} textAnchor="middle"
                   dominantBaseline="central">
               {RING_LABEL[ring].toUpperCase()}
             </text>
