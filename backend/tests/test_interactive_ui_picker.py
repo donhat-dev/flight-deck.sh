@@ -202,3 +202,82 @@ def test_validate_pool_accepts_exact_manifest_path_interface(tmp_path):
     assert result.returncode == 0
     assert payload["errors"] == []
     assert set(payload["checksums"]) == {"canvas_ui"}
+
+
+def test_validate_reports_deterministic_pool_metadata_from_valid_strings(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    canvas = load_records(candidate_dir, "canvas_ui")
+    canvas[0]["platform"] = ["not", "a", "string"]
+    canvas[0]["creator"] = {"not": "a string"}
+    canvas[0]["category"] = None
+    canvas[0]["availability"] = {"not": "a string"}
+    save_records(candidate_dir, "canvas_ui", canvas)
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert payload["pools"] == {
+        "canvas_ui": {
+            "count": 24,
+            "available_count": 23,
+            "platform_counts": {
+                "platform-0": 5,
+                "platform-1": 6,
+                "platform-2": 6,
+                "platform-3": 6,
+            },
+            "creator_max": 1,
+            "category_count": 4,
+        },
+        "motion_3d": {
+            "count": 24,
+            "available_count": 24,
+            "platform_counts": {
+                "platform-0": 6,
+                "platform-1": 6,
+                "platform-2": 6,
+                "platform-3": 6,
+            },
+            "creator_max": 1,
+            "category_count": 4,
+        },
+        "color_art": {
+            "count": 24,
+            "available_count": 24,
+            "platform_counts": {
+                "platform-0": 6,
+                "platform-1": 6,
+                "platform-2": 6,
+                "platform-3": 6,
+            },
+            "creator_max": 1,
+            "category_count": 4,
+        },
+    }
+    assert payload["cross_pool_url_unique"] is True
+
+
+def test_validate_reports_cross_pool_url_reuse(tmp_path):
+    candidate_dir = write_mutated_manifests(tmp_path, "cross_pool_duplicate")
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert payload["cross_pool_url_unique"] is False
+
+
+def test_committed_manifests_pass_contract():
+    result = run_cli(
+        "validate",
+        "--candidate-dir", str(ROOT / "research" / "interactive-ui" / "candidates"),
+    )
+    assert result.returncode == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert {role: item["count"] for role, item in payload["pools"].items()} == {
+        "canvas_ui": 30,
+        "motion_3d": 30,
+        "color_art": 30,
+    }
+    assert payload["errors"] == []

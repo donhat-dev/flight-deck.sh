@@ -147,6 +147,30 @@ def validate_pool(role: str, records: list[dict[str, Any]]) -> list[dict[str, ob
     return errors
 
 
+def pool_metadata(records: list[dict[str, Any]]) -> dict[str, object]:
+    platforms = Counter(
+        item["platform"] for item in records if isinstance(item.get("platform"), str)
+    )
+    creators = Counter(
+        item["creator"] for item in records if isinstance(item.get("creator"), str)
+    )
+    categories = {
+        item["category"] for item in records if isinstance(item.get("category"), str)
+    }
+    return {
+        "count": len(records),
+        "available_count": sum(
+            1
+            for item in records
+            if isinstance(item.get("availability"), str)
+            and item["availability"] == "ok"
+        ),
+        "platform_counts": dict(sorted(platforms.items())),
+        "creator_max": max(creators.values(), default=0),
+        "category_count": len(categories),
+    }
+
+
 def validate(
     candidate_dir: Path,
     roles: set[str] | None = None,
@@ -177,6 +201,14 @@ def validate(
         "valid": not errors,
         "errors": errors,
         "checksums": checksums,
+        "pools": {
+            role: pool_metadata(pools[role])
+            for role in ROLES
+            if role in active_roles
+        },
+        "cross_pool_url_unique": not any(
+            item["code"] == "canonical_url_reused" for item in errors
+        ),
     }
     return pools, report
 
