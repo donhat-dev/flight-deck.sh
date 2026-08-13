@@ -20,8 +20,20 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def config_get(conn) -> dict:
+    """Thin pass-through to the store — routers and the MCP server call this,
+    never store.config_get directly, same as every other service function."""
+    return store.config_get(conn)
+
+
+def config_set(conn, values: dict) -> dict:
+    return store.config_set(conn, values)
+
+
 def _render_checked(content, *, source_format, title, language, kind, status,
-                    font, custom_head, workdir) -> tuple[str, dict]:
+                    font, custom_head, workdir,
+                    default_header_html=None, default_footer_html=None,
+                    agent_notes=None) -> tuple[str, dict]:
     """Lint -> render -> validate, with the plain-markdown fallback.
 
     Returns `(content_to_store, rendered)`.
@@ -52,6 +64,9 @@ def _render_checked(content, *, source_format, title, language, kind, status,
         return render.render(text, source_format=source_format, title=title,
                              language=language, kind=kind, status=status,
                              font=font, custom_head=custom_head,
+                             default_header_html=default_header_html,
+                             default_footer_html=default_footer_html,
+                             agent_notes=agent_notes,
                              workdir=workdir)
 
     rendered = _render(content)
@@ -139,6 +154,7 @@ def wrap(conn, *, title=None, content=None, source_path=None,
     font = font or (existing or {}).get("font") or "space-grotesk"
     custom_head = (custom_head if custom_head is not None
                    else (existing or {}).get("custom_head"))
+    cfg = store.config_get(conn)
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
         # Lint may rewrite the content (blank-line fixes) or the validator may
         # strip components; `content` is rebound so the source written to disk
@@ -146,7 +162,10 @@ def wrap(conn, *, title=None, content=None, source_path=None,
         content, rendered = _render_checked(
             content, source_format=source_format, title=title,
             language=language, kind=kind, status=status, font=font,
-            custom_head=custom_head, workdir=workdir)
+            custom_head=custom_head, workdir=workdir,
+            default_header_html=cfg["default_header_html"] or None,
+            default_footer_html=cfg["default_footer_html"] or None,
+            agent_notes=cfg["default_agent_notes"] or None)
     # Render succeeded — now the artifact dir is worth creating.
     art_dir = filestore.artifact_dir(slug, art_id)
     paths = filestore.write_version(art_dir, version, content, ext,
@@ -509,11 +528,15 @@ def export_fragment(conn, ident) -> dict:
         raise LookupError(f"source file missing for {row['id']} v{row['version']}: {src}")
     row["source"] = src.read_text(encoding="utf-8")
     out_path = Path(row["dir_path"]) / f"v{row['version']}" / "fragment.html"
+    cfg = store.config_get(conn)
     with tempfile.TemporaryDirectory(prefix="treasure-fragment-") as workdir:
         rendered = render.render_fragment(
             row["source"], source_format=row["source_format"],
             title=row["title"], kind=row["kind"], status=row["status"],
-            font=row["font"], workdir=workdir)
+            font=row["font"], workdir=workdir,
+            default_header_html=cfg["default_header_html"] or None,
+            default_footer_html=cfg["default_footer_html"] or None,
+            agent_notes=cfg["default_agent_notes"] or None)
     out_path.write_text(rendered["html"], encoding="utf-8")
     # The source comes back with it: the caller wants it for the publish
     # description, and reading the file twice would give the guard above a
@@ -536,6 +559,7 @@ def rerender(conn, ident) -> dict:
         raise LookupError(f"not found: {ident}")
     paths = _version_paths(row)
     source = Path(paths["source_path"]).read_text(encoding="utf-8")
+    cfg = store.config_get(conn)
     with tempfile.TemporaryDirectory(prefix="treasures-rerender-") as workdir:
         # Same gate as wrap, so an artifact re-rendered after a template change
         # cannot end up held to a weaker contract than a freshly wrapped one.
@@ -543,7 +567,10 @@ def rerender(conn, ident) -> dict:
             source, source_format=row["source_format"], title=row["title"],
             language=row["language"], kind=row["kind"], status=row["status"],
             font=row.get("font") or "space-grotesk",
-            custom_head=row.get("custom_head"), workdir=workdir)
+            custom_head=row.get("custom_head"), workdir=workdir,
+            default_header_html=cfg["default_header_html"] or None,
+            default_footer_html=cfg["default_footer_html"] or None,
+            agent_notes=cfg["default_agent_notes"] or None)
     if fixed != source:
         # A lint autofix is semantically neutral (blank lines only), so persist
         # it in place rather than leaving the stored source subtly broken for

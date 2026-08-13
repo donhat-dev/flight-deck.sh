@@ -199,6 +199,26 @@ def t_publish_prepare(ident):
     }
 
 
+def t_config_get():
+    """Read the three site-wide defaults."""
+    return service.config_get(_conn())
+
+
+def t_config_set(default_agent_notes=None, default_header_html=None,
+                 default_footer_html=None):
+    """Set any subset of the three site-wide defaults. Fail-closed with an
+    error payload (never raise) when nothing was passed at all."""
+    values = {k: v for k, v in {
+        "default_agent_notes": default_agent_notes,
+        "default_header_html": default_header_html,
+        "default_footer_html": default_footer_html,
+    }.items() if v is not None}
+    if not values:
+        return {"error": "pass at least one of default_agent_notes, "
+                         "default_header_html, default_footer_html"}
+    return service.config_set(_conn(), values)
+
+
 def t_rerender(ident):
     """Re-render the current version in place — no new version, no content
     change. Use after treasure_update changes font/kind/language/status/
@@ -399,6 +419,37 @@ TOOLS = {
          "confirm": {"type": "boolean",
                      "description": "must be true; guards against accidental loss"}},
         ["ident"]),
+    "treasure_config_get": (
+        t_config_get,
+        "Read the three site-wide Treasures defaults (default_agent_notes, "
+        "default_header_html, default_footer_html) — house content applied "
+        "to every artifact the pipeline renders. Always returns all three "
+        "keys (\"\" when unset) plus updated_at.",
+        {},
+        []),
+    "treasure_config_set": (
+        t_config_set,
+        "Set any subset of the three site-wide Treasures defaults "
+        "(default_agent_notes, default_header_html, default_footer_html). "
+        "These apply to EVERY artifact the pipeline generates AFTER this "
+        "call — an artifact already on disk only picks up the new value "
+        "once you run treasure_rerender on it. At least one argument is "
+        "required; calling with none returns an error payload.",
+        {"default_agent_notes": {
+             "type": "string",
+             "description": "markdown TEXT (not HTML) — the house note for "
+                             "agents reading a published artifact. Rendered "
+                             "escaped inside a collapsed <details>, never "
+                             "passed through pandoc."},
+         "default_header_html": {
+             "type": "string",
+             "description": "raw HTML placed at the top of the document "
+                             "body, right after <main class=\"doc\">."},
+         "default_footer_html": {
+             "type": "string",
+             "description": "raw HTML placed at the bottom of the document "
+                             "body, right before </main>."}},
+        []),
     "treasure_publish_prepare": (
         t_publish_prepare,
         "Gather everything needed to hand an artifact to the claude.ai "

@@ -23,7 +23,7 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 def test_the_registry_merges_both_domains_without_collisions():
     tools = registry.merged()
-    assert len(tools) == 28
+    assert len(tools) == 30
     assert "radar_move" in tools and "treasure_wrap" in tools
     # Every name wears its domain prefix, which is what makes collisions structurally
     # unlikely rather than merely untested.
@@ -66,7 +66,7 @@ def scratch(tmp_path):
 def test_list_names_all_tools(scratch):
     proc = cli(["--list"], env_extra=scratch)
     names = proc.stdout.split()
-    assert proc.returncode == 0 and len(names) == 28
+    assert proc.returncode == 0 and len(names) == 30
 
 
 def test_schema_output_is_what_the_mcp_advertises(scratch):
@@ -163,7 +163,7 @@ def test_the_wrapper_serves_fresh_tools_and_results_over_real_stdio(scratch, tmp
         assert init["result"]["serverInfo"]["name"] == "flightdeck"
 
         tools = rpc("tools/list")["result"]["tools"]
-        assert len(tools) == 28
+        assert len(tools) == 30
 
         out = rpc("tools/call", {"name": "radar_create",
                                  "arguments": {"slug": "wrap", "title": "Via wrapper"}})

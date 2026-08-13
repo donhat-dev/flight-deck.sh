@@ -61,7 +61,8 @@ def test_initialize_and_tools_list(wired):
                      "treasure_discover", "treasure_update", "treasure_rerender",
                      "treasure_refresh", "treasure_stale",
                      "treasure_tag", "treasure_tags",
-                     "treasure_link_source", "treasure_publish_prepare"}
+                     "treasure_link_source", "treasure_publish_prepare",
+                     "treasure_config_get", "treasure_config_set"}
     for tool in listed["result"]["tools"]:
         assert tool["description"] and tool["inputSchema"]["type"] == "object"
 

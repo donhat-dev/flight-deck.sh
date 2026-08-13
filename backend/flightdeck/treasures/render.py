@@ -244,9 +244,56 @@ def pandoc_path() -> str:
 FONTS = ("default", "space-grotesk", "jetbrains-mono")
 
 
+_MAIN_OPEN = '<main class="doc">'
+_MAIN_CLOSE = "</main>"
+
+
+def inject_body_defaults(html: str, *, header: str | None, footer: str | None,
+                         notes: str | None) -> str:
+    """Splice the site-wide defaults into the document body.
+
+    Anchored on `<main class="doc">` and `</main>`, which both the standalone
+    template and the fragment assembly emit — so one implementation serves both
+    modes rather than two that can drift.
+
+    The notes go in a COLLAPSED <details>, and that is a measured choice, not a
+    style preference: `<details>` content is the only channel that survives every
+    extraction path an agent might use (a `<meta>` tag, a JSON-LD block, an HTML
+    comment and an `aria-label` were each measured LOST through `pandoc html ->
+    plain`), while collapsed it costs one line of the page. Real DOM text is what
+    makes it readable; the `id` is what makes it findable.
+
+    Returns `html` UNCHANGED when nothing is configured, or when the anchor is
+    missing (the caller is the one that turns that second case into a visible
+    warning, by noticing the string came back byte-identical).
+    """
+    if not header and not footer and not notes:
+        return html
+    if _MAIN_OPEN not in html or _MAIN_CLOSE not in html:
+        return html
+    if header:
+        html = html.replace(_MAIN_OPEN, _MAIN_OPEN + header, 1)
+    tail = footer or ""
+    if notes:
+        # Escaped-as-text inside a <pre>, never run through pandoc: the notes
+        # are markdown TEXT, and a <pre> is what keeps their own line breaks
+        # while guaranteeing nothing an author wrote can inject markup.
+        tail += (
+            '<details id="agent-notes"><summary>Agent notes</summary>\n'
+            '<div class="agent-notes-body">\n'
+            f"<pre>{html_escape(notes)}</pre>\n"
+            "</div>\n</details>")
+    if tail:
+        html = html.replace(_MAIN_CLOSE, tail + _MAIN_CLOSE, 1)
+    return html
+
+
 def render(source_text: str, *, source_format: str, title: str,
            language: str = "en", kind: str = "report", status: str = "draft",
            font: str = "space-grotesk", custom_head: str | None = None,
+           default_header_html: str | None = None,
+           default_footer_html: str | None = None,
+           agent_notes: str | None = None,
            workdir: str) -> dict:
     """Render `source_text` into a self-contained HTML string.
 
@@ -255,7 +302,14 @@ def render(source_text: str, *, source_format: str, title: str,
           a plain enum value, never raw markup.
     custom_head: raw HTML spliced in right before `</head>` — NOT passed
                  through pandoc's `-M` (which HTML-escapes metadata text), so
-                 arbitrary tags/attributes survive verbatim.
+                 arbitrary tags/attributes survive verbatim. PER-ARTIFACT.
+    default_header_html, default_footer_html, agent_notes: the SITE-WIDE
+                 Treasures defaults (treasures/store.py CONFIG_KEYS), spliced
+                 into the visible <body> via `inject_body_defaults` — do NOT
+                 confuse these with `custom_head` above: that one is
+                 per-artifact and targets <head>, these three are site-wide
+                 and target <body>. All default to None so every existing
+                 caller/test keeps its current output.
     workdir: a real directory; the template + fonts are copied in so pandoc can
              resolve the relative asset paths, and any `assets/` the caller has
              already placed there is picked up too.
@@ -310,9 +364,18 @@ def render(source_text: str, *, source_format: str, title: str,
     html = proc.stdout
     if custom_head:
         html = html.replace("</head>", f"{custom_head}\n</head>", 1)
+    before_defaults = html
+    html = inject_body_defaults(html, header=default_header_html,
+                                footer=default_footer_html, notes=agent_notes)
+    anchor_missing = bool(
+        (default_header_html or default_footer_html or agent_notes)
+        and html == before_defaults)
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
     warnings = []
+    if anchor_missing:
+        warnings.append(
+            'could not place body defaults: no <main class="doc"> anchor')
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     for url in sorted(set(_REMOTE_IN_SOURCE_RE.findall(source_text))):
@@ -423,13 +486,22 @@ def fragment_css() -> str:
 
 def render_fragment(source_text: str, *, source_format: str, title: str,
                     kind: str = "report", status: str = "draft",
-                    font: str | None = None, workdir: str) -> dict:
+                    font: str | None = None,
+                    default_header_html: str | None = None,
+                    default_footer_html: str | None = None,
+                    agent_notes: str | None = None,
+                    workdir: str) -> dict:
     """Render body-only HTML for a host that owns the page frame.
 
     The Artifact tool supplies `<!doctype>`, `<head>` and `<body>` and takes only
     what goes INSIDE the body, so a full document loses three things at once: the
     `<body class>` every typography rule hangs off, the page background, and the
     colour mode. This mode hands all three to a wrapper we do control.
+
+    default_header_html/default_footer_html/agent_notes: same SITE-WIDE
+    defaults as `render()` above (see its docstring for the custom_head
+    distinction) — spliced into this fragment's own `<main class="doc">` via
+    `inject_body_defaults`.
     """
     font = font or "space-grotesk"
     if font not in FONTS:
@@ -466,10 +538,19 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
         f'<main class="doc">\n{inner}\n</main>\n'
         f"</div>\n"
     )
+    before_defaults = html
+    html = inject_body_defaults(html, header=default_header_html,
+                                footer=default_footer_html, notes=agent_notes)
+    anchor_missing = bool(
+        (default_header_html or default_footer_html or agent_notes)
+        and html == before_defaults)
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
 
     warnings = []
+    if anchor_missing:
+        warnings.append(
+            'could not place body defaults: no <main class="doc"> anchor')
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     # Only the MARKUP can carry a frame; the embedded CSS legitimately contains the

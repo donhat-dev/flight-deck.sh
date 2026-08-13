@@ -9,7 +9,14 @@ Portable SQL only: `?` placeholders, ON CONFLICT upserts, TEXT ISO timestamps.
 The same DDL runs on SQLite (tests) and PostgreSQL (production), where the table
 is LOGGED because artifacts are user content, not derived ingest data.
 """
+from datetime import datetime, timezone
+
 from flightdeck import db
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
 
 COLUMNS = (
     "id", "title", "slug", "dir_path", "kind", "language", "status", "version",
@@ -57,6 +64,21 @@ CREATE TABLE IF NOT EXISTS treasure_tags (
 )
 """
 
+# Site-wide Treasures defaults (agent notes, header/footer HTML), NOT
+# per-artifact `custom_head`: those splice into one artifact's <head>, these
+# splice into the visible <body> of every artifact rendered afterwards (see
+# render.inject_body_defaults). Key-value on purpose — a fourth default later
+# is one INSERT, not a schema migration and a column-add on every dialect.
+CONFIG_KEYS = ("default_agent_notes", "default_header_html", "default_footer_html")
+
+_DDL_CONFIG = """
+CREATE TABLE IF NOT EXISTS treasure_config (
+  key        text PRIMARY KEY,
+  value      text NOT NULL,
+  updated_at text NOT NULL
+)
+"""
+
 _INDEXES = (
     "CREATE INDEX IF NOT EXISTS idx_treasures_origin ON treasures(origin_id)",
     "CREATE INDEX IF NOT EXISTS idx_treasures_status ON treasures(status)",
@@ -72,6 +94,7 @@ def init(conn) -> None:
     """Create the tables + indexes if absent. Safe to call on every startup."""
     conn.execute(_DDL)
     conn.execute(_DDL_TAGS)
+    conn.execute(_DDL_CONFIG)
     for stmt in _INDEXES:
         conn.execute(stmt)
     _ensure_font_column(conn)
@@ -190,6 +213,44 @@ def _ensure_custom_head_column(conn) -> None:
         cols = {r[1] for r in conn.execute("PRAGMA table_info(treasures)").fetchall()}
         if "custom_head" not in cols:
             conn.execute("ALTER TABLE treasures ADD COLUMN custom_head TEXT")
+
+
+def config_get(conn) -> dict:
+    """Every default key, always present — "" when never set, plus a top-level
+    `updated_at` (the latest of the keys actually written, None on a virgin
+    database). No caller has to special-case a database that has never seen a
+    PUT/treasure_config_set."""
+    rows = conn.execute(
+        "SELECT key, value, updated_at FROM treasure_config").fetchall()
+    by_key = {r[0]: (r[1], r[2]) for r in rows}
+    out, updated_at = {}, None
+    for key in CONFIG_KEYS:
+        val, ts = by_key.get(key, ("", None))
+        out[key] = val
+        if ts and (updated_at is None or ts > updated_at):
+            updated_at = ts
+    out["updated_at"] = updated_at
+    return out
+
+
+def config_set(conn, values: dict) -> dict:
+    """Upsert only the given keys, leaving the rest untouched. Raises
+    ValueError on an unknown key — nothing is written in that case, not even
+    the other, valid keys in the same call."""
+    unknown = sorted(set(values) - set(CONFIG_KEYS))
+    if unknown:
+        raise ValueError(
+            f"unknown config key(s): {', '.join(unknown)} "
+            f"(expected one of {', '.join(CONFIG_KEYS)})")
+    ts = _now_iso()
+    for key, val in values.items():
+        conn.execute(
+            "INSERT INTO treasure_config (key, value, updated_at) "
+            "VALUES (?, ?, ?) ON CONFLICT(key) DO UPDATE SET "
+            "value=excluded.value, updated_at=excluded.updated_at",
+            (key, val, ts))
+    conn.commit()
+    return config_get(conn)
 
 
 def upsert(conn, row: dict) -> dict:

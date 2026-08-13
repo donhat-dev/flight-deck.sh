@@ -19,7 +19,7 @@ from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
 from flightdeck.routers import (charts, core, diff, hub, missions, radar, sessions,
-                               stream, treasures, appearance)
+                               stream, treasures, treasure_config, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -76,6 +76,10 @@ def create_app() -> FastAPI:
     app.include_router(stream.router)
     app.include_router(appearance.router)
     app.include_router(treasures.router)
+    # Separate prefix from treasures.router on purpose — see
+    # routers/treasure_config.py's module docstring (that router is in flight
+    # in another session and must not be able to shadow this one).
+    app.include_router(treasure_config.router)
     # Systems views (Comms / Manuals / Hangar) + AG-UI Relay stream: already
     # their own routers, read-only surface.
     app.include_router(sys_mcp.router)
