@@ -90,9 +90,49 @@ def test_draw_is_reproducible(tmp_path):
     first = run_cli("draw", "--candidate-dir", str(candidate_dir), "--seed", "a1b2c3")
     second = run_cli("draw", "--candidate-dir", str(candidate_dir), "--seed", "a1b2c3")
     assert first.returncode == 0
-    assert json.loads(first.stdout) == json.loads(second.stdout)
-    assert set(json.loads(first.stdout)["selected"]) == {
+    payload = json.loads(first.stdout)
+    assert payload == json.loads(second.stdout)
+    assert "drawn_at" not in payload
+    assert set(payload["selected"]) == {
         "canvas_ui", "motion_3d", "color_art"
+    }
+
+
+def test_draw_emits_exact_drawn_at_value(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    result = run_cli(
+        "draw", "--candidate-dir", str(candidate_dir), "--seed", "fixed",
+        "--drawn-at", "2026-08-13T09:10:11+07:00",
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["drawn_at"] == "2026-08-13T09:10:11+07:00"
+
+
+def test_draw_rejects_empty_drawn_at_value(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    result = run_cli(
+        "draw", "--candidate-dir", str(candidate_dir), "--seed", "fixed",
+        "--drawn-at", "",
+    )
+
+    assert result.returncode != 0
+    assert "--drawn-at must be a non-empty string" in result.stderr
+
+
+def test_draw_records_zero_selected_positions_without_skips(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    result = run_cli(
+        "draw", "--candidate-dir", str(candidate_dir), "--seed", "fixed"
+    )
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 0
+    assert payload["selected_positions"] == {
+        "canvas_ui": 0,
+        "motion_3d": 0,
+        "color_art": 0,
     }
 
 
@@ -126,6 +166,11 @@ def test_draw_uses_next_hashed_candidate_for_permitted_skip(tmp_path):
     payload = json.loads(changed.stdout)
     assert changed.returncode == 0
     assert payload["selected"]["canvas_ui"]["id"] != skipped_id
+    assert payload["selected_positions"]["canvas_ui"] == 1
+    assert (
+        payload["ordered_ids"]["canvas_ui"][1]
+        == payload["selected"]["canvas_ui"]["id"]
+    )
     assert payload["skipped"] == [{"id": skipped_id, "reason": "inaccessible"}]
 
 

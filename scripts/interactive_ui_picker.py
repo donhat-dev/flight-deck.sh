@@ -52,6 +52,12 @@ def ordered_candidates(records: list[dict[str, Any]], seed: str, role: str) -> l
     return sorted(records, key=lambda item: order_key(seed, role, item["id"]))
 
 
+def non_empty_string(value: str) -> str:
+    if not value:
+        raise argparse.ArgumentTypeError("--drawn-at must be a non-empty string")
+    return value
+
+
 def error(code: str, message: str, **details: object) -> dict[str, object]:
     return {"code": code, "message": message, **details}
 
@@ -252,7 +258,12 @@ def load_skip_map(path: Path | None) -> tuple[dict[str, str], list[dict[str, obj
     return skip_map, errors
 
 
-def draw(candidate_dir: Path, seed: str | None, skip_file: Path | None) -> dict[str, object]:
+def draw(
+    candidate_dir: Path,
+    seed: str | None,
+    skip_file: Path | None,
+    drawn_at: str | None = None,
+) -> dict[str, object]:
     pools, report = validate(candidate_dir)
     if report["errors"]:
         return report
@@ -261,18 +272,20 @@ def draw(candidate_dir: Path, seed: str | None, skip_file: Path | None) -> dict[
         return {"valid": False, "errors": skip_errors, "checksums": report["checksums"]}
     actual_seed = seed if seed is not None else secrets.token_hex(16)
     selected: dict[str, dict[str, Any]] = {}
+    selected_positions: dict[str, int] = {}
     ordered_ids: dict[str, list[str]] = {}
     skipped: list[dict[str, str]] = []
     for role in ROLES:
         ordered = ordered_candidates(pools[role], actual_seed, role)
         ordered_ids[role] = [item["id"] for item in ordered]
-        for item in ordered:
+        for position, item in enumerate(ordered):
             candidate_id = item["id"]
             if candidate_id in skip_map:
                 skipped.append({"id": candidate_id, "reason": skip_map[candidate_id]})
                 continue
             if item["availability"] == "ok":
                 selected[role] = item
+                selected_positions[role] = position
                 break
         else:
             return {
@@ -283,15 +296,19 @@ def draw(candidate_dir: Path, seed: str | None, skip_file: Path | None) -> dict[
                 "ordered_ids": ordered_ids,
                 "skipped": skipped,
             }
-    return {
+    payload: dict[str, object] = {
         "valid": True,
         "errors": [],
         "checksums": report["checksums"],
         "seed": actual_seed,
         "ordered_ids": ordered_ids,
         "selected": selected,
+        "selected_positions": selected_positions,
         "skipped": skipped,
     }
+    if drawn_at is not None:
+        payload["drawn_at"] = drawn_at
+    return payload
 
 
 def emit(payload: dict[str, object], output: Path | None) -> None:
@@ -318,10 +335,11 @@ def main(argv: list[str] | None = None) -> int:
         if name == "draw":
             command.add_argument("--seed")
             command.add_argument("--skip-file", type=Path)
+            command.add_argument("--drawn-at", type=non_empty_string)
     args = parser.parse_args(argv)
 
     if args.command == "draw":
-        payload = draw(args.candidate_dir, args.seed, args.skip_file)
+        payload = draw(args.candidate_dir, args.seed, args.skip_file, args.drawn_at)
     else:
         roles = {args.role} if args.command == "validate-pool" else None
         manifest_paths = {args.role: args.path} if args.command == "validate-pool" and args.path else None
