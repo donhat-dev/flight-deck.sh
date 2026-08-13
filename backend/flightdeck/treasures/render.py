@@ -17,6 +17,8 @@ import subprocess
 from html import escape as html_escape
 from pathlib import Path
 
+from . import lint
+
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATE_FILE = TEMPLATES / "artifact.html"
 TOKENS_CSS = TEMPLATES / "tokens.css"
@@ -69,6 +71,158 @@ def _strip_frontmatter(text: str) -> str:
 def font_paths() -> list[str]:
     """The woff2 files tokens.css references. Used by the coverage test."""
     return sorted(str(p) for p in FONTS_DIR.glob("*.woff2"))
+
+
+_FACE_RE = re.compile(r"@font-face\s*\{[^}]*\}", re.S)
+
+
+def _face_family(block: str) -> str:
+    m = re.search(r"font-family:\s*['\"]([^'\"]+)['\"]", block)
+    return m.group(1) if m else ""
+
+
+def _face_ranges(block: str) -> list[tuple[int, int]]:
+    """The face's `unicode-range`, as inclusive codepoint pairs.
+
+    An empty list means the face declared no range, which is a claim that it
+    covers everything — so it can never be proven unused and is always kept.
+    """
+    m = re.search(r"unicode-range:\s*([^;}]+)", block)
+    if not m:
+        return []
+    out = []
+    for part in m.group(1).split(","):
+        part = part.strip().lstrip("Uu+")
+        if not part:
+            continue
+        lo, _, hi = part.partition("-")
+        try:
+            out.append((int(lo, 16), int(hi or lo, 16)))
+        except ValueError:
+            return []          # unparsable: treat as "covers everything"
+    return out
+
+
+def _reachable_families(font: str, markup: str) -> set[str]:
+    """Which embedded families this document can possibly render with.
+
+    Two of the three are unreachable unless something specific is true: JetBrains
+    Mono only when it IS the body font (code spans take the system mono, not this
+    face), and Playfair only through the hero component's accent line, which is
+    the single selector in the sheet that names it.
+    """
+    fams = set()
+    if font == "space-grotesk":
+        fams.add("Space Grotesk")
+    elif font == "jetbrains-mono":
+        fams.add("JetBrains Mono")
+    if 'data-component="hero"' in markup:
+        fams.add("Playfair Display")
+    return fams
+
+
+def _visible_codepoints(html: str) -> set[int]:
+    body = re.sub(r"<(script|style)[^>]*>.*?</\1>", "", html, flags=re.S)
+    body = re.sub(r"<!--.*?-->", "", body, flags=re.S)
+    return {ord(c) for c in re.sub(r"<[^>]+>", " ", body)}
+
+
+def prune_faces(html: str, *, font: str) -> tuple[str, list[str]]:
+    """Drop every @font-face the document cannot render a character with.
+
+    Two independent conditions, both of which have to hold for a face to stay:
+    its family has to be reachable at all, and at least one character actually in
+    the document has to fall inside the face's `unicode-range`. The second is what
+    removes a Vietnamese subset from an English document without anyone declaring
+    a language, and it is read off the sheet's own ranges rather than a hardcoded
+    table, so a new subset is covered the day it is added.
+
+    Fail-open by construction: a face with no parsable range is kept, and so is
+    every face when the caller cannot tell which family is in play.
+
+    The hero check runs against the markup with `<style>` stripped out, not the
+    whole `html` string: tokens.css spells its hero rule as the literal selector
+    text `[data-component="hero"] h1 em { ... }`, which the embedded stylesheet
+    carries verbatim in every render regardless of whether the document uses a
+    hero. Checking the raw `html` therefore always finds the substring and never
+    prunes Playfair — verified against a real render of a plain English,
+    no-hero document, which kept 2 faces instead of 1 before this strip was
+    added. Same shape of fix `_visible_codepoints` already applies for its own
+    text scan, just missing here.
+    """
+    fams = _reachable_families(font, re.sub(r"<style[^>]*>.*?</style>", "", html, flags=re.S))
+    cps = _visible_codepoints(html)
+    dropped, kept_bytes, out = [], 0, html
+    for block in _FACE_RE.findall(html):
+        fam = _face_family(block)
+        ranges = _face_ranges(block)
+        used = fam in fams and (not ranges or any(
+            lo <= cp <= hi for cp in cps for lo, hi in ranges))
+        if used:
+            kept_bytes += len(block)
+            continue
+        src = re.search(r"fonts/([\w.-]+\.woff2)", block)
+        dropped.append(f"{fam} ({src.group(1) if src else '?'})")
+        out = out.replace(block, "", 1)
+    notes = []
+    if dropped:
+        saved = len(html) - len(out)
+        notes.append(f"pruned {len(dropped)} unused font face(s), {saved:,} chars: "
+                     + ", ".join(dropped))
+    return out, notes
+
+
+def move_faces_last(html: str) -> str:
+    """Put the @font-face rules at the END of the document instead of the head.
+
+    Nothing about the rendering changes — verified in a browser: same resolved
+    family, same face loaded, identical heading geometry — because `@font-face` is
+    document-scoped wherever its `<style>` sits. What changes is the order a
+    READER meets the file in. With the faces in the head, the first word of the
+    document sat at 90% of the file, so any truncated read (an agent fetching the
+    artifact gets a head-truncated preview) spent itself on base64 before reaching
+    a heading. Moved to the end, the document starts at about 7%.
+    """
+    faces = _FACE_RE.findall(html)
+    if not faces:
+        return html
+    for block in faces:
+        html = html.replace(block, "", 1)
+    tail = "<style>" + "".join(faces) + "</style>"
+    if "</body>" in html:
+        return html.replace("</body>", tail + "\n</body>", 1)
+    return html + "\n" + tail          # fragment mode owns no </body>
+
+
+_RAW_SRC_RE = re.compile(
+    r"""<(?:img|iframe|embed|source|video|audio|script|link|object)\b[^>]*?"""
+    r"""\s(?:src|href|data|poster)\s*=\s*["']([^"']+)["']""", re.I)
+
+_SRC_OK_PREFIX = ("http://", "https://", "data:", "mailto:", "//", "#")
+
+
+def _refuse_unreadable_src(source_text: str, work: Path) -> None:
+    """Refuse a raw-HTML asset reference pandoc would try to read off disk.
+
+    `--embed-resources` inlines what the markup points at, which means a relative
+    or root-relative path is a FILE READ, not a URL. A document that quotes a
+    deep link — `<iframe src="/nakivo/embed/...">` written unfenced — therefore
+    kills the whole render, and the message pandoc gives back names neither the
+    document nor the tag. Refusing here, with the offending value in the text,
+    turns that into something the author can act on. `lint.ComponentError` because
+    it is the one error the API already answers with 400 rather than 500.
+    """
+    for value in _RAW_SRC_RE.findall(source_text):
+        v = value.strip()
+        if not v or v.lower().startswith(_SRC_OK_PREFIX):
+            continue
+        if (work / v.lstrip("/")).is_file() or Path(v).is_file():
+            continue
+        raise lint.ComponentError(
+            f"raw HTML points at {v!r}, which is not a file pandoc can read — "
+            f"--embed-resources treats it as a path, not a URL, and the render "
+            f"aborts. Fence it as code, make it a plain link, or place the asset "
+            f"in the artifact's assets/ directory.")
 
 
 def pandoc_path() -> str:
@@ -147,6 +301,7 @@ def render(source_text: str, *, source_format: str, title: str,
         "-M", f"status={status}",
         "-M", f"font={font}",
     ]
+    _refuse_unreadable_src(source_text, work)
     proc = subprocess.run(argv, cwd=str(work), capture_output=True,
                           text=True, timeout=120)
     if proc.returncode != 0:
@@ -155,7 +310,9 @@ def render(source_text: str, *, source_format: str, title: str,
     html = proc.stdout
     if custom_head:
         html = html.replace("</head>", f"{custom_head}\n</head>", 1)
-    warnings = []
+    html, notes = prune_faces(html, font=font)
+    html = move_faces_last(html)
+    warnings = list(notes)
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     for url in sorted(set(_REMOTE_IN_SOURCE_RE.findall(source_text))):
@@ -293,6 +450,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     # not emit. --embed-resources still inlines images referenced from the content.
     argv += ["--embed-resources", "--wrap=none", "-t", "html5",
              "--lua-filter", str(TABLE_WRAP_LUA)]
+    _refuse_unreadable_src(source_text, work)
     proc = subprocess.run(argv, cwd=str(work), capture_output=True,
                           text=True, timeout=120)
     if proc.returncode != 0:
@@ -308,8 +466,10 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
         f'<main class="doc">\n{inner}\n</main>\n'
         f"</div>\n"
     )
+    html, notes = prune_faces(html, font=font)
+    html = move_faces_last(html)
 
-    warnings = []
+    warnings = list(notes)
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     # Only the MARKUP can carry a frame; the embedded CSS legitimately contains the

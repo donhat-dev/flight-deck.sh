@@ -1,7 +1,7 @@
 import re
 import pytest
 
-from flightdeck.treasures import render
+from flightdeck.treasures import lint, render
 
 # Vietnamese codepoints absent from `latin-ext` subsets (U+1EA0-1EF9 block).
 VN_CODEPOINTS = {0x1EBF: "ế", 0x1ED9: "ộ", 0x1EEF: "ữ", 0x1EE3: "ợ", 0x1EA1: "ạ"}
@@ -207,3 +207,131 @@ def test_tokens_css_declares_the_table_breakout():
     css = render.TOKENS_CSS.read_text(encoding="utf-8")
     assert ".table-wrap {" in css
     assert "--table-max" in css
+
+
+# --------------------------------------------------------- font-face pruning
+
+_FILLER_PARAGRAPH = (
+    "This paragraph exists purely to give the document a realistic amount of "
+    "body text, so the fixed per-render overhead — the embedded stylesheet, "
+    "the nav bar, the favicon — is a small fraction of the whole file rather "
+    "than most of it, matching the shape a real report has rather than a "
+    "two-line smoke test.\n\n"
+)
+
+ENGLISH_MD = (
+    "# A Plain English Report\n\n"
+    "This document has no special characters, no hero, and no code that "
+    "would need JetBrains Mono. It exists only to prove which webfonts a "
+    "real reader's browser could possibly need for a document like this "
+    "one.\n\n"
+    "## Background\n\n"
+    + _FILLER_PARAGRAPH * 40 +
+    "- one point\n- a second point\n- and a third, so the list has body too\n\n"
+    "## Conclusion\n\n"
+    "Nothing here should need a Vietnamese glyph, a monospace body font, or "
+    "a hero component, so pruning should leave exactly one embedded face: "
+    "the Space Grotesk latin subset that the body text actually uses.\n"
+)
+
+
+def test_pruning_drops_what_cannot_be_used(tmp_path):
+    out = render.render(ENGLISH_MD, source_format="markdown", title="Report",
+                        language="en", font="space-grotesk", workdir=str(tmp_path))
+    html = out["html"]
+    assert html.count("@font-face") == 1
+    face = re.search(r"@font-face\s*\{[^}]*\}", html, re.S).group(0)
+    assert "font-family: 'Space Grotesk'" in face
+    assert "space-grotesk-latin.woff2" not in html
+    assert any("pruned" in w and "5 unused font face" in w for w in out["warnings"]), \
+        out["warnings"]
+
+
+def test_pruning_keeps_the_mono_face_when_it_is_the_body_font(tmp_path):
+    out = render.render(ENGLISH_MD, source_format="markdown", title="Report",
+                        language="en", font="jetbrains-mono", workdir=str(tmp_path))
+    html = out["html"]
+    faces = re.findall(r"@font-face\s*\{[^}]*\}", html, re.S)
+    assert len(faces) == 1
+    assert "font-family: 'JetBrains Mono'" in faces[0]
+    # No @font-face block for Space Grotesk. The base `body { font-family:
+    # 'Space Grotesk', ... }` fallback rule (tokens.css's default, overridden
+    # at runtime by body.font-jetbrains-mono) still names the string in plain
+    # CSS text, so the assertion is scoped to @font-face blocks specifically —
+    # anywhere else it is dead-but-harmless CSS, not an embedded webfont.
+    assert not any("Space Grotesk" in f for f in faces)
+
+
+VIETNAMESE_NAME_MD = """# A Report
+
+This body is otherwise plain English, but it names Nguyễn once, which is
+enough to pull the Vietnamese subset back in alongside the Latin one.
+"""
+
+
+def test_the_vietnamese_subset_comes_back_when_the_text_needs_it(tmp_path):
+    out = render.render(VIETNAMESE_NAME_MD, source_format="markdown", title="Report",
+                        language="en", font="space-grotesk", workdir=str(tmp_path))
+    html = out["html"]
+    faces = re.findall(r"@font-face\s*\{[^}]*\}", html, re.S)
+    sg_faces = [f for f in faces if "font-family: 'Space Grotesk'" in f]
+    assert len(sg_faces) == 2, faces
+
+
+HERO_MD = """<div data-component="hero">
+
+CRM-11198 · eyebrow
+
+# Discount Service *PoC plan.*
+
+The deck sentence.
+
+</div>
+
+Body text after the hero.
+"""
+
+
+def test_the_hero_brings_playfair_back(tmp_path):
+    out = render.render(HERO_MD, source_format="markdown", title="Report",
+                        language="en", font="space-grotesk", workdir=str(tmp_path))
+    html = out["html"]
+    faces = re.findall(r"@font-face\s*\{[^}]*\}", html, re.S)
+    assert any("font-family: 'Playfair Display'" in f for f in faces), faces
+
+
+def test_faces_are_last(tmp_path):
+    out = render.render(ENGLISH_MD, source_format="markdown", title="Report",
+                        language="en", font="space-grotesk", workdir=str(tmp_path))
+    html = out["html"]
+    h1_idx = html.index("<h1")
+    last_face_idx = html.rindex("@font-face")
+    assert last_face_idx > h1_idx
+    assert h1_idx < 0.25 * len(html), (h1_idx, len(html))
+
+
+# --------------------------------------------------- the pandoc local-src trap
+
+def test_the_local_src_guard_fires(tmp_path):
+    md = ('# T\n\n'
+          '<iframe src="/nakivo/embed/launch/crm.lead/973770"></iframe>\n')
+    with pytest.raises(lint.ComponentError, match=re.escape(
+            "/nakivo/embed/launch/crm.lead/973770")):
+        render.render(md, source_format="markdown", title="T", language="en",
+                      workdir=str(tmp_path))
+
+
+def test_the_guard_does_not_over_refuse(tmp_path):
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "x.png").write_bytes(
+        b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01")
+    md = (
+        "# T\n\n"
+        '<img src="https://example.com/a.png">\n\n'
+        '<img src="data:image/png;base64,iVBORw0KGgoAAAA=">\n\n'
+        '<img src="assets/x.png">\n'
+    )
+    out = render.render(md, source_format="markdown", title="T", language="en",
+                        workdir=str(tmp_path))
+    assert out["html"]

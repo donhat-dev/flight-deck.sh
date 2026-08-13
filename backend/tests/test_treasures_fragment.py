@@ -52,7 +52,10 @@ def markup_of(html: str) -> str:
 @pytest.mark.parametrize("tag", ["<!doctype", "<html", "<head", "<body"])
 def test_fragment_emits_no_document_frame(frag, tag):
     assert tag not in markup_of(frag["html"]).lower()
-    assert not frag["warnings"], frag["warnings"]
+    # A "pruned N unused font face(s)" note is expected, informational output
+    # of the new font-selection rule, not a problem — this test is about frame
+    # leaks, so only warnings OTHER than pruning notes must be empty.
+    assert not [w for w in frag["warnings"] if "pruned" not in w], frag["warnings"]
 
 
 def test_the_kind_and_font_classes_move_to_a_wrapper(frag):
@@ -152,10 +155,18 @@ def test_fonts_are_inlined_as_data_uris(frag):
     html = frag["html"]
     assert "data:font/woff2;base64" in html
     assert "url('fonts/" not in html
-    # One data URI per face that ships, and each must decode — a truncated
-    # base64 payload renders as a silent fallback, not an error.
+    # font_paths() is an inventory of the whole sheet — six files on disk (three
+    # families x latin/vietnamese) — independent of any render's selection rule,
+    # so that inventory assertion still belongs here.
+    assert len(render.font_paths()) == 6
+    # What actually ships in a render is the SUBSET the selection rule predicts,
+    # not the whole inventory: this fixture is plain English JetBrains Mono body
+    # text, no hero, no Vietnamese, so exactly the JetBrains Mono latin face
+    # survives pruning. Anti-vacuity: a non-default body font must never embed
+    # zero faces — that would mean the font never actually renders.
     faces = re.findall(r"url\('data:font/woff2;base64,([A-Za-z0-9+/=]+)'\)", html)
-    assert len(faces) == len(render.font_paths()), (len(faces), len(render.font_paths()))
+    assert len(faces) >= 1, "a non-default body font must embed at least one face"
+    assert len(faces) == 1, (len(faces), faces)
     for payload in faces:
         assert base64.b64decode(payload)[:4] == b"wOF2"
 
@@ -205,7 +216,9 @@ def test_publish_prepare_hands_over_the_fragment(wired, tmp_path):
     assert prep["file_path"].endswith("fragment.html")
     assert prep["document_path"].endswith("artifact.html")
     assert prep["file_path"] != prep["document_path"]
-    assert not prep["warnings"], prep["warnings"]
+    # A "pruned N unused font face(s)" note is expected now — this body has no
+    # hero and no code, so most of the six faces are legitimately unused.
+    assert not [w for w in prep["warnings"] if "pruned" not in w], prep["warnings"]
 
     html = open(prep["file_path"], encoding="utf-8").read()
     assert "<body" not in markup_of(html).lower()
@@ -231,6 +244,21 @@ def test_fragment_css_still_carries_the_table_wrap_rule():
     selectors) — cheap guard that none of it accidentally eats the breakout
     rule along the way."""
     assert ".table-wrap {" in render.fragment_css()
+
+
+# --------------------------------------------------------- font-face pruning
+
+def test_fragment_prunes_and_moves_faces(tmp_path):
+    """The fragment path runs the same two steps as the standalone document:
+    drop every face this English space-grotesk body cannot use, then put the
+    survivor after the content rather than in the stylesheet at the top."""
+    out = render.render_fragment(
+        "# Title\n\nPlain English fragment body text, no hero, no Vietnamese.\n",
+        source_format="markdown", title="T", font="space-grotesk",
+        workdir=str(tmp_path))
+    html = out["html"]
+    assert html.count("@font-face") == 1
+    assert html.index("@font-face") > html.index('<main class="doc"')
 
 
 def test_the_fragment_is_regenerated_rather_than_kept_in_step(wired):
