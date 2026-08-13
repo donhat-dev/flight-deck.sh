@@ -214,6 +214,25 @@ def test_publish_prepare_hands_over_the_fragment(wired, tmp_path):
     assert "do not edit it" in prep["next_step"]
 
 
+# --------------------------------------------------------------- table breakout
+
+def test_fragment_wraps_top_level_tables_too(tmp_path):
+    """The Lua filter runs on the fragment's own pandoc invocation as well as the
+    standalone one — the fragment path builds its own argv and could silently
+    have been left off the filter."""
+    md = "# T\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n"
+    out = render.render_fragment(md, source_format="markdown", title="T",
+                                 workdir=str(tmp_path))
+    assert re.search(r'<div class="table-wrap">\s*<table', out["html"])
+
+
+def test_fragment_css_still_carries_the_table_wrap_rule():
+    """fragment_css() does string surgery on tokens.css (strips comments, moves
+    selectors) — cheap guard that none of it accidentally eats the breakout
+    rule along the way."""
+    assert ".table-wrap {" in render.fragment_css()
+
+
 def test_the_fragment_is_regenerated_rather_than_kept_in_step(wired):
     # Derived state: exporting twice must produce the same bytes, which is what
     # lets publish_prepare rebuild it instead of storing a sibling file that

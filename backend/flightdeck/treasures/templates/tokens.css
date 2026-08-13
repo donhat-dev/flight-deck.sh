@@ -96,6 +96,13 @@
   --weak: #9c2f1f;  --weak-bg: #fbe4de;  --weak-line: #f0bfb4;
   --radius: 14px;        /* one radius system: soft 14, pills full */
   --ease: cubic-bezier(.16, 1, .3, 1);
+
+  /* So the table breakout below knows the width it is breaking out of — one
+     source for these numbers, not a second copy hand-kept in sync with .doc. */
+  --doc-wrap: min(1200px, 80vw);
+  --doc-pad: clamp(1.1rem, 4vw, 2.6rem);
+  --doc-measure: calc(var(--doc-wrap) - 2 * var(--doc-pad));
+  --table-max: min(80vw, 1600px);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -216,9 +223,9 @@ body.font-jetbrains-mono { font-family: 'JetBrains Mono', ui-monospace, "SF Mono
    container, so a wide table is free to use the extra room instead of being
    squeezed into paragraph width. */
 .doc {
-  max-width: min(1200px, 80vw);
+  max-width: var(--doc-wrap);
   margin: 0 auto;
-  padding: clamp(2rem, 5vw, 4rem) clamp(1.1rem, 4vw, 2.6rem) 6rem;
+  padding: clamp(2rem, 5vw, 4rem) var(--doc-pad) 6rem;
 }
 .doc > p, .doc > ul, .doc > ol, .doc > blockquote {
   max-width: 68ch;
@@ -389,10 +396,32 @@ th, td {
 }
 th { font-size: 15px; font-weight: 700; background: var(--paper-2); }
 tbody tr:last-child td { border-bottom: 0; }
-/* pandoc emits no scroll wrapper, and `display:block` on the table would make
-   it shrink-to-fit instead of filling the column. Keep a real table and let
-   long cell text wrap rather than overflow the page. */
+/* The Lua filter wraps every top-level table in .table-wrap (below), which is
+   the scroll/breakout container. The table itself stays a real table rather
+   than `display:block`, so its columns still size themselves to content, and
+   long cell text still wraps rather than overflow — wrapping inside a table
+   that is now free to be wider beats reaching for a horizontal scrollbar. */
 th, td { overflow-wrap: anywhere; }
+
+/* A table breaks OUT of the prose wrap, because a table is data rather than prose:
+   a seven-column matrix squeezed into paragraph width wraps identifiers mid-token,
+   which reads as corruption rather than as a line break. The wrapper takes symmetric
+   negative margins so the extra room is centred on the page, and the table inside
+   takes only the width its content needs — so a two-column table does not stretch to
+   fill 80vw. Auto side margins rather than flex centring: a centred flex item that
+   overflows its scroll container becomes unreachable on the leading side, and
+   `overflow-x` here is the last resort for a cell whose content cannot break at all. */
+.table-wrap {
+  margin-block: 0 1.15rem;
+  margin-inline: calc(-0.5 * max(0px, var(--table-max) - var(--doc-measure)));
+  overflow-x: auto;
+}
+.table-wrap > table {
+  width: max-content;
+  min-width: var(--doc-measure);
+  max-width: 100%;
+  margin: 0 auto;
+}
 
 /* --- media --------------------------------------------------------------- */
 img, svg, video { max-width: 100%; height: auto; }

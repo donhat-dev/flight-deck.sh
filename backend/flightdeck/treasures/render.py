@@ -21,6 +21,7 @@ TEMPLATES = Path(__file__).resolve().parent / "templates"
 TEMPLATE_FILE = TEMPLATES / "artifact.html"
 TOKENS_CSS = TEMPLATES / "tokens.css"
 FONTS_DIR = TEMPLATES / "fonts"
+TABLE_WRAP_LUA = TEMPLATES / "wrap-tables.lua"
 
 # claude.ai caps a rendered artifact at 16 MiB; warn from 80% up.
 SIZE_WARN_BYTES = int(0.8 * 16 * 1024 * 1024)
@@ -138,6 +139,7 @@ def render(source_text: str, *, source_format: str, title: str,
         # downside to leaving it unwrapped.
         "--wrap=none",
         "--template", str(TEMPLATE_FILE),
+        "--lua-filter", str(TABLE_WRAP_LUA),
         "-c", "tokens.css",
         "-M", f"title={title}",
         "-M", f"lang={language}",
@@ -289,7 +291,8 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
             ["-f", "markdown-yaml_metadata_block"]
     # No --standalone and no --template: those are what produce the frame we must
     # not emit. --embed-resources still inlines images referenced from the content.
-    argv += ["--embed-resources", "--wrap=none", "-t", "html5"]
+    argv += ["--embed-resources", "--wrap=none", "-t", "html5",
+             "--lua-filter", str(TABLE_WRAP_LUA)]
     proc = subprocess.run(argv, cwd=str(work), capture_output=True,
                           text=True, timeout=120)
     if proc.returncode != 0:

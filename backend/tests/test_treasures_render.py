@@ -170,3 +170,40 @@ def test_a_real_horizontal_rule_is_not_mistaken_for_frontmatter(tmp_path):
     out = render.render(md, source_format="markdown", title="Rules",
                         language="en", workdir=str(tmp_path))
     assert "Just a rule above this paragraph." in out["html"]
+
+
+# --------------------------------------------------------------- table breakout
+
+TABLE_MD = "# T\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n"
+
+
+def test_a_top_level_table_is_wrapped_in_table_wrap(tmp_path):
+    """The Lua filter wraps every top-level table so tokens.css can break it out
+    of the prose column — a table has no wrapper of its own to carry negative
+    margins otherwise."""
+    out = render.render(TABLE_MD, source_format="markdown", title="T",
+                        language="en", workdir=str(tmp_path))
+    assert re.search(r'<div class="table-wrap">\s*<table', out["html"])
+
+
+def test_a_table_nested_in_a_component_is_not_wrapped(tmp_path):
+    """Top-level only, matching the sheet's own `.doc >` scoping: a table inside
+    a component div belongs to that component's layout, not the page's."""
+    md = ('<div data-component="card">\n\n| A | B |\n| --- | --- |\n'
+          '| 1 | 2 |\n\n</div>\n')
+    out = render.render(md, source_format="markdown", title="T",
+                        language="en", workdir=str(tmp_path))
+    html = out["html"]
+    card_table = html.index('data-component="card"')
+    table_idx = html.index("<table")
+    assert table_idx > card_table
+    # the table sits directly inside the card, no table-wrap div in between
+    assert "table-wrap" not in html[card_table:table_idx]
+
+
+def test_tokens_css_declares_the_table_breakout():
+    """Cheap coverage guard, in the style of the font-family coverage tests
+    above: the wrapper rule and the width token it consumes must both exist."""
+    css = render.TOKENS_CSS.read_text(encoding="utf-8")
+    assert ".table-wrap {" in css
+    assert "--table-max" in css
