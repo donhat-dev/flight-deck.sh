@@ -403,6 +403,16 @@ tbody tr:last-child td { border-bottom: 0; }
    that is now free to be wider beats reaching for a horizontal scrollbar. */
 th, td { overflow-wrap: anywhere; }
 
+/* …but NOT an identifier. `anywhere` sets a cell's min-content width to one
+   character, which tells the auto table layout that every column may be squeezed
+   to nothing — so widening the table changed nothing on a real document: the extra
+   room went to the empty trailing columns while `nakivo_presale_bridge` still broke
+   into `nakivo_presale_brid` + `ge`. A code span that cannot break raises its
+   column's min-content width to the token, which is what makes the layout hand
+   that column the room it needs. Prose in the same cell still wraps freely; the
+   wrapper's `overflow-x` is there for the case where even the tokens do not fit. */
+th code, td code { overflow-wrap: normal; word-break: keep-all; }
+
 /* A table breaks OUT of the prose wrap, because a table is data rather than prose:
    a seven-column matrix squeezed into paragraph width wraps identifiers mid-token,
    which reads as corruption rather than as a line break. The wrapper takes symmetric
