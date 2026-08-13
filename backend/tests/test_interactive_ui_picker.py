@@ -202,6 +202,7 @@ def test_validate_pool_accepts_exact_manifest_path_interface(tmp_path):
     assert result.returncode == 0
     assert payload["errors"] == []
     assert set(payload["checksums"]) == {"canvas_ui"}
+    assert payload["cross_pool_url_unique"] is None
 
 
 def test_validate_reports_deterministic_pool_metadata_from_valid_strings(tmp_path):
@@ -266,6 +267,58 @@ def test_validate_reports_cross_pool_url_reuse(tmp_path):
     payload = json.loads(result.stdout)
     assert result.returncode == 2
     assert payload["cross_pool_url_unique"] is False
+
+
+def test_validate_reports_url_uniqueness_unknown_when_pool_is_missing(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    (candidate_dir / ROLE_FILES["motion_3d"]).unlink()
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert "pool_file_missing" in {item["code"] for item in payload["errors"]}
+    assert payload["cross_pool_url_unique"] is None
+
+
+@pytest.mark.parametrize("field,value", [
+    ("canonical_url", ["not", "a", "string"]),
+    ("id", {"not": "a string"}),
+    ("canonical_url", None),
+    ("id", None),
+])
+def test_validate_reports_url_uniqueness_unknown_for_invalid_identity(
+    tmp_path, field, value
+):
+    candidate_dir = write_valid_manifests(tmp_path)
+    canvas = load_records(candidate_dir, "canvas_ui")
+    if value is None:
+        canvas[0].pop(field)
+    else:
+        canvas[0][field] = value
+    save_records(candidate_dir, "canvas_ui", canvas)
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert payload["cross_pool_url_unique"] is None
+
+
+def test_validate_reports_url_uniqueness_unknown_for_non_object_entry(tmp_path):
+    candidate_dir = write_valid_manifests(tmp_path)
+    canvas = load_records(candidate_dir, "canvas_ui")
+    canvas.append("not an object")
+    save_records(candidate_dir, "canvas_ui", canvas)
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert "candidate_not_object" in {
+        item["code"] for item in payload["errors"]
+    }
+    assert payload["cross_pool_url_unique"] is None
 
 
 def test_committed_manifests_pass_contract():

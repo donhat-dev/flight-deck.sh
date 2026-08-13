@@ -196,6 +196,24 @@ def validate(
                 else:
                     seen_urls[url] = (role, candidate_id)
 
+    url_check_complete = (
+        active_roles == set(ROLES)
+        and not any(
+            item["code"] in {
+                "pool_file_missing",
+                "pool_file_invalid",
+                "pool_not_array",
+                "candidate_not_object",
+            }
+            for item in errors
+        )
+        and all(
+            isinstance(item.get("canonical_url"), str)
+            and isinstance(item.get("id"), str)
+            for role in ROLES
+            for item in pools[role]
+        )
+    )
     checksums = {role: checksum(pools[role]) for role in ROLES if role in active_roles}
     report: dict[str, object] = {
         "valid": not errors,
@@ -206,8 +224,10 @@ def validate(
             for role in ROLES
             if role in active_roles
         },
-        "cross_pool_url_unique": not any(
-            item["code"] == "canonical_url_reused" for item in errors
+        "cross_pool_url_unique": (
+            not any(item["code"] == "canonical_url_reused" for item in errors)
+            if url_check_complete
+            else None
         ),
     }
     return pools, report
