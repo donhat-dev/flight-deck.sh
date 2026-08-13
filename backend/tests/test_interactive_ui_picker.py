@@ -281,6 +281,24 @@ def test_validate_reports_url_uniqueness_unknown_when_pool_is_missing(tmp_path):
     assert payload["cross_pool_url_unique"] is None
 
 
+@pytest.mark.parametrize("content,error_code", [
+    ("not JSON", "pool_file_invalid"),
+    (json.dumps({"not": "an array"}), "pool_not_array"),
+])
+def test_validate_reports_url_uniqueness_unknown_when_pool_cannot_load(
+    tmp_path, content, error_code
+):
+    candidate_dir = write_valid_manifests(tmp_path)
+    (candidate_dir / ROLE_FILES["motion_3d"]).write_text(content, encoding="utf-8")
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert error_code in {item["code"] for item in payload["errors"]}
+    assert payload["cross_pool_url_unique"] is None
+
+
 @pytest.mark.parametrize("field,value", [
     ("canonical_url", ["not", "a", "string"]),
     ("id", {"not": "a string"}),
@@ -316,6 +334,22 @@ def test_validate_reports_url_uniqueness_unknown_for_non_object_entry(tmp_path):
     payload = json.loads(result.stdout)
     assert result.returncode == 2
     assert "candidate_not_object" in {
+        item["code"] for item in payload["errors"]
+    }
+    assert payload["cross_pool_url_unique"] is None
+
+
+def test_incomplete_url_check_takes_precedence_over_observed_duplicate(tmp_path):
+    candidate_dir = write_mutated_manifests(tmp_path, "cross_pool_duplicate")
+    motion = load_records(candidate_dir, "motion_3d")
+    motion[0].pop("id")
+    save_records(candidate_dir, "motion_3d", motion)
+
+    result = run_cli("validate", "--candidate-dir", str(candidate_dir))
+
+    payload = json.loads(result.stdout)
+    assert result.returncode == 2
+    assert "canonical_url_reused" in {
         item["code"] for item in payload["errors"]
     }
     assert payload["cross_pool_url_unique"] is None
