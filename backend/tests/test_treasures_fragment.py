@@ -52,10 +52,9 @@ def markup_of(html: str) -> str:
 @pytest.mark.parametrize("tag", ["<!doctype", "<html", "<head", "<body"])
 def test_fragment_emits_no_document_frame(frag, tag):
     assert tag not in markup_of(frag["html"]).lower()
-    # A "pruned N unused font face(s)" note is expected, informational output
     # of the new font-selection rule, not a problem — this test is about frame
     # leaks, so only warnings OTHER than pruning notes must be empty.
-    assert not [w for w in frag["warnings"] if "pruned" not in w], frag["warnings"]
+    assert frag["warnings"] == []
 
 
 def test_the_kind_and_font_classes_move_to_a_wrapper(frag):
@@ -216,9 +215,8 @@ def test_publish_prepare_hands_over_the_fragment(wired, tmp_path):
     assert prep["file_path"].endswith("fragment.html")
     assert prep["document_path"].endswith("artifact.html")
     assert prep["file_path"] != prep["document_path"]
-    # A "pruned N unused font face(s)" note is expected now — this body has no
     # hero and no code, so most of the six faces are legitimately unused.
-    assert not [w for w in prep["warnings"] if "pruned" not in w], prep["warnings"]
+    assert prep["warnings"] == []
 
     html = open(prep["file_path"], encoding="utf-8").read()
     assert "<body" not in markup_of(html).lower()

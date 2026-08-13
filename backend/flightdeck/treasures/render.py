@@ -310,9 +310,9 @@ def render(source_text: str, *, source_format: str, title: str,
     html = proc.stdout
     if custom_head:
         html = html.replace("</head>", f"{custom_head}\n</head>", 1)
-    html, notes = prune_faces(html, font=font)
+    html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
-    warnings = list(notes)
+    warnings = []
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     for url in sorted(set(_REMOTE_IN_SOURCE_RE.findall(source_text))):
@@ -326,7 +326,7 @@ def render(source_text: str, *, source_format: str, title: str,
     if size > SIZE_WARN_BYTES:
         warnings.append(
             f"rendered size {size / 1048576:.1f} MiB approaches the 16 MiB cap")
-    return {"html": html, "bytes": size, "warnings": warnings}
+    return {"html": html, "bytes": size, "warnings": warnings, "pruned": pruned}
 
 
 # ---------------------------------------------------------------- fragment mode
@@ -466,10 +466,10 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
         f'<main class="doc">\n{inner}\n</main>\n'
         f"</div>\n"
     )
-    html, notes = prune_faces(html, font=font)
+    html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
 
-    warnings = list(notes)
+    warnings = []
     if proc.stderr.strip():
         warnings.append(f"pandoc: {proc.stderr.strip()[:300]}")
     # Only the MARKUP can carry a frame; the embedded CSS legitimately contains the
@@ -483,5 +483,5 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
         warnings.append(
             f"{len(leftovers)} external reference(s) survived — NOT self-contained: "
             f"{leftovers[:3]}")
-    return {"html": html, "warnings": warnings,
+    return {"html": html, "warnings": warnings, "pruned": pruned,
             "render_bytes": len(html.encode("utf-8"))}

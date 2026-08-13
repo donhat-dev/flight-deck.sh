@@ -243,7 +243,7 @@ def test_pruning_drops_what_cannot_be_used(tmp_path):
     face = re.search(r"@font-face\s*\{[^}]*\}", html, re.S).group(0)
     assert "font-family: 'Space Grotesk'" in face
     assert "space-grotesk-latin.woff2" not in html
-    assert any("pruned" in w and "5 unused font face" in w for w in out["warnings"]), \
+    assert any("pruned" in w and "5 unused font face" in w for w in out["pruned"]), \
         out["warnings"]
 
 
