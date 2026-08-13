@@ -20,6 +20,8 @@ import RelayView from "./agui/RelayView.jsx";
 import MissionsView from "./systems/MissionsView.jsx";
 import AppearanceView from "./systems/AppearanceView.jsx";
 import TreasuresView from "./treasures/TreasuresView.jsx";
+import TreasureConfig from "./treasures/TreasureConfig.jsx";
+import NavGroup from "./ui/NavGroup.jsx";
 // Lazy: TreasureDetail pulls in Milkdown (WYSIWYG editor), a sizeable
 // dependency only ever needed on the single #/treasure/<id> route — keeping
 // it out of the main bundle instead of growing every other view's load.
@@ -143,7 +145,13 @@ const NAV = [
   { k: "graph", label: "Charts", icon: "⌗" },
   { k: "diff", label: "Diff", icon: "⇄" },
   { k: "hub", label: "Hub", icon: "⬡" },
-  { k: "treasures", label: "Treasures", icon: "◈" },
+  // The first nav entry with children. Treasures stays a real view — the row
+  // still opens the library — and Config is a page under it rather than three
+  // separate entries for three text fields, which is how a settings panel is
+  // shaped everywhere it works.
+  { k: "treasures", label: "Treasures", icon: "◈", children: [
+    { k: "treasure-config", label: "Config", icon: "⌘" },
+  ] },
 ];
 // Systems section: environment management (read-only v1) as opposed to the
 // usage-analytics views above. Comms = MCP servers, Manuals = skills,
@@ -624,7 +632,12 @@ export default function App() {
           <Wordmark className="text-[15px]" />
         </button>
         <nav className="flex flex-col gap-1 px-3" aria-label="Views">
-          {NAV.map(navBtn)}
+          {/* NavGroup renders a childless entry as `renderLeaf(item)` and nothing
+              else, so every flat entry here is exactly the button it was before. */}
+          {NAV.map((n) => (
+            <NavGroup key={n.k} item={n} view={NAV_ACTIVE} renderLeaf={navBtn}
+                      onSelect={(k) => { setView(k); goHome(); setNavOpen(false); }} />
+          ))}
           <div className="mb-1 mt-3 px-3 text-[10px] uppercase tracking-[0.18em] text-zinc-600"
             style={{ fontWeight: "var(--fdx-weight-label)" }}>
             Systems
@@ -748,6 +761,11 @@ export default function App() {
       ) : view === "appearance" ? (
         <Shell variant="contained" header={<Header title="Appearance" subtitle="Face, weight and size for each kind of text — saved for the whole install" />}>
           <AppearanceView />
+        </Shell>
+      ) : view === "treasure-config" ? (
+        <Shell variant="contained" header={<Header title="Treasure config"
+          subtitle="Agent notes, header and footer applied to every artifact generated from now on" />}>
+          <TreasureConfig />
         </Shell>
       ) : view === "treasures" ? (
         <Shell variant="contained" header={<Header title="Treasures" subtitle="Artifact library — wrap, preview, provenance" />}>
