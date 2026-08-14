@@ -436,7 +436,14 @@ th code, td code { overflow-wrap: normal; word-break: keep-all; }
 /* --- media --------------------------------------------------------------- */
 img, svg, video { max-width: 100%; height: auto; }
 figure { margin-inline: 0; }
-figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; }
+/* A diagram is a heavier visual block than a paragraph or a list, so it earns
+   the same order of extra breathing room a section heading gets (h2's 3rem),
+   rather than the plain 0 0 1.15rem every other flow element shares. */
+figure.diagram { margin: 2rem 0 1.8rem; }
+/* Centered + italic is what tells a reader "this describes the figure above",
+   not "this is more body text" — the same distinction blockquote makes with
+   its weight and border rather than a second, near-identical selector. */
+figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; text-align: center; font-style: italic; }
 
 /* === components (docs/treasures-components.md) ============================
  * Authored in markdown as `<div data-component="X">` + blank lines, or

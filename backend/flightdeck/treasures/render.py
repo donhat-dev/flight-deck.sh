@@ -225,6 +225,281 @@ def _refuse_unreadable_src(source_text: str, work: Path) -> None:
             f"in the artifact's assets/ directory.")
 
 
+# ------------------------------------------------------------- source assets
+#
+# A source references its own sibling files as plain relative paths (a
+# diagram sitting next to the markdown that embeds it). pandoc resolves those
+# paths against ITS OWN cwd, which is the throwaway workdir this module
+# builds per render — not the source's directory — so a reference that is
+# perfectly valid on disk resolved to nothing and `--embed-resources` left
+# the tag untouched, shipping a broken image. Copying the referenced files
+# into the workdir first, under the same relative path, is what makes pandoc
+# resolve them exactly as the author wrote them.
+
+_MD_IMG_RE = re.compile(r'!\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)')
+_HTML_IMG_SRC_RE = re.compile(r'<img\b[^>]*\bsrc\s*=\s*["\']([^"\']+)["\']', re.I)
+_IGNORE_ASSET_PREFIXES = ("data:", "http:", "https:", "//", "#")
+
+
+def _local_asset_refs(text: str) -> list[str]:
+    """Local asset paths referenced from markdown `![alt](path)` or raw HTML
+    `<img src="path">`. A remote URL, a data URI, a protocol-relative
+    reference or a same-page anchor is never a file pandoc has to read, so
+    each is excluded rather than chased."""
+    refs = [m.group(1) for m in _MD_IMG_RE.finditer(text)]
+    refs += [m.group(1) for m in _HTML_IMG_SRC_RE.finditer(text)]
+    seen: list[str] = []
+    for r in refs:
+        if r.lower().startswith(_IGNORE_ASSET_PREFIXES):
+            continue
+        if r not in seen:
+            seen.append(r)
+    return seen
+
+
+def _resolves_inside(base: Path, candidate: Path) -> bool:
+    """Same escape guard as
+    .claude/skills/artifact-build/scripts/inline_assets.py's `asset_sub`:
+    `base` must be the candidate itself or one of its parents."""
+    return candidate == base or base in candidate.parents
+
+
+def _copy_local_assets(source_text: str, asset_dir: str | None, work: Path) -> list[str]:
+    """Copy every local asset `source_text` references from `asset_dir` into
+    `work`, preserving the relative path exactly as written, so pandoc
+    resolves it exactly as the author wrote it.
+
+    A reference that resolves outside `asset_dir` is refused and reported —
+    never copied, same fail-closed shape as `_refuse_unreadable_src` below.
+    A reference that resolves inside `asset_dir` but names a file that does
+    not exist is reported too: today that fails silently into a broken
+    `<img>`, which is the whole defect this function exists to close.
+    """
+    warnings: list[str] = []
+    if not asset_dir:
+        return warnings
+    base = Path(asset_dir).resolve()
+    if not base.is_dir():
+        return warnings
+    for rel in _local_asset_refs(source_text):
+        candidate = (base / rel).resolve()
+        if not _resolves_inside(base, candidate):
+            warnings.append(
+                f"asset {rel!r} resolves outside its source directory "
+                f"({base}) — refusing to copy it")
+            continue
+        if not candidate.is_file():
+            warnings.append(f"referenced asset not found: {rel}")
+            continue
+        dest = work / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(candidate, dest)
+    return warnings
+
+
+# ------------------------------------------------------------- SVG inlining
+
+_SVG_OPEN_RE = re.compile(r"<svg\b([^>]*)>", re.I)
+
+# Two shapes worth matching, tried in this order at each position:
+#
+# 1. Pandoc's own "implicit figure" wrapper. A markdown image standing alone
+#    in its own paragraph — exactly how every diagram in this document is
+#    written — gets auto-wrapped by pandoc as
+#    `<figure><img .../><figcaption aria-hidden="true">ALT</figcaption></figure>`
+#    *before* this function ever runs. Replacing only the inner `<img>` would
+#    leave that wrapper in place around our own `<figure class="diagram">`,
+#    nesting one figure inside another with two copies of the caption — verified
+#    to also make pandoc's own `html -> plain` drop BOTH captions rather than
+#    keep either. Matching and replacing the whole wrapper is what avoids that.
+# 2. A bare `<img>` with no such wrapper — what a caller passes directly (the
+#    test suite), or an image that shares a paragraph with other text, which
+#    pandoc never auto-wraps.
+_IMG_TAG_RE = re.compile(
+    r"<figure>\s*(?P<img1><img\b[^>]*>)\s*<figcaption\b[^>]*>.*?</figcaption>\s*</figure>"
+    r"|(?P<img2><img\b[^>]*>)",
+    re.I | re.S)
+_ID_ATTR_RE = re.compile(r"""\bid=(["'])([^"']+)\1""")
+_URL_REF_RE = re.compile(r"""url\((["']?)#([^)"']+)\1\)""")
+_HREF_REF_RE = re.compile(r"""\b(xlink:href|href)=(["'])#([^"']+)\2""")
+
+
+def _attr_val(tag_or_attrs: str, name: str) -> str | None:
+    m = (re.search(rf'\b{name}\s*=\s*"([^"]*)"', tag_or_attrs, re.I) or
+         re.search(rf"\b{name}\s*=\s*'([^']*)'", tag_or_attrs, re.I))
+    return m.group(1) if m else None
+
+
+def _drop_attr(attrs: str, name: str) -> str:
+    attrs = re.sub(rf'\s+{name}\s*=\s*"[^"]*"', "", attrs, flags=re.I)
+    attrs = re.sub(rf"\s+{name}\s*=\s*'[^']*'", "", attrs, flags=re.I)
+    return attrs
+
+
+def _resolve_svg_bytes(src: str, asset_dir: str | None) -> bytes | None:
+    """The raw SVG bytes an `<img>` src points at, or None when it is not an
+    inlineable local SVG.
+
+    Two shapes count: a `data:image/svg+xml;base64,...` URI (what
+    `--embed-resources` produces once `_copy_local_assets` has put the file
+    where pandoc can see it) and a still-unresolved relative `*.svg` path
+    (the file existed but, for whatever reason, was never embedded — e.g. a
+    caller that inlines without having run the asset-copy step first).
+    """
+    low = src.lower()
+    if low.startswith("data:image/svg+xml"):
+        if ";base64," not in src:
+            return None
+        try:
+            return base64.b64decode(src.split(";base64,", 1)[1])
+        except Exception:
+            return None
+    if low.startswith(_IGNORE_ASSET_PREFIXES):
+        return None
+    if not low.endswith(".svg") or not asset_dir:
+        return None
+    base = Path(asset_dir).resolve()
+    if not base.is_dir():
+        return None
+    candidate = (base / src).resolve()
+    if not _resolves_inside(base, candidate) or not candidate.is_file():
+        return None
+    return candidate.read_bytes()
+
+
+def _namespace_ids(svg_text: str, prefix: str) -> str:
+    """Rewrite every `id="x"` to `id="{prefix}x"` and every reference to it
+    (`url(#x)`, `href="#x"`, `xlink:href="#x"`) to match.
+
+    Mandatory, not defensive: `id="ref"` (an arrowhead marker) appears in
+    several of these diagrams independently, so inlining two of them
+    unprefixed puts two `<marker id="ref">` in one document and every
+    `marker-end="url(#ref)"` binds to whichever one the browser saw first —
+    both diagrams would silently share one arrowhead until one of them
+    changes it. The prefix is derived from the figure's position in the
+    document (`d1-`, `d2-`, …), never random or time-based, so a render
+    stays byte-identical across repeats.
+    """
+    ids = {m.group(2) for m in _ID_ATTR_RE.finditer(svg_text)}
+    if not ids:
+        return svg_text
+
+    def repl_id(m):
+        return f"id={m.group(1)}{prefix}{m.group(2)}{m.group(1)}"
+
+    svg_text = _ID_ATTR_RE.sub(repl_id, svg_text)
+
+    def repl_url(m):
+        quote, old_id = m.group(1), m.group(2)
+        if old_id in ids:
+            return f"url({quote}#{prefix}{old_id}{quote})"
+        return m.group(0)
+
+    svg_text = _URL_REF_RE.sub(repl_url, svg_text)
+
+    def repl_href(m):
+        attr, quote, old_id = m.group(1), m.group(2), m.group(3)
+        if old_id in ids:
+            return f"{attr}={quote}#{prefix}{old_id}{quote}"
+        return m.group(0)
+
+    svg_text = _HREF_REF_RE.sub(repl_href, svg_text)
+    return svg_text
+
+
+def _make_responsive(svg_text: str, *, alt: str) -> str:
+    """Keep `viewBox`, drop fixed `width`/`height` off the ROOT `<svg>` only,
+    so tokens.css's `svg { max-width: 100% }` governs instead. A root with no
+    `viewBox` but real width/height gets one synthesised first
+    (`0 0 W H`) — dropping the fixed size without it would collapse the
+    drawing to nothing. Adds `role="img"`/`aria-label` when there is alt text
+    to attach it to.
+    """
+    m = _SVG_OPEN_RE.search(svg_text)
+    if not m:
+        return svg_text
+    attrs = m.group(1)
+    view_box = _attr_val(attrs, "viewBox")
+    width = _attr_val(attrs, "width")
+    height = _attr_val(attrs, "height")
+    if not view_box and width and height:
+        w = re.sub(r"[a-zA-Z%]+$", "", width)
+        h = re.sub(r"[a-zA-Z%]+$", "", height)
+        attrs += f' viewBox="0 0 {w} {h}"'
+    attrs = _drop_attr(attrs, "width")
+    attrs = _drop_attr(attrs, "height")
+    if alt:
+        attrs += f' role="img" aria-label="{html_escape(alt, quote=True)}"'
+    return svg_text[:m.start()] + f"<svg{attrs}>" + svg_text[m.end():]
+
+
+def _process_svg(svg_text: str, *, prefix: str, alt: str) -> str:
+    """Turn one raw SVG file's markup into the `<figure>` this document ships."""
+    # 1. Strip anything executable. These artifacts get published; an SVG is
+    #    markup, not a trusted blob.
+    svg_text = re.sub(r"<script\b[^>]*>.*?</script>", "", svg_text, flags=re.I | re.S)
+    svg_text = re.sub(r'''\s+on[a-zA-Z]+\s*=\s*"[^"]*"''', "", svg_text, flags=re.I)
+    svg_text = re.sub(r"""\s+on[a-zA-Z]+\s*=\s*'[^']*'""", "", svg_text, flags=re.I)
+    # 2. Namespace ids so same-named markers/gradients across figures never collide.
+    svg_text = _namespace_ids(svg_text, prefix)
+    # 3. Drop the XML prolog and any DOCTYPE — illegal inside HTML.
+    svg_text = re.sub(r"<\?xml[^>]*\?>\s*", "", svg_text)
+    svg_text = re.sub(r"<!DOCTYPE[^>]*>\s*", "", svg_text, flags=re.I)
+    # 4 & 6. Responsive sizing + accessible name on the root element.
+    svg_text = _make_responsive(svg_text.strip(), alt=alt)
+    # 5. Wrap in <figure>. The <figcaption> is deliberate, not decorative: of
+    #    every channel tried (a bare <img alt>, a <meta>, an aria-label alone),
+    #    only real DOM text inside a <figcaption> survived every text-extraction
+    #    path an agent uses (e.g. `pandoc html -> plain`), so it is what makes a
+    #    diagram's meaning reach a machine reader at all. Emitted only when the
+    #    <img> carried non-empty alt text.
+    caption = f"<figcaption>{html_escape(alt)}</figcaption>" if alt else ""
+    return f'<figure class="diagram">{svg_text}{caption}</figure>'
+
+
+def inline_svg_images(html: str, *, asset_dir: str | None = None) -> tuple[str, int, int]:
+    """Replace every `<img>` whose source is an SVG with the file's own `<svg>`
+    markup, so a diagram becomes real DOM rather than an opaque image.
+
+    Why, measured on the first real document this ran against: four diagrams
+    cost 63,660 chars as base64 `<img>` and 47,676 chars inlined — base64
+    inflates text-that-is-already-text by about 34%, and inlining put 272
+    `<text>` labels into the DOM (including every diagram title and a full
+    sentence describing the mechanism) where they had been sealed inside an
+    opaque image. A PNG or other raster reference is untouched: SVG is the
+    special case because it is markup already, not because inlining is
+    generally better.
+
+    Returns `(html, count, bytes_saved)` — `count` figures were inlined,
+    `bytes_saved` is the total chars saved against the base64 form (or spent,
+    for a tiny SVG whose inline markup is longer than its `<img>` tag).
+    """
+    count = 0
+    bytes_saved = 0
+
+    def repl(m):
+        nonlocal count, bytes_saved
+        whole = m.group(0)
+        tag = m.group("img1") or m.group("img2")
+        src = _attr_val(tag, "src")
+        if not src:
+            return whole
+        svg_bytes = _resolve_svg_bytes(src, asset_dir)
+        if svg_bytes is None:
+            return whole
+        try:
+            svg_text = svg_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            return whole
+        alt = _attr_val(tag, "alt") or ""
+        count += 1
+        figure_html = _process_svg(svg_text, prefix=f"d{count}-", alt=alt)
+        bytes_saved += len(whole) - len(figure_html)
+        return figure_html
+
+    return _IMG_TAG_RE.sub(repl, html), count, bytes_saved
+
+
 def pandoc_path() -> str:
     """Resolve the pandoc binary: env override, ~/.flightdeck/bin, then PATH."""
     env = os.environ.get("TREASURES_PANDOC")
@@ -294,6 +569,7 @@ def render(source_text: str, *, source_format: str, title: str,
            default_header_html: str | None = None,
            default_footer_html: str | None = None,
            agent_notes: str | None = None,
+           asset_dir: str | None = None,
            workdir: str) -> dict:
     """Render `source_text` into a self-contained HTML string.
 
@@ -310,6 +586,13 @@ def render(source_text: str, *, source_format: str, title: str,
                  per-artifact and targets <head>, these three are site-wide
                  and target <body>. All default to None so every existing
                  caller/test keeps its current output.
+    asset_dir: the directory the source's OWN relative asset paths (a sibling
+             diagram, say) resolve against — normally the source file's own
+             directory. Each reference found in `source_text` is copied into
+             `workdir` under its same relative path before pandoc runs, so
+             `--embed-resources` can resolve it exactly as written. None
+             means the source has no such directory to draw from (e.g. it
+             arrived as inline `content=` with no file on disk).
     workdir: a real directory; the template + fonts are copied in so pandoc can
              resolve the relative asset paths, and any `assets/` the caller has
              already placed there is picked up too.
@@ -326,6 +609,7 @@ def render(source_text: str, *, source_format: str, title: str,
     src = work / f"source.{ext}"
     body = _strip_frontmatter(source_text) if source_format == "markdown" else source_text
     src.write_text(body, encoding="utf-8")
+    asset_warnings = _copy_local_assets(body, asset_dir, work)
 
     argv = [pandoc_path(), src.name]
     if source_format == "html":
@@ -362,6 +646,7 @@ def render(source_text: str, *, source_format: str, title: str,
         raise RuntimeError(f"pandoc failed: {proc.stderr.strip()[:500]}")
 
     html = proc.stdout
+    html, svg_inlined, svg_bytes_saved = inline_svg_images(html, asset_dir=asset_dir)
     if custom_head:
         html = html.replace("</head>", f"{custom_head}\n</head>", 1)
     before_defaults = html
@@ -372,7 +657,7 @@ def render(source_text: str, *, source_format: str, title: str,
         and html == before_defaults)
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
-    warnings = []
+    warnings = list(asset_warnings)
     if anchor_missing:
         warnings.append(
             'could not place body defaults: no <main class="doc"> anchor')
@@ -389,7 +674,8 @@ def render(source_text: str, *, source_format: str, title: str,
     if size > SIZE_WARN_BYTES:
         warnings.append(
             f"rendered size {size / 1048576:.1f} MiB approaches the 16 MiB cap")
-    return {"html": html, "bytes": size, "warnings": warnings, "pruned": pruned}
+    return {"html": html, "bytes": size, "warnings": warnings, "pruned": pruned,
+            "svg_inlined": svg_inlined, "svg_bytes_saved": svg_bytes_saved}
 
 
 # ---------------------------------------------------------------- fragment mode
@@ -490,6 +776,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
                     default_header_html: str | None = None,
                     default_footer_html: str | None = None,
                     agent_notes: str | None = None,
+                    asset_dir: str | None = None,
                     workdir: str) -> dict:
     """Render body-only HTML for a host that owns the page frame.
 
@@ -502,6 +789,10 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     defaults as `render()` above (see its docstring for the custom_head
     distinction) — spliced into this fragment's own `<main class="doc">` via
     `inject_body_defaults`.
+
+    asset_dir: same meaning as `render()`'s — the directory the source's own
+    relative asset paths resolve against, copied into `workdir` before pandoc
+    runs.
     """
     font = font or "space-grotesk"
     if font not in FONTS:
@@ -514,6 +805,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     src = work / f"source.{ext}"
     body = _strip_frontmatter(source_text) if source_format == "markdown" else source_text
     src.write_text(body, encoding="utf-8")
+    asset_warnings = _copy_local_assets(body, asset_dir, work)
 
     argv = [pandoc_path(), src.name]
     argv += ["-f", "html"] if source_format == "html" else \
@@ -529,6 +821,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
         raise RuntimeError(f"pandoc failed: {proc.stderr.strip()[:500]}")
 
     inner = proc.stdout.strip()
+    inner, svg_inlined, svg_bytes_saved = inline_svg_images(inner, asset_dir=asset_dir)
     css = fragment_css()
     html = (
         f"<style>\n{css}\n</style>\n"
@@ -547,7 +840,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
 
-    warnings = []
+    warnings = list(asset_warnings)
     if anchor_missing:
         warnings.append(
             'could not place body defaults: no <main class="doc"> anchor')
@@ -565,4 +858,5 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
             f"{len(leftovers)} external reference(s) survived — NOT self-contained: "
             f"{leftovers[:3]}")
     return {"html": html, "warnings": warnings, "pruned": pruned,
-            "render_bytes": len(html.encode("utf-8"))}
+            "render_bytes": len(html.encode("utf-8")),
+            "svg_inlined": svg_inlined, "svg_bytes_saved": svg_bytes_saved}

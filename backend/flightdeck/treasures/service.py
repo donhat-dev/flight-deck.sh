@@ -33,7 +33,7 @@ def config_set(conn, values: dict) -> dict:
 def _render_checked(content, *, source_format, title, language, kind, status,
                     font, custom_head, workdir,
                     default_header_html=None, default_footer_html=None,
-                    agent_notes=None) -> tuple[str, dict]:
+                    agent_notes=None, asset_dir=None) -> tuple[str, dict]:
     """Lint -> render -> validate, with the plain-markdown fallback.
 
     Returns `(content_to_store, rendered)`.
@@ -66,7 +66,7 @@ def _render_checked(content, *, source_format, title, language, kind, status,
                              font=font, custom_head=custom_head,
                              default_header_html=default_header_html,
                              default_footer_html=default_footer_html,
-                             agent_notes=agent_notes,
+                             agent_notes=agent_notes, asset_dir=asset_dir,
                              workdir=workdir)
 
     rendered = _render(content)
@@ -145,8 +145,9 @@ def wrap(conn, *, title=None, content=None, source_path=None,
     # Render in a throwaway dir: pandoc needs its template/CSS/fonts copied
     # beside the source to resolve relative paths, and those build inputs must
     # not accumulate inside every version dir (the rendered HTML already
-    # carries them, base64-embedded). When asset support lands, the artifact's
-    # assets/ dir gets copied into this workdir before the call.
+    # carries them, base64-embedded). The source's OWN sibling assets (a
+    # diagram it references by relative path) are copied in too — see
+    # asset_dir below.
     status = existing["status"] if existing else "draft"
     if font is not None and font not in VALID_FONT:
         raise ValueError(f"invalid font: {font!r} "
@@ -154,6 +155,20 @@ def wrap(conn, *, title=None, content=None, source_path=None,
     font = font or (existing or {}).get("font") or "space-grotesk"
     custom_head = (custom_head if custom_head is not None
                    else (existing or {}).get("custom_head"))
+    # Where the source's own relative asset paths resolve from: the origin
+    # file's directory when this artifact (or the row it is updating) has
+    # one, otherwise the directory of whatever source is already stored on
+    # disk (a previous version). Neither exists for a brand-new artifact
+    # wrapped from content= with no origin_path — nothing to copy from, so
+    # asset_dir stays None and a relative reference simply gets its usual
+    # "not found" warning.
+    final_origin_path = origin_path or (existing or {}).get("origin_path")
+    if final_origin_path:
+        asset_dir = str(Path(final_origin_path).parent)
+    elif existing:
+        asset_dir = str(Path(_version_paths(existing)["source_path"]).parent)
+    else:
+        asset_dir = None
     cfg = store.config_get(conn)
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
         # Lint may rewrite the content (blank-line fixes) or the validator may
@@ -162,7 +177,7 @@ def wrap(conn, *, title=None, content=None, source_path=None,
         content, rendered = _render_checked(
             content, source_format=source_format, title=title,
             language=language, kind=kind, status=status, font=font,
-            custom_head=custom_head, workdir=workdir,
+            custom_head=custom_head, workdir=workdir, asset_dir=asset_dir,
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
@@ -529,11 +544,15 @@ def export_fragment(conn, ident) -> dict:
     row["source"] = src.read_text(encoding="utf-8")
     out_path = Path(row["dir_path"]) / f"v{row['version']}" / "fragment.html"
     cfg = store.config_get(conn)
+    # Origin's own directory when there is one, else the directory the
+    # stored source already lives in — same rule `wrap`/`rerender` use.
+    asset_dir = (str(Path(row["origin_path"]).parent) if row.get("origin_path")
+                 else str(src.parent))
     with tempfile.TemporaryDirectory(prefix="treasure-fragment-") as workdir:
         rendered = render.render_fragment(
             row["source"], source_format=row["source_format"],
             title=row["title"], kind=row["kind"], status=row["status"],
-            font=row["font"], workdir=workdir,
+            font=row["font"], workdir=workdir, asset_dir=asset_dir,
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
@@ -560,6 +579,10 @@ def rerender(conn, ident) -> dict:
     paths = _version_paths(row)
     source = Path(paths["source_path"]).read_text(encoding="utf-8")
     cfg = store.config_get(conn)
+    # Origin's own directory when there is one, else the directory the
+    # stored source already lives in — same rule `wrap`/`export_fragment` use.
+    asset_dir = (str(Path(row["origin_path"]).parent) if row.get("origin_path")
+                 else str(Path(paths["source_path"]).parent))
     with tempfile.TemporaryDirectory(prefix="treasures-rerender-") as workdir:
         # Same gate as wrap, so an artifact re-rendered after a template change
         # cannot end up held to a weaker contract than a freshly wrapped one.
@@ -568,6 +591,7 @@ def rerender(conn, ident) -> dict:
             language=row["language"], kind=row["kind"], status=row["status"],
             font=row.get("font") or "space-grotesk",
             custom_head=row.get("custom_head"), workdir=workdir,
+            asset_dir=asset_dir,
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
