@@ -449,10 +449,19 @@ def _process_svg(svg_text: str, *, prefix: str, alt: str) -> str:
     svg_text = _make_responsive(svg_text.strip(), alt=alt)
     # 5. Wrap in <figure>. The <figcaption> is deliberate, not decorative: of
     #    every channel tried (a bare <img alt>, a <meta>, an aria-label alone),
-    #    only real DOM text inside a <figcaption> survived every text-extraction
-    #    path an agent uses (e.g. `pandoc html -> plain`), so it is what makes a
-    #    diagram's meaning reach a machine reader at all. Emitted only when the
-    #    <img> carried non-empty alt text.
+    #    only real DOM text inside a <figcaption> reaches a machine reader at all.
+    #
+    #    Be exact about how far that goes, because the first version of this
+    #    comment overclaimed it. Measured: a <figcaption> survives `pandoc -t
+    #    markdown`, a DOM/accessibility read, and a plain grep. It does NOT
+    #    survive `pandoc -t plain`, whose writer drops a Figure's caption — and
+    #    pandoc's HTML *reader* treats any inline <svg> as an opaque image, so
+    #    the <text> labels below never reach a pandoc AST in any output mode.
+    #    Inlining still wins for them, but for a different reason than pandoc:
+    #    sealed in base64 they are unreachable to everything, and as markup they
+    #    are at least greppable and visible to a DOM reader.
+    #
+    #    Emitted only when the <img> carried non-empty alt text.
     caption = f"<figcaption>{html_escape(alt)}</figcaption>" if alt else ""
     return f'<figure class="diagram">{svg_text}{caption}</figure>'
 
