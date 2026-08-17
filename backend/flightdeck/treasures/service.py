@@ -119,9 +119,6 @@ def _title_from(text: str, source_path: str) -> str:
     return Path(source_path).stem.replace("-", " ").replace("_", " ").strip()
 
 
-_NOTES_TAG_RE = re.compile(r"<[^>]+>")
-
-
 def _write_agent_notes(conn, row: dict, vdir: Path, guide_html: str) -> str:
     """Write the local companion file beside this version's artifact.
 
@@ -162,7 +159,13 @@ def _write_agent_notes(conn, row: dict, vdir: Path, guide_html: str) -> str:
             lines.append(f"- **{label}**: {val}")
     lines += ["", "## Reading guide (also published, inside the artifact)", ""]
     if guide:
-        lines += [f"- {_NOTES_TAG_RE.sub('', g)}" for g in guide]
+        # The guide lines are plain text with backticks — a neutral form that
+        # markdown takes verbatim and `render._guide_line_html` turns into
+        # <code> for the artifact. They used to arrive as HTML and be
+        # tag-stripped here, which is what wrote `&lt;figcaption&gt;` into a
+        # markdown file. Nothing to strip now, and stripping would eat the
+        # `<figcaption>` the line is trying to name.
+        lines += [f"- {g}" for g in guide]
     else:
         lines.append("- Plain prose only — no components, table breakout or "
                      "diagram in this document.")

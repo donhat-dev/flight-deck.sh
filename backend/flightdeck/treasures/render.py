@@ -627,17 +627,29 @@ def _reading_guide(markup: str) -> list[str]:
     lines = []
     for name in lint.COMPONENTS:
         if f'data-component="{name}"' in body:
-            lines.append(
-                f'<code>data-component="{name}"</code> marks a {name} block.')
+            lines.append(f'`data-component="{name}"` marks a {name} block.')
     if 'class="table-wrap"' in body:
-        lines.append(
-            '<code>.table-wrap</code> wraps a table that is allowed to be '
-            'wider than the prose column.')
+        lines.append('`.table-wrap` wraps a table that is allowed to be '
+                     'wider than the prose column.')
     if 'class="diagram"' in body:
-        lines.append(
-            '<code>figure.diagram</code> is an inline SVG; its '
-            '<code>&lt;figcaption&gt;</code> carries the description.')
+        lines.append('`figure.diagram` is an inline SVG; its `<figcaption>` '
+                     'carries the description.')
     return lines
+
+
+def _guide_line_html(line: str) -> str:
+    """One guide line, rendered for HTML.
+
+    The lines are stored as PLAIN TEXT with backticks, not as HTML. They are
+    written to two places — the `<details>` block inside the artifact and the
+    local agent-notes.md — and the first version stored them pre-escaped for
+    HTML, so the markdown sidecar came out saying `&lt;figcaption&gt;` where it
+    meant `<figcaption>`. One neutral form, escaped at the point of use, is the
+    only shape that cannot be wrong in one of the two.
+    """
+    return "".join(
+        f"<code>{html_escape(part)}</code>" if i % 2 else html_escape(part)
+        for i, part in enumerate(line.split("`")))
 
 
 def reading_guide_lines(html: str) -> list[str]:
@@ -663,7 +675,8 @@ def _agent_notes_details(markup: str, doc_meta: dict | None,
         "This collapsed block is generated: it carries this artifact's own "
         "identity above, and this reading guide names the structural "
         "markup actually present in the document.")
-    parts.append("<ul>" + "".join(f"<li>{line}</li>" for line in guide) + "</ul>")
+    parts.append("<ul>" + "".join(f"<li>{_guide_line_html(line)}</li>"
+                                  for line in guide) + "</ul>")
     if notes:
         # Escaped-as-text inside a <pre>, never run through pandoc: the notes
         # are markdown TEXT, and a <pre> is what keeps their own line breaks
