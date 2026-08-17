@@ -184,6 +184,7 @@ def t_publish_prepare(ident):
         "fragment_path": frag["fragment_path"],
         "document_path": row["artifact_path"],
         "document_exists": Path(row["artifact_path"]).is_file(),
+        "agent_notes_path": frag["agent_notes_path"],
         "title": row["title"],
         "description": _description_from_source(frag["source"], row["title"]),
         "favicon": _FAVICON_BY_KIND.get(row["kind"], _DEFAULT_FAVICON),
@@ -195,7 +196,10 @@ def t_publish_prepare(ident):
             f"(file_path={frag['fragment_path']}, title={row['title']!r}) — it is "
             "already body-only and self-contained, so do not edit it. Then call "
             "treasure_link_source with ident="
-            f"{row['id']!r} and published_url set to the URL it returns."),
+            f"{row['id']!r} and published_url set to the URL it returns. The "
+            "published fragment carries only generic identity (no tags, no "
+            f"origin, no time context) — {frag['agent_notes_path']} is where "
+            "that context lives, read-only for you, never published."),
     }
 
 
@@ -456,8 +460,10 @@ TOOLS = {
         "Artifact tool for publishing — the only way to publish; this tool "
         "does not publish by itself. Returns the artifact path, a "
         "title/description/favicon suggestion, a size verdict against the "
-        "16 MiB claude.ai cap, and the next step (publish, then call "
-        "treasure_link_source with the returned URL).",
+        "16 MiB claude.ai cap, agent_notes_path (the local file carrying tags/"
+        "origin/provenance that the published fragment deliberately omits), "
+        "and the next step (publish, then call treasure_link_source with the "
+        "returned URL).",
         {"ident": {"type": "string"}},
         ["ident"]),
 }

@@ -98,7 +98,14 @@ def test_nothing_injected_when_nothing_is_configured(tmp_path):
         default_header_html=None, default_footer_html=None, agent_notes=None,
         workdir=str(tmp_path / "b"))
     assert omitted["html"] == explicit_none["html"]
-    assert "agent-notes" not in explicit_none["html"]
+    # A plain substring check on "agent-notes" no longer proves nothing was
+    # injected: tokens.css now carries a permanent #agent-notes styling rule
+    # (the collapsed block still has to look right on the rare page that opens
+    # it), so the string sits in EVERY render's embedded <style> block
+    # regardless of whether the <details> itself was ever spliced in — the
+    # same class of false positive `_reachable_families`/`_visible_codepoints`
+    # already guard against for component/font detection. The precise proxy
+    # is the actual element, which this assertion checks directly.
     assert explicit_none["html"].count("<details") == 0
 
 

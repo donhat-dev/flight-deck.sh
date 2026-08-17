@@ -9,6 +9,7 @@ external reference survives.
 pandoc resolves relative asset paths against its working directory, so the
 template dir is copied into the caller's workdir before invoking it.
 """
+import json
 import os
 import re
 import shutil
@@ -532,8 +533,151 @@ _MAIN_OPEN = '<main class="doc">'
 _MAIN_CLOSE = "</main>"
 
 
-def inject_body_defaults(html: str, *, header: str | None, footer: str | None,
+# ------------------------------------------------------- published identity
+#
+# A published artifact is generic by design (no time context, no internal
+# refs, no source paths — see docs on the local agent-notes.md sidecar that
+# service.py writes beside it). But an agent that fetches the artifact still
+# needs to know what it is, so identity travels INSIDE it, twice: as JSON-LD
+# for a reader of the raw HTML, and as real DOM text for anything that
+# converts the page to plain text. Both are built from `doc_meta`, which
+# callers must restrict to the eight published-tier fields (see `render()`'s
+# docstring) — nothing here ever sees a tag, an origin path or a session id.
+
+# Order matches the JSON-LD shape in the design doc: name, genre,
+# creativeWorkStatus, version, inLanguage, identifier, dateCreated. `sha256`
+# is appended separately, from `source_checksum`.
+_JSON_LD_FIELDS = (
+    ("title", "name"),
+    ("kind", "genre"),
+    ("status", "creativeWorkStatus"),
+    ("version", "version"),
+    ("language", "inLanguage"),
+    ("id", "identifier"),
+    ("authored_at", "dateCreated"),
+)
+
+
+def _json_ld_script(doc_meta: dict) -> str:
+    """A schema.org TechArticle `<script type="application/ld+json">`, built
+    ONLY from the published-tier keys already in `doc_meta`.
+
+    A key whose value is missing is omitted entirely rather than emitted as
+    `null`. NEVER add `render_checksum` here: it is the checksum of the file
+    this very block sits inside, so by construction it can never be correct
+    at the time this string is built — a checksum computed before the file
+    is finished cannot describe the finished file. That is exactly the kind
+    of field someone adds later without thinking, so this comment is the
+    tripwire.
+
+    The whole payload is escaped against `</script>` breakout — a title
+    containing a literal `</script>` must not be able to end the tag early.
+    """
+    data = {"@context": "https://schema.org", "@type": "TechArticle"}
+    for src_key, ld_key in _JSON_LD_FIELDS:
+        val = doc_meta.get(src_key)
+        if val not in (None, ""):
+            data[ld_key] = val
+    checksum = doc_meta.get("source_checksum")
+    if checksum:
+        data["sha256"] = {"@type": "PropertyValue", "name": "source-sha256",
+                          "value": checksum}
+    # json.dumps does not HTML-escape; the `</` replace is what keeps a `<`
+    # or a `</script>` inside a title from ever closing this tag early.
+    payload = json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+    return f'<script type="application/ld+json">{payload}</script>'
+
+
+# The <dl> carries a SUBSET of the JSON-LD fields — title is dropped because
+# it already reads as the nav brand / <h1>, so listing it again here would be
+# noise rather than new information.
+_IDENTITY_DL_FIELDS = ("kind", "status", "version", "language", "id", "authored_at")
+
+
+def _identity_dl_html(doc_meta: dict) -> str:
+    """The published-tier identity as a real `<dl>` — the same fields as the
+    JSON-LD block, but as literal DOM text, so they survive whatever the
+    JSON-LD does not (a plain grep, `pandoc -t markdown`, a DOM-only reader).
+    This is also what finally gets `kind` out of being CSS-class-only
+    (`<body class="kind-…">` was the only place it lived before this).
+
+    Returns "" when every field is missing, so the caller never emits an
+    empty `<dl></dl>`.
+    """
+    rows = []
+    for key in _IDENTITY_DL_FIELDS:
+        val = doc_meta.get(key)
+        if val in (None, ""):
+            continue
+        rows.append(f"<dt>{html_escape(key)}</dt><dd>{html_escape(str(val))}</dd>")
+    return ("<dl>" + "".join(rows) + "</dl>") if rows else ""
+
+
+def _reading_guide(markup: str) -> list[str]:
+    """One line per component/block THIS document's markup actually uses —
+    generated, never a fixed list.
+
+    `<style>` is stripped before scanning: the embedded tokens.css text names
+    every selector unconditionally (`data-component="hero"`, `.table-wrap`,
+    `figure.diagram` all appear in the sheet's own CSS regardless of whether
+    the document uses them), the same trap `_reachable_families` above
+    guards against for font pruning.
+    """
+    body = re.sub(r"<style[^>]*>.*?</style>", "", markup, flags=re.S)
+    lines = []
+    for name in lint.COMPONENTS:
+        if f'data-component="{name}"' in body:
+            lines.append(
+                f'<code>data-component="{name}"</code> marks a {name} block.')
+    if 'class="table-wrap"' in body:
+        lines.append(
+            '<code>.table-wrap</code> wraps a table that is allowed to be '
+            'wider than the prose column.')
+    if 'class="diagram"' in body:
+        lines.append(
+            '<code>figure.diagram</code> is an inline SVG; its '
+            '<code>&lt;figcaption&gt;</code> carries the description.')
+    return lines
+
+
+def reading_guide_lines(html: str) -> list[str]:
+    """Public wrapper around `_reading_guide`, so `service.py` can reuse the
+    exact same detection when it writes the local agent-notes.md sidecar —
+    the reading guide should say the same thing in both places."""
+    return _reading_guide(html)
+
+
+def _agent_notes_details(markup: str, doc_meta: dict | None,
                          notes: str | None) -> str:
+    """Assemble the `<details id="agent-notes">` block: published identity,
+    then a reading guide generated from `markup`, then the operator's own
+    note last — pipeline-generated content stays at the top, where it is
+    stable across whatever the operator edits."""
+    parts = []
+    if doc_meta:
+        dl = _identity_dl_html(doc_meta)
+        if dl:
+            parts.append(dl)
+    guide = _reading_guide(markup)
+    guide.append(
+        "This collapsed block is generated: it carries this artifact's own "
+        "identity above, and this reading guide names the structural "
+        "markup actually present in the document.")
+    parts.append("<ul>" + "".join(f"<li>{line}</li>" for line in guide) + "</ul>")
+    if notes:
+        # Escaped-as-text inside a <pre>, never run through pandoc: the notes
+        # are markdown TEXT, and a <pre> is what keeps their own line breaks
+        # while guaranteeing nothing an author wrote can inject markup.
+        parts.append(f"<pre>{html_escape(notes)}</pre>")
+    body = "\n".join(parts)
+    return ('<details id="agent-notes"><summary>Agent notes</summary>\n'
+            '<div class="agent-notes-body">\n'
+            f"{body}\n"
+            "</div>\n</details>")
+
+
+def inject_body_defaults(html: str, *, header: str | None, footer: str | None,
+                         notes: str | None, doc_meta: dict | None = None) -> str:
     """Splice the site-wide defaults into the document body.
 
     Anchored on `<main class="doc">` and `</main>`, which both the standalone
@@ -547,26 +691,24 @@ def inject_body_defaults(html: str, *, header: str | None, footer: str | None,
     plain`), while collapsed it costs one line of the page. Real DOM text is what
     makes it readable; the `id` is what makes it findable.
 
+    `doc_meta`, when given, adds the published-tier identity (kind/status/
+    version/language/id/authored_at) and a reading guide to the SAME
+    `<details>` block — see `_agent_notes_details`. The block is emitted
+    whenever there is identity to show, even with no operator note at all.
+
     Returns `html` UNCHANGED when nothing is configured, or when the anchor is
     missing (the caller is the one that turns that second case into a visible
     warning, by noticing the string came back byte-identical).
     """
-    if not header and not footer and not notes:
+    if not header and not footer and not notes and not doc_meta:
         return html
     if _MAIN_OPEN not in html or _MAIN_CLOSE not in html:
         return html
     if header:
         html = html.replace(_MAIN_OPEN, _MAIN_OPEN + header, 1)
     tail = footer or ""
-    if notes:
-        # Escaped-as-text inside a <pre>, never run through pandoc: the notes
-        # are markdown TEXT, and a <pre> is what keeps their own line breaks
-        # while guaranteeing nothing an author wrote can inject markup.
-        tail += (
-            '<details id="agent-notes"><summary>Agent notes</summary>\n'
-            '<div class="agent-notes-body">\n'
-            f"<pre>{html_escape(notes)}</pre>\n"
-            "</div>\n</details>")
+    if notes or doc_meta:
+        tail += _agent_notes_details(html, doc_meta, notes)
     if tail:
         html = html.replace(_MAIN_CLOSE, tail + _MAIN_CLOSE, 1)
     return html
@@ -579,6 +721,7 @@ def render(source_text: str, *, source_format: str, title: str,
            default_footer_html: str | None = None,
            agent_notes: str | None = None,
            asset_dir: str | None = None,
+           doc_meta: dict | None = None,
            workdir: str) -> dict:
     """Render `source_text` into a self-contained HTML string.
 
@@ -602,6 +745,16 @@ def render(source_text: str, *, source_format: str, title: str,
              `--embed-resources` can resolve it exactly as written. None
              means the source has no such directory to draw from (e.g. it
              arrived as inline `content=` with no file on disk).
+    doc_meta: ONLY the eight published-tier identity fields — title, kind,
+             status, version, language, id, authored_at, source_checksum.
+             Everything context-bearing (tags, origin_path, source_path,
+             origin_kind/origin_id, published_url, updated_at, staleness) is
+             deliberately NOT accepted here: this function is never given
+             those fields at all, which is the cheapest way to guarantee they
+             can never leak into a published artifact. `service.py` builds the
+             full local record separately, in `agent-notes.md`. See
+             `_json_ld_script` and `_agent_notes_details` for what this
+             produces.
     workdir: a real directory; the template + fonts are copied in so pandoc can
              resolve the relative asset paths, and any `assets/` the caller has
              already placed there is picked up too.
@@ -658,11 +811,16 @@ def render(source_text: str, *, source_format: str, title: str,
     html, svg_inlined, svg_bytes_saved = inline_svg_images(html, asset_dir=asset_dir)
     if custom_head:
         html = html.replace("</head>", f"{custom_head}\n</head>", 1)
+    if doc_meta:
+        # NOT through pandoc's `-M` — that HTML-escapes metadata text and would
+        # corrupt the JSON, same reasoning as `custom_head` above.
+        html = html.replace("</head>", f"{_json_ld_script(doc_meta)}\n</head>", 1)
     before_defaults = html
     html = inject_body_defaults(html, header=default_header_html,
-                                footer=default_footer_html, notes=agent_notes)
+                                footer=default_footer_html, notes=agent_notes,
+                                doc_meta=doc_meta)
     anchor_missing = bool(
-        (default_header_html or default_footer_html or agent_notes)
+        (default_header_html or default_footer_html or agent_notes or doc_meta)
         and html == before_defaults)
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)
@@ -786,6 +944,7 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
                     default_footer_html: str | None = None,
                     agent_notes: str | None = None,
                     asset_dir: str | None = None,
+                    doc_meta: dict | None = None,
                     workdir: str) -> dict:
     """Render body-only HTML for a host that owns the page frame.
 
@@ -802,6 +961,11 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     asset_dir: same meaning as `render()`'s — the directory the source's own
     relative asset paths resolve against, copied into `workdir` before pandoc
     runs.
+
+    doc_meta: same eight published-tier fields as `render()`'s — see that
+    docstring. A fragment has no `<head>` to splice the JSON-LD into, so it is
+    placed right after the embedded `<style>` block instead, still outside the
+    visible content.
     """
     font = font or "space-grotesk"
     if font not in FONTS:
@@ -832,8 +996,10 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     inner = proc.stdout.strip()
     inner, svg_inlined, svg_bytes_saved = inline_svg_images(inner, asset_dir=asset_dir)
     css = fragment_css()
+    json_ld = f"{_json_ld_script(doc_meta)}\n" if doc_meta else ""
     html = (
         f"<style>\n{css}\n</style>\n"
+        f"{json_ld}"
         f'<div class="doc-root kind-{kind} font-{font}">\n'
         f'<nav>\n  <span class="brand">{html_escape(title)}</span>\n'
         f'  <span class="tag tag-{status}">{html_escape(status)}</span>\n</nav>\n'
@@ -842,9 +1008,10 @@ def render_fragment(source_text: str, *, source_format: str, title: str,
     )
     before_defaults = html
     html = inject_body_defaults(html, header=default_header_html,
-                                footer=default_footer_html, notes=agent_notes)
+                                footer=default_footer_html, notes=agent_notes,
+                                doc_meta=doc_meta)
     anchor_missing = bool(
-        (default_header_html or default_footer_html or agent_notes)
+        (default_header_html or default_footer_html or agent_notes or doc_meta)
         and html == before_defaults)
     html, pruned = prune_faces(html, font=font)
     html = move_faces_last(html)

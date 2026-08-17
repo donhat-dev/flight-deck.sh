@@ -613,6 +613,44 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; text-align
 [data-component="badge"][data-tone="mid"]  { color: var(--mid);  background: var(--mid-bg);  border-color: var(--mid-line); }
 [data-component="badge"][data-tone="weak"] { color: var(--weak); background: var(--weak-bg); border-color: var(--weak-line); }
 
+/* --- agent notes (render.inject_body_defaults) -----------------------------
+ * A collapsed disclosure, not a section of the document — it must stay
+ * unobtrusive whether or not a reader ever opens it. Carries the artifact's
+ * own published identity (a compact key/value <dl>), a generated reading
+ * guide, and the operator's own note, in that order.
+ */
+#agent-notes {
+  margin-top: 3rem;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+#agent-notes summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  opacity: .7;
+}
+#agent-notes summary:hover { opacity: 1; }
+.agent-notes-body { margin-top: .6rem; }
+.agent-notes-body dl {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: .2rem .8rem;
+  margin: 0 0 .9rem;
+  font-size: 12.5px;
+}
+.agent-notes-body dt { color: var(--ink-2); font-weight: 500; }
+.agent-notes-body dd { margin: 0; color: var(--ink); }
+.agent-notes-body ul {
+  margin: 0 0 .9rem;
+  padding-left: 1.1rem;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.agent-notes-body li { margin: .15rem 0; }
+.agent-notes-body pre { font-size: 12.5px; }
+
 /* --- print --------------------------------------------------------------- */
 @media print {
   html, body { background: #fff; }

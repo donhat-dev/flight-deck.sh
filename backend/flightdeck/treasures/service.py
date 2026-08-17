@@ -30,8 +30,23 @@ def config_set(conn, values: dict) -> dict:
     return store.config_set(conn, values)
 
 
+def _doc_meta(*, title, kind, status, language, artifact_id, authored_at,
+             version, source_checksum) -> dict | None:
+    """The eight published-tier fields render() is allowed to see — nothing
+    else. `artifact_id` gates the whole thing: it is None only for a caller
+    that has no row yet to build identity from (there is none today; every
+    `_render_checked` call site has an id before it renders), in which case no
+    identity is shown rather than a half-built one."""
+    if artifact_id is None:
+        return None
+    return {"title": title, "kind": kind, "status": status, "version": version,
+            "language": language, "id": artifact_id, "authored_at": authored_at,
+            "source_checksum": source_checksum}
+
+
 def _render_checked(content, *, source_format, title, language, kind, status,
                     font, custom_head, workdir,
+                    artifact_id=None, version=None, authored_at=None,
                     default_header_html=None, default_footer_html=None,
                     agent_notes=None, asset_dir=None) -> tuple[str, dict]:
     """Lint -> render -> validate, with the plain-markdown fallback.
@@ -46,6 +61,12 @@ def _render_checked(content, *, source_format, title, language, kind, status,
 
     Raises lint.ComponentError for an unknown component name (fail-closed:
     called before anything touches disk).
+
+    `artifact_id`/`version`/`authored_at`: identify the artifact for the
+    published `doc_meta` passed into `render.render`/`render_fragment` — see
+    `_doc_meta`. The checksum in that dict is of the LINT-FIXED content
+    (computed here, before any validate-fallback strip), which is exactly the
+    text that ends up stored as this version's source.
     """
     notes: list[str] = []
     if source_format == "markdown":
@@ -60,6 +81,11 @@ def _render_checked(content, *, source_format, title, language, kind, status,
                 f"unknown component(s): {', '.join(repr(b) for b in bad)} — "
                 f"allowed: {', '.join(lint.COMPONENTS)}")
 
+    doc_meta = _doc_meta(title=title, kind=kind, status=status,
+                        language=language, artifact_id=artifact_id,
+                        authored_at=authored_at, version=version,
+                        source_checksum=filestore.checksum(content))
+
     def _render(text):
         return render.render(text, source_format=source_format, title=title,
                              language=language, kind=kind, status=status,
@@ -67,6 +93,7 @@ def _render_checked(content, *, source_format, title, language, kind, status,
                              default_header_html=default_header_html,
                              default_footer_html=default_footer_html,
                              agent_notes=agent_notes, asset_dir=asset_dir,
+                             doc_meta=doc_meta,
                              workdir=workdir)
 
     rendered = _render(content)
@@ -90,6 +117,77 @@ def _title_from(text: str, source_path: str) -> str:
         if m:
             return m.group(1).strip()
     return Path(source_path).stem.replace("-", " ").replace("_", " ").strip()
+
+
+_NOTES_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _write_agent_notes(conn, row: dict, vdir: Path, guide_html: str) -> str:
+    """Write the local companion file beside this version's artifact.
+
+    The published artifact is deliberately generic — no time context, no
+    internal refs, no source paths — so everything context-bearing lives
+    here instead: tags (Jira keys in this library), origin_kind/origin_id,
+    origin_path, source_path, published_url, updated_at. It also repeats the
+    published-tier identity and reading guide, so this one file is a
+    complete, self-standing record on its own.
+
+    llms.txt-shaped: an H1 with the title, a one-sentence blockquote saying
+    what the file is, then sections. Regenerated on every render (wrap,
+    rerender, export_fragment) rather than written once, so a tag added or a
+    published_url recorded after the fact is still reflected the next time
+    anything re-renders — most importantly right before a publish.
+    """
+    tags = store.tags_of(conn, row["id"])
+    guide = render.reading_guide_lines(guide_html)
+    lines = [
+        f"# {row.get('title', '')}",
+        "",
+        f"> Local companion for treasure `{row.get('id', '')}` — the "
+        f"published artifact is deliberately generic, so the time context, "
+        f"internal references and provenance below live HERE and are never "
+        f"published with it.",
+        "",
+        "## Identity (also published, inside the artifact)",
+        "",
+    ]
+    for label, val in (
+        ("title", row.get("title")), ("kind", row.get("kind")),
+        ("status", row.get("status")), ("version", row.get("version")),
+        ("language", row.get("language")), ("id", row.get("id")),
+        ("authored_at", row.get("authored_at")),
+        ("source sha256", row.get("source_checksum")),
+    ):
+        if val not in (None, ""):
+            lines.append(f"- **{label}**: {val}")
+    lines += ["", "## Reading guide (also published, inside the artifact)", ""]
+    if guide:
+        lines += [f"- {_NOTES_TAG_RE.sub('', g)}" for g in guide]
+    else:
+        lines.append("- Plain prose only — no components, table breakout or "
+                     "diagram in this document.")
+    lines += ["", "## Provenance — NOT published", ""]
+    for label, val in (
+        ("tags", ", ".join(tags) if tags else None),
+        ("origin_kind", row.get("origin_kind")),
+        ("origin_id", row.get("origin_id")),
+        ("origin_path", row.get("origin_path")),
+        ("source_path", _version_paths(row)["source_path"]),
+        ("published_url", row.get("published_url")),
+        ("updated_at", row.get("updated_at")),
+    ):
+        if val not in (None, ""):
+            lines.append(f"- **{label}**: {val}")
+    lines += [
+        "", "## How current is this — NOT published", "",
+        f"Authored {row.get('authored_at') or 'unknown'}; currently version "
+        f"{row.get('version')}, last touched {row.get('updated_at') or 'unknown'}. "
+        f"Call `treasure_stale` for whether the origin has moved on since.",
+        "",
+    ]
+    path = Path(vdir) / "agent-notes.md"
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return str(path)
 
 
 def wrap(conn, *, title=None, content=None, source_path=None,
@@ -170,6 +268,11 @@ def wrap(conn, *, title=None, content=None, source_path=None,
     else:
         asset_dir = None
     cfg = store.config_get(conn)
+    stamp = now_iso()
+    # Fixed before the render, not after: `_render_checked` needs it to build
+    # the published `doc_meta` it passes into render.render (see `_doc_meta`),
+    # and the row below reuses the same value so the two can never disagree.
+    final_authored_at = authored_at or (existing or {}).get("authored_at") or stamp
     with tempfile.TemporaryDirectory(prefix="treasures-render-") as workdir:
         # Lint may rewrite the content (blank-line fixes) or the validator may
         # strip components; `content` is rebound so the source written to disk
@@ -178,6 +281,7 @@ def wrap(conn, *, title=None, content=None, source_path=None,
             content, source_format=source_format, title=title,
             language=language, kind=kind, status=status, font=font,
             custom_head=custom_head, workdir=workdir, asset_dir=asset_dir,
+            artifact_id=art_id, version=version, authored_at=final_authored_at,
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
@@ -186,7 +290,6 @@ def wrap(conn, *, title=None, content=None, source_path=None,
     paths = filestore.write_version(art_dir, version, content, ext,
                                     rendered["html"])
 
-    stamp = now_iso()
     row = {
         "id": art_id,
         "title": title,
@@ -207,15 +310,18 @@ def wrap(conn, *, title=None, content=None, source_path=None,
         "origin_path": origin_path or (existing or {}).get("origin_path"),
         "published_url": (existing or {}).get("published_url"),
         "duplicate_of": (existing or {}).get("duplicate_of"),
-        "authored_at": authored_at or (existing or {}).get("authored_at") or stamp,
+        "authored_at": final_authored_at,
         "ingested_at": (existing or {}).get("ingested_at") or stamp,
         "updated_at": stamp,
     }
     stored = store.upsert(conn, row)
     filestore.write_meta(art_dir, stored)
+    agent_notes_path = _write_agent_notes(
+        conn, stored, art_dir / f"v{version}", rendered["html"])
     return {**stored,
             "artifact_path": paths["artifact_path"],
             "source_path": paths["source_path"],
+            "agent_notes_path": agent_notes_path,
             "warnings": rendered["warnings"]}
 
 
@@ -542,26 +648,39 @@ def export_fragment(conn, ident) -> dict:
     if not src.is_file():
         raise LookupError(f"source file missing for {row['id']} v{row['version']}: {src}")
     row["source"] = src.read_text(encoding="utf-8")
-    out_path = Path(row["dir_path"]) / f"v{row['version']}" / "fragment.html"
+    vdir = Path(row["dir_path"]) / f"v{row['version']}"
+    out_path = vdir / "fragment.html"
     cfg = store.config_get(conn)
     # Origin's own directory when there is one, else the directory the
     # stored source already lives in — same rule `wrap`/`rerender` use.
     asset_dir = (str(Path(row["origin_path"]).parent) if row.get("origin_path")
                  else str(src.parent))
+    doc_meta = _doc_meta(title=row["title"], kind=row["kind"],
+                        status=row["status"], language=row["language"],
+                        artifact_id=row["id"], authored_at=row.get("authored_at"),
+                        version=row["version"],
+                        source_checksum=row.get("source_checksum"))
     with tempfile.TemporaryDirectory(prefix="treasure-fragment-") as workdir:
         rendered = render.render_fragment(
             row["source"], source_format=row["source_format"],
             title=row["title"], kind=row["kind"], status=row["status"],
             font=row["font"], workdir=workdir, asset_dir=asset_dir,
+            doc_meta=doc_meta,
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
     out_path.write_text(rendered["html"], encoding="utf-8")
+    # Regenerated here too, not just in wrap/rerender: a tag or published_url
+    # recorded AFTER the artifact was last rendered must still show up in the
+    # local companion by the time this runs — right before a publish, the one
+    # moment it matters most.
+    agent_notes_path = _write_agent_notes(conn, row, vdir, rendered["html"])
     # The source comes back with it: the caller wants it for the publish
     # description, and reading the file twice would give the guard above a
     # second, unguarded path to slip past.
     return {"id": row["id"], "version": row["version"],
             "fragment_path": str(out_path), "source": row["source"],
+            "agent_notes_path": agent_notes_path,
             "render_bytes": rendered["render_bytes"],
             "warnings": rendered["warnings"]}
 
@@ -592,6 +711,8 @@ def rerender(conn, ident) -> dict:
             font=row.get("font") or "space-grotesk",
             custom_head=row.get("custom_head"), workdir=workdir,
             asset_dir=asset_dir,
+            artifact_id=row["id"], version=row["version"],
+            authored_at=row.get("authored_at"),
             default_header_html=cfg["default_header_html"] or None,
             default_footer_html=cfg["default_footer_html"] or None,
             agent_notes=cfg["default_agent_notes"] or None)
@@ -607,7 +728,10 @@ def rerender(conn, ident) -> dict:
     row["updated_at"] = now_iso()
     stored = store.upsert(conn, row)
     filestore.write_meta(Path(row["dir_path"]), stored)
-    return {**stored, **paths, "warnings": rendered["warnings"]}
+    agent_notes_path = _write_agent_notes(
+        conn, stored, Path(paths["artifact_path"]).parent, rendered["html"])
+    return {**stored, **paths, "agent_notes_path": agent_notes_path,
+            "warnings": rendered["warnings"]}
 
 
 def rerender_all(conn, **filters) -> dict:
