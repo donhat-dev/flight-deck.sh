@@ -22,6 +22,7 @@ _DOMAINS = {
     "session_": "flightdeck.sessions.mcp_server",
     "memory_": "flightdeck.memory.mcp_server",
     "odoo_": "flightdeck.odoo.mcp_server",
+    "ssh_": "flightdeck.ssh.mcp_server",
 }
 
 

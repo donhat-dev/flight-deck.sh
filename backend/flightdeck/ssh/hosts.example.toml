@@ -1,0 +1,43 @@
+# Copy to ~/.flightdeck/hosts.toml and chmod 600.
+#
+# This file names machines and says what may be run on each. It holds no password:
+# `password_env` is the NAME of an environment variable, and the value is read from the
+# environment when a call is made. A key path is not a secret, so `identity_file` may
+# sit here; the key itself never does.
+#
+# mode  = what happens to a command no rule matched.
+#         allow    run it
+#         escalate leave it in a tmux session for a person   <- the safe default
+#         deny     refuse it
+#         Anything else is read as escalate.
+#
+# Order of evaluation: hard blocks in code, then deny, then allow, then mode. Patterns
+# are Python regular expressions, matched against the command after its whitespace has
+# been collapsed.
+#
+# `tmux` and `send-keys` are blocked in code on every host and cannot be allowed here.
+# So is any command containing ; && || | $( or a backtick, unless mode is "allow" —
+# a rule matches one command and cannot read a pipeline.
+
+[hosts.staging-ce]
+hostname      = "<staging-host>"
+user          = "root"
+port          = 22
+identity_file = "~/.ssh/id_ed25519"
+password_env  = "SSH_STAGING_CE_PASS"   # the NAME only
+mode          = "escalate"
+tmux          = true
+allow = [
+  '^(systemctl status|journalctl) ',
+  '^docker (ps|logs|inspect)\b',
+  '^(ls|cat|head|tail|df|free|uptime|ps)\b',
+  '^git (status|log|diff)\b',
+]
+deny = [
+  '\brm\s+-rf\b',
+  '\bdd\b',
+  'docker compose\s+down\b.*\s-v\b',
+  '\bmkfs\b',
+  '>\s*/dev/[sn]d',
+  '\bshutdown\b|\breboot\b',
+]
