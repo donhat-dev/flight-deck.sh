@@ -21,6 +21,7 @@ _DOMAINS = {
     "treasure_": "flightdeck.treasures.mcp_server",
     "session_": "flightdeck.sessions.mcp_server",
     "memory_": "flightdeck.memory.mcp_server",
+    "odoo_": "flightdeck.odoo.mcp_server",
 }
 
 
