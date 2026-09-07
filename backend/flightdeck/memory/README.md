@@ -68,11 +68,17 @@ numbers moved in ten days, and each has a cause worth knowing:
 Once per store:
 
 ```bash
-flightdeck memory_history --init --cwd /path/to/project
+flightdeck memory_history --init true --cwd /path/to/project
 ```
 
-That creates `<project>/memory.git` and takes the first snapshot. Then wire the Stop
-hook so each turn is captured, by adding to `~/.claude/settings.json`:
+That creates `<project>/memory.git` and takes the first snapshot.
+
+Note the explicit `true`. The CLI parses `--key value` pairs, so a bare `--init` would
+swallow the next flag as its value. This applies to every boolean argument on every
+tool, not just this one.
+
+Then wire the Stop hook so each turn is captured, by adding to
+`~/.claude/settings.json`:
 
 ```json
 "Stop": [{"matcher": "*", "hooks": [{"type": "command",
