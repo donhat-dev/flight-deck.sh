@@ -115,11 +115,23 @@ def test_an_alias_link_is_its_own_kind_and_does_not_count_as_broken(store_dir):
     assert out["counts"].get("broken_link", 0) == 0
 
 
-def test_an_alias_link_keeps_its_source_out_of_the_unlinked_group(store_dir):
+def test_an_alias_link_is_not_a_connection(store_dir):
+    """It earns its own finding, but it does not rescue the file from isolation: the
+    graph draws edges from resolvable links only, and the two views must agree."""
     write(store_dir, "alpha", source="docs/x.md@abc",
           body="points at [[some future thing|label]]")
     (store_dir / "MEMORY.md").write_text("- [A](alpha.md) — hook\n", encoding="utf-8")
-    assert lint.run(store_dir)["counts"].get("not_linked", 0) == 0
+    counts = lint.run(store_dir)["counts"]
+    assert counts["future_target"] == 1
+    assert counts["not_linked"] == 1
+
+
+def test_a_broken_link_is_not_a_connection_either(store_dir):
+    write(store_dir, "alpha", source="docs/x.md@abc", body="see [[nowhere-at-all]]")
+    (store_dir / "MEMORY.md").write_text("- [A](alpha.md) — hook\n", encoding="utf-8")
+    counts = lint.run(store_dir)["counts"]
+    assert counts["broken_link"] == 1
+    assert counts["not_linked"] == 1
 
 
 def test_findings_are_ordered_heaviest_kind_first(store_dir):

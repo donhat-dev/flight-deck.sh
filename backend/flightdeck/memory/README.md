@@ -40,7 +40,7 @@ Every row is a command you can re-run. Taken 2026-09-07 against
 | Claim | Command | Output |
 |---|---|---|
 | The store holds 38 memories | `flightdeck memory_lint --cwd <proj>` | `total_memories: 38` |
-| Eight drift kinds, counted | same | `{"no_source": 17, "dead_origin": 18, "not_in_index": 1, "broken_link": 3, "not_linked": 2, "future_target": 1}` |
+| Eight drift kinds, counted | same | `{"no_source": 17, "dead_origin": 18, "not_in_index": 1, "broken_link": 3, "not_linked": 3, "future_target": 1}` |
 | 34 of 38 memories have never been read in full | same | `never_read: 34 of 38` |
 | One file is invisible to recall | same, `not_in_index` | `research-subagents-use-cheap-models` |
 | Three links point at names that do not exist | `flightdeck memory_graph --cwd <proj>` | `missing: ['artifact-genre-and-style-conventions', 'playwright-vs-agent-browser-for-odoo', 'workers-0-isolates-the-running-odoo']` |
@@ -56,8 +56,12 @@ numbers moved in ten days, and each has a cause worth knowing:
 
 - **37 → 38 memories.** `pencil-icons-and-cross-axis-collapse` was saved after the
   measurement.
-- **3 → 2 unlinked.** That new memory links to `pencil-absolute-children-do-not-render`,
-  which was one of the three isolated files.
+- **Unlinked stayed at 3, but the membership changed.** The new memory links to
+  `pencil-absolute-children-do-not-render`, which rescued it from the isolated set;
+  `claude-usage-cap-and-fable-fallback` took its place, because an alias link pointing at
+  something that does not exist is not a connection. Both views agree on the same three
+  names: `claude-usage-cap-and-fable-fallback`, `research-subagents-use-cheap-models`,
+  `wvt-facts-doc`.
 - **10 → 18 dead origins.** Not the store's doing: the transcript count fell from **69
   to 38**. Nearly half the store now points at a session that no longer exists, up from
   just over a quarter. Provenance decays faster than memories do, which is the whole

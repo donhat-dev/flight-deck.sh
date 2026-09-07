@@ -43,11 +43,16 @@ def run(memory_dir, transcript_dir=None, cwd=None):
     indexed_files = {filename for _t, filename, _h in index}
     findings = []
 
+    # Only a link that RESOLVES connects two memories. A broken link and an alias
+    # pointing at something that does not exist yet are both reported in their own
+    # right, but neither is a connection — counting them here would let a file with
+    # nothing but a dead pointer escape the isolation check, and would put this table
+    # at odds with the graph, which draws edges from resolvable links only.
     linked_from = {m.name: set() for m in memories}
+    resolvable = {m.name: [t for t in m.links if t in names] for m in memories}
     for m in memories:
-        for target in m.links:
-            if target in linked_from:
-                linked_from[target].add(m.name)
+        for target in resolvable[m.name]:
+            linked_from[target].add(m.name)
 
     for m in memories:
         if m.type in SOURCE_REQUIRED_TYPES and not m.source:
@@ -84,9 +89,9 @@ def run(memory_dir, transcript_dir=None, cwd=None):
                 f'Points at "{target}", which does not exist yet. Not a broken '
                 "link — the target does not follow the naming rule at all."))
 
-        if not m.links and not m.alias_links and not linked_from[m.name]:
+        if not resolvable[m.name] and not linked_from[m.name]:
             findings.append(_finding(
-                "not_linked", m.name, "No links in and none out.",
+                "not_linked", m.name, "No links in, and none out that resolve.",
                 action="suggest_links"))
 
     for _title, filename, _hook in index:
