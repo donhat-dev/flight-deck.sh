@@ -18,8 +18,9 @@ from flightdeck.hub.nodes import load as hub_load
 from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
-from flightdeck.routers import (charts, core, diff, hub, missions, radar, sessions,
-                               stream, treasures, treasure_config, appearance)
+from flightdeck.routers import (charts, core, decisions, diff, hub, memory, missions,
+                               radar, sessions, stream, treasures, treasure_config,
+                               appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -74,7 +75,14 @@ def create_app() -> FastAPI:
     app.include_router(hub.router)
     app.include_router(radar.router)
     app.include_router(stream.router)
+    # Approval channel: the only router a PreToolUse hook talks to. Registered
+    # here rather than by the track that fills it in, so three tracks building
+    # on the event bus at once never contend for this file.
+    app.include_router(decisions.router)
     app.include_router(appearance.router)
+    # Auto-memory store: four read-only views, no database and no write lock —
+    # the store is files on disk, so this router shares nothing with the ledger.
+    app.include_router(memory.router)
     app.include_router(treasures.router)
     # Separate prefix from treasures.router on purpose — see
     # routers/treasure_config.py's module docstring (that router is in flight
