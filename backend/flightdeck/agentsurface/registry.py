@@ -19,6 +19,8 @@ from flightdeck.agentsurface import runtime
 _DOMAINS = {
     "radar_": "flightdeck.radar.mcp_server",
     "treasure_": "flightdeck.treasures.mcp_server",
+    "session_": "flightdeck.sessions.mcp_server",
+    "memory_": "flightdeck.memory.mcp_server",
 }
 
 
