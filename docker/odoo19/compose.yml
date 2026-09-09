@@ -1,0 +1,49 @@
+# FlightDeck on Odoo 19 — the "Odoo as base application" experiment.
+# Its own project and database: nothing here shares state with the NAKIVO tracks.
+name: flightdeck-odoo
+
+services:
+  odoo:
+    image: odoo:19.0
+    container_name: flightdeck-odoo19
+    restart: unless-stopped
+    command: ["odoo", "-c", "/etc/odoo/odoo.conf"]
+    environment:
+      # The image entrypoint waits on Postgres using these, not the conf file.
+      HOST: pgcore-17
+      PORT: 5432
+      USER: ${FD_ODOO_USER:?set it in docker/odoo19/.env}
+      PASSWORD: ${FD_ODOO_PASSWORD:?set it in docker/odoo19/.env}
+      # Read by the import script when it runs in this container.
+      FD_LEDGER_USER: ${FD_LEDGER_USER:?set it in docker/odoo19/.env}
+      FD_LEDGER_PASSWORD: ${FD_LEDGER_PASSWORD:?set it in docker/odoo19/.env}
+    volumes:
+      - ./odoo.conf:/etc/odoo/odoo.conf:ro
+      - ../../odoo:/mnt/flightdeck-addons:ro
+      # Treasures keeps content on disk; the database is only an index.
+      - ${HOME}/.flightdeck/treasures:/mnt/treasures:ro
+      # Session transcripts, read directly. The files are mode 600, so the host
+      # grants this container's uid read access through an ACL:
+      #   setfacl -R    -m u:100:rX ~/.claude/projects
+      #   setfacl -R -d -m u:100:rX ~/.claude/projects
+      # The second line is what keeps new session files readable.
+      - ${HOME}/.claude/projects:/mnt/claude-projects:ro
+      - odoo-data:/var/lib/odoo
+    ports:
+      - "8029:8069"
+    # Sending a message needs the `claude` binary, which lives on the host and
+    # not in this image, so the send path is an HTTP call out to the FlightDeck
+    # backend. Without this the name does not resolve at all: the container has
+    # no route to the host by default, and the bridge gateway refuses while
+    # uvicorn is bound to loopback.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - pgnet
+
+volumes:
+  odoo-data:
+
+networks:
+  pgnet:
+    external: true

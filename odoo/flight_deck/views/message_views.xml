@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_message_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.message.pivot</field>
+        <field name="model">flightdeck.message</field>
+        <field name="arch" type="xml">
+            <pivot string="Spend" sample="1">
+                <field name="ts" interval="day" type="row"/>
+                <field name="model" type="col"/>
+                <field name="cost" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_message_graph" model="ir.ui.view">
+        <field name="name">flightdeck.message.graph</field>
+        <field name="model">flightdeck.message</field>
+        <field name="arch" type="xml">
+            <graph string="Spend" type="bar" stacked="1" sample="1">
+                <field name="ts" interval="day"/>
+                <field name="model"/>
+                <field name="cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_message_list" model="ir.ui.view">
+        <field name="name">flightdeck.message.list</field>
+        <field name="model">flightdeck.message</field>
+        <field name="arch" type="xml">
+            <list string="Messages" create="0" default_order="ts desc">
+                <field name="ts"/>
+                <field name="session_ref_id"/>
+                <field name="project_id"/>
+                <field name="model"/>
+                <field name="input_tokens" sum="Input"/>
+                <field name="cache_read" sum="Cache read"/>
+                <field name="output_tokens" sum="Output"/>
+                <field name="total_tokens" sum="Tokens"/>
+                <field name="cost" sum="Cost"/>
+                <field name="priced" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_message_search" model="ir.ui.view">
+        <field name="name">flightdeck.message.search</field>
+        <field name="model">flightdeck.message</field>
+        <field name="arch" type="xml">
+            <search string="Spend">
+                <field name="model"/>
+                <field name="session_ref_id"/>
+                <field name="project_id"/>
+                <filter name="unpriced" string="Unpriced" domain="[('priced','=',False)]"/>
+                <separator/>
+                <filter name="this_month" string="This month" date="ts"/>
+                <group>
+                    <filter name="g_model" string="Model" domain="[]" context="{'group_by':'model'}"/>
+                    <filter name="g_project" string="Project" domain="[]" context="{'group_by':'project_id'}"/>
+                    <filter name="g_session" string="Session" domain="[]" context="{'group_by':'session_ref_id'}"/>
+                    <filter name="g_tier" string="Service tier" domain="[]" context="{'group_by':'service_tier'}"/>
+                    <filter name="g_day" string="Day" domain="[]" context="{'group_by':'ts:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_spend" model="ir.actions.act_window">
+        <field name="name">Spend</field>
+        <field name="res_model">flightdeck.message</field>
+        <field name="view_mode">pivot,graph,list</field>
+        <field name="search_view_id" ref="view_message_search"/>
+    </record>
+</odoo>

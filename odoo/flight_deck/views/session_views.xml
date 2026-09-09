@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_session_list" model="ir.ui.view">
+        <field name="name">flightdeck.session.list</field>
+        <field name="model">flightdeck.session</field>
+        <field name="arch" type="xml">
+            <list string="Logbook" create="0" default_order="write_date desc">
+                <field name="write_date" string="Last write"/>
+                <field name="start_ts" optional="show"/>
+                <field name="name"/>
+                <field name="project_id"/>
+                <field name="message_count" sum="Messages"/>
+                <field name="tool_call_count" sum="Tool calls"/>
+                <field name="duration_hours" sum="Hours"/>
+                <field name="total_cost" sum="Cost"/>
+                <field name="following" optional="show" widget="boolean_toggle"/>
+                <field name="session_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_session_form" model="ir.ui.view">
+        <field name="name">flightdeck.session.form</field>
+        <field name="model">flightdeck.session</field>
+        <field name="arch" type="xml">
+            <form string="Session">
+                <header>
+                    <button name="action_recompute_totals" type="object"
+                            string="Recompute totals" class="btn-secondary"/>
+                    <button name="action_open_channel" type="object"
+                            string="Open in Discuss" class="btn-secondary"/>
+                    <field name="following" widget="boolean_toggle"/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_messages" type="object"
+                                class="oe_stat_button" icon="fa-dollar">
+                            <field name="total_cost" widget="statinfo" string="Cost"/>
+                        </button>
+                        <button name="action_open_transcript" type="object"
+                                class="oe_stat_button" icon="fa-comments">
+                            <field name="text_count" widget="statinfo" string="Lines"/>
+                        </button>
+                        <button name="action_open_messages" type="object"
+                                class="oe_stat_button" icon="fa-exchange">
+                            <field name="message_count" widget="statinfo" string="Messages"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                        <field name="session_id" readonly="1"/>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="project_id"/>
+                            <field name="start_ts"/>
+                            <field name="end_ts"/>
+                            <field name="duration_hours"/>
+                            <field name="title_source"/>
+                            <field name="follow_path" invisible="not follow_path"/>
+                        </group>
+                        <group>
+                            <field name="input_tokens"/>
+                            <field name="output_tokens"/>
+                            <field name="cache_read"/>
+                            <field name="cache_create"/>
+                            <field name="tool_call_count"/>
+                            <field name="treasure_count"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Tool calls" name="tools">
+                            <field name="tool_call_ids" nolabel="1">
+                                <list create="0">
+                                    <field name="ts"/>
+                                    <field name="tool"/>
+                                    <field name="server"/>
+                                    <field name="detail"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Tokens and cost" name="tokens">
+                            <field name="usage_ids" nolabel="1">
+                                <list create="0">
+                                    <field name="ts"/>
+                                    <field name="model"/>
+                                    <field name="input_tokens" sum="Input"/>
+                                    <field name="cache_read" sum="Cache read"/>
+                                    <field name="output_tokens" sum="Output"/>
+                                    <field name="cost" sum="Cost"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Treasures" name="treasures">
+                            <field name="treasure_ids" nolabel="1">
+                                <list create="0">
+                                    <field name="name"/>
+                                    <field name="kind"/>
+                                    <field name="status"/>
+                                    <field name="authored_at"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+                <!-- Compiled into the side pane by our own form compiler, the
+                     same way mail turns `o_attachment_preview` into a viewer. -->
+                <div class="o_fd_transcript"/>
+                <chatter/>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_session_search" model="ir.ui.view">
+        <field name="name">flightdeck.session.search</field>
+        <field name="model">flightdeck.session</field>
+        <field name="arch" type="xml">
+            <search string="Logbook">
+                <field name="name"/>
+                <field name="session_id"/>
+                <field name="project_id"/>
+                <filter name="following" string="Following" domain="[('following','=',True)]"/>
+                <filter name="this_month" string="This month" date="start_ts"/>
+                <group>
+                    <filter name="g_project" string="Project" domain="[]" context="{'group_by':'project_id'}"/>
+                    <filter name="g_day" string="Day" domain="[]" context="{'group_by':'start_ts:day'}"/>
+                    <filter name="g_write" string="Last write" domain="[]" context="{'group_by':'write_date:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_logbook" model="ir.actions.act_window">
+        <field name="name">Logbook</field>
+        <field name="res_model">flightdeck.session</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_session_search"/>
+    </record>
+</odoo>

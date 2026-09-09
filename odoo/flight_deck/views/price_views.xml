@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_price_list" model="ir.ui.view">
+        <field name="name">flightdeck.model.price.list</field>
+        <field name="model">flightdeck.model.price</field>
+        <field name="arch" type="xml">
+            <list string="Model prices" editable="bottom">
+                <field name="name"/>
+                <field name="input_rate"/>
+                <field name="output_rate"/>
+                <field name="date_end"/>
+                <field name="cache_read_mult"/>
+                <field name="cache_write_5m_mult"/>
+                <field name="cache_write_1h_mult"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_price" model="ir.actions.act_window">
+        <field name="name">Model prices</field>
+        <field name="res_model">flightdeck.model.price</field>
+        <field name="view_mode">list</field>
+    </record>
+</odoo>

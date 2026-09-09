@@ -1,0 +1,31 @@
+{
+    "name": "FlightDeck",
+    "version": "19.0.1.0.0",
+    "summary": "Session logbook, treasure library and spend analytics for Claude Code",
+    "author": "NAKIVO",
+    "license": "LGPL-3",
+    "depends": ["base", "web", "mail", "bus"],
+    "data": [
+        "security/flight_deck_groups.xml",
+        "security/ir.model.access.csv",
+        "data/model_price_data.xml",
+        "data/transcript_author_data.xml",
+        "data/transcript_subtype_data.xml",
+        "data/follow_cron.xml",
+        "views/session_views.xml",
+        "views/message_views.xml",
+        "views/treasure_views.xml",
+        "views/price_views.xml",
+        "views/menus.xml",
+    ],
+    "assets": {
+        "web.assets_backend": [
+            "flight_deck/static/src/components/**/*.js",
+            "flight_deck/static/src/components/**/*.xml",
+            "flight_deck/static/src/components/**/*.scss",
+            "flight_deck/static/src/dev/*.js",
+        ],
+    },
+    "application": True,
+    "installable": True,
+}

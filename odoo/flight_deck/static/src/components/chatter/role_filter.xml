@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- Two toggles in the chatter topbar, only on a session. The chatter builds
+         its topbar in this template, so extending it is the way in. -->
+    <t t-name="flight_deck.ChatterRoleFilter" t-inherit="mail.Chatter" t-inherit-mode="extension">
+        <xpath expr="//span[hasclass('o-mail-Chatter-topbarGrow')]" position="before">
+            <t t-if="fdIsSession">
+                <button class="btn btn-link text-action o-fd-role-toggle" title="User turns"
+                        aria-label="User turns"
+                        t-att-class="{ 'opacity-50': !fdRoles.user }"
+                        t-on-click="() => this.fdToggleRole('user')">
+                    <i class="fa fa-fw fa-user" role="img"/>
+                </button>
+                <button class="btn btn-link text-action o-fd-role-toggle" title="Claude turns"
+                        aria-label="Claude turns"
+                        t-att-class="{ 'opacity-50': !fdRoles.assistant }"
+                        t-on-click="() => this.fdToggleRole('assistant')">
+                    <i class="fa fa-fw fa-terminal" role="img"/>
+                </button>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

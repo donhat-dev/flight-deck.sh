@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- One subtype per transcript role. `res_model` scopes them to the session,
+         so they never show up in another model's subscription settings, and
+         `default` is off so nobody is subscribed to a transcript by accident.
+
+         No `description`: the chatter prints it under every bubble, and the
+         author already says who spoke, so it read as the same word twice. -->
+    <record id="mt_turn_user" model="mail.message.subtype">
+        <field name="name">User turn</field>
+        <field name="res_model">flightdeck.session</field>
+        <field name="default" eval="False"/>
+        <field name="internal" eval="False"/>
+        <field name="sequence">10</field>
+    </record>
+    <record id="mt_turn_assistant" model="mail.message.subtype">
+        <field name="name">Assistant turn</field>
+        <field name="res_model">flightdeck.session</field>
+        <field name="default" eval="False"/>
+        <field name="internal" eval="False"/>
+        <field name="sequence">20</field>
+    </record>
+</odoo>

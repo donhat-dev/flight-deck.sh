@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- One partner per transcript role, so each turn in the chatter carries a
+         name and an avatar of its own. -->
+    <record id="partner_transcript_user" model="res.partner">
+        <field name="name">User</field>
+    </record>
+    <record id="partner_transcript_assistant" model="res.partner">
+        <field name="name">Claude</field>
+    </record>
+</odoo>

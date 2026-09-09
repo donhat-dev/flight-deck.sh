@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flight_deck.TranscriptBox">
+        <div class="fd_box" t-att-class="props.class">
+            <div class="fd_box_head">
+                <span class="fd_box_count">
+                    <t t-esc="shown.length"/> of <t t-esc="state.total"/> turns
+                </span>
+                <span class="fd_box_spacer"/>
+                <button class="fd_box_chip" t-att-class="{ 'fd_off': !roles.user }"
+                        t-on-click="() => this.toggleRole('user')">User</button>
+                <button class="fd_box_chip" t-att-class="{ 'fd_off': !roles.assistant }"
+                        t-on-click="() => this.toggleRole('assistant')">Claude</button>
+            </div>
+
+            <div class="fd_box_scroll" t-ref="scroller" t-on-scroll="onScroll">
+                <div t-if="state.loading" class="fd_box_empty">Loading…</div>
+                <t t-else="">
+                    <div t-foreach="shown" t-as="line" t-key="line.id"
+                         t-attf-class="fd_bubble fd_bubble_{{line.role}}">
+                        <div class="fd_bubble_head">
+                            <span class="fd_bubble_role" t-esc="line.role"/>
+                            <span class="fd_bubble_seq" t-esc="line.seq"/>
+                            <span class="fd_bubble_ts" t-esc="line.ts"/>
+                        </div>
+                        <div t-if="line.text" class="fd_bubble_text fd_md" t-out="bodyOf(line)"/>
+
+                        <div t-if="line.tool_input" class="fd_tool">
+                            <div class="fd_tool_head">
+                                <span class="fd_tool_name" t-esc="line.tool_name or 'tool'"/>
+                                <span class="fd_tool_spacer"/>
+                                <button class="fd_tool_toggle"
+                                        t-on-click="() => this.toggleInput(line.id)">
+                                    <t t-if="state.open[line.id]">Collapse</t>
+                                    <t t-else="">Expand</t>
+                                </button>
+                            </div>
+                            <pre t-attf-class="fd_tool_in {{ state.open[line.id] ? '' : 'fd_clamp' }}"
+                                 t-esc="line.tool_input"/>
+                            <t t-if="state.open[line.id]">
+                                <div class="fd_tool_label">Output</div>
+                                <pre class="fd_tool_out"
+                                     t-esc="line.tool_output or 'No output recorded for this call.'"/>
+                            </t>
+                        </div>
+                    </div>
+                    <div t-if="!shown.length" class="fd_box_empty">No turns to show.</div>
+                    <button t-if="hasOlder" class="fd_box_older" t-on-click="() => this.loadOlder()">
+                        Load older turns
+                    </button>
+                </t>
+            </div>
+
+            <!-- Sending runs a real turn, which takes seconds, so the box says
+                 so and stays disabled until it comes back. The reply is not
+                 added here: it arrives over the bus like any other turn. -->
+            <div class="fd_box_compose">
+                <div t-if="state.error" class="fd_box_error" t-esc="state.error"/>
+                <textarea class="fd_box_input" rows="1" t-ref="draft"
+                          t-att-disabled="state.sending or !props.resId"
+                          t-model="state.draft"
+                          t-on-keydown="onKeydown"
+                          title="Enter sends, Shift+Enter starts a new line."
+                          t-attf-placeholder="{{ state.sending ? 'Waiting for the reply…' : 'Message this session…' }}"/>
+                <button class="fd_box_send" t-on-click="() => this.send()"
+                        t-att-disabled="state.sending or !state.draft.trim()">
+                    <t t-if="state.sending">Sending…</t>
+                    <t t-else="">Send</t>
+                </button>
+            </div>
+        </div>
+    </t>
+
+</templates>

@@ -1,0 +1,17 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_project_user,project.user,model_flightdeck_project,group_user,1,0,0,0
+access_project_manager,project.manager,model_flightdeck_project,group_manager,1,1,1,1
+access_session_user,session.user,model_flightdeck_session,group_user,1,0,0,0
+access_session_manager,session.manager,model_flightdeck_session,group_manager,1,1,1,1
+access_message_user,message.user,model_flightdeck_message,group_user,1,0,0,0
+access_message_manager,message.manager,model_flightdeck_message,group_manager,1,1,1,1
+access_text_user,text.user,model_flightdeck_message_text,group_user,1,0,0,0
+access_text_manager,text.manager,model_flightdeck_message_text,group_manager,1,1,1,1
+access_tool_user,tool.user,model_flightdeck_tool_call,group_user,1,0,0,0
+access_tool_manager,tool.manager,model_flightdeck_tool_call,group_manager,1,1,1,1
+access_treasure_user,treasure.user,model_flightdeck_treasure,group_user,1,0,0,0
+access_treasure_manager,treasure.manager,model_flightdeck_treasure,group_manager,1,1,1,1
+access_tag_user,tag.user,model_flightdeck_treasure_tag,group_user,1,0,0,0
+access_tag_manager,tag.manager,model_flightdeck_treasure_tag,group_manager,1,1,1,1
+access_price_user,price.user,model_flightdeck_model_price,group_user,1,0,0,0
+access_price_manager,price.manager,model_flightdeck_model_price,group_manager,1,1,1,1

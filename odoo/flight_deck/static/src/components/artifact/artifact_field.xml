@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.ArtifactField">
+        <div class="fd_artifact">
+            <div t-if="!url" class="text-muted p-3">No rendered page attached.</div>
+            <div t-else="">
+                <div class="fd_artifact_bar">
+                    <a class="btn btn-sm btn-secondary" t-att-href="url" target="_blank">Open in a tab</a>
+                    <button class="btn btn-sm btn-secondary" t-on-click="() => this.toggleHeight()">
+                        <t t-if="state.tall">Shorter</t>
+                        <t t-else="">Taller</t>
+                    </button>
+                </div>
+                <iframe class="fd_artifact_frame" t-att-class="state.tall ? 'fd_artifact_frame fd_tall' : 'fd_artifact_frame'"
+                        t-att-src="url" sandbox="allow-same-origin"/>
+            </div>
+        </div>
+    </t>
+</templates>

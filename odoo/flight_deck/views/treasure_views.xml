@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_treasure_kanban" model="ir.ui.view">
+        <field name="name">flightdeck.treasure.kanban</field>
+        <field name="model">flightdeck.treasure</field>
+        <field name="arch" type="xml">
+            <kanban default_group_by="status" create="0">
+                <field name="status"/>
+                <templates>
+                    <t t-name="card">
+                        <div class="fw-bold fs-5"><field name="name"/></div>
+                        <div class="text-muted"><field name="kind"/> · <field name="language"/></div>
+                        <field name="tag_ids" widget="many2many_tags"/>
+                        <div class="text-muted"><field name="authored_at"/></div>
+                    </t>
+                </templates>
+            </kanban>
+        </field>
+    </record>
+
+    <record id="view_treasure_list" model="ir.ui.view">
+        <field name="name">flightdeck.treasure.list</field>
+        <field name="model">flightdeck.treasure</field>
+        <field name="arch" type="xml">
+            <list string="Treasures" create="0">
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="language"/>
+                <field name="status"/>
+                <field name="version"/>
+                <field name="origin_session_id"/>
+                <field name="authored_at"/>
+                <field name="render_bytes"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_treasure_form" model="ir.ui.view">
+        <field name="name">flightdeck.treasure.form</field>
+        <field name="model">flightdeck.treasure</field>
+        <field name="arch" type="xml">
+            <form string="Treasure">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="kind"/>
+                            <field name="language"/>
+                            <field name="status"/>
+                            <field name="version"/>
+                            <field name="tag_ids" widget="many2many_tags"/>
+                        </group>
+                        <group>
+                            <field name="origin_session_id"/>
+                            <field name="authored_at"/>
+                            <field name="render_bytes"/>
+                            <field name="published_url" widget="url"/>
+                            <field name="dir_path"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Artifact" name="artifact">
+                            <field name="artifact_url" widget="fd_artifact" nolabel="1" class="w-100"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_treasure_search" model="ir.ui.view">
+        <field name="name">flightdeck.treasure.search</field>
+        <field name="model">flightdeck.treasure</field>
+        <field name="arch" type="xml">
+            <search string="Treasures">
+                <field name="name"/>
+                <field name="tag_ids"/>
+                <field name="origin_session_id"/>
+                <group>
+                    <filter name="g_status" string="Status" domain="[]" context="{'group_by':'status'}"/>
+                    <filter name="g_kind" string="Kind" domain="[]" context="{'group_by':'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_treasure" model="ir.actions.act_window">
+        <field name="name">Treasures</field>
+        <field name="res_model">flightdeck.treasure</field>
+        <field name="view_mode">kanban,list,form</field>
+        <field name="search_view_id" ref="view_treasure_search"/>
+    </record>
+</odoo>
