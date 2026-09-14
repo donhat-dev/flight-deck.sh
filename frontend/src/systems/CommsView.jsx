@@ -70,7 +70,7 @@ function Eyebrow({ children, className = "" }) {
 
 function PanelHead({ title, meta, right }) {
   return (
-    <div className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[color:var(--fd-hair-2)] px-5">
+    <div className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[color:var(--fdx-rule)] px-5">
       <div>
         <div className="text-xs font-bold tracking-tight text-zinc-100">{title}</div>
         {meta && <div className="mt-1 font-mono text-[10px] text-zinc-500">{meta}</div>}
@@ -82,7 +82,7 @@ function PanelHead({ title, meta, right }) {
 
 function RangeControl({ value, onChange }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-lg border border-[color:var(--fd-hair-2)]">
+    <div className="inline-flex overflow-hidden rounded-lg border border-[color:var(--fdx-rule)]">
       {RANGES.map((r) => (
         <button key={r.key} type="button" onClick={() => onChange(r.key)}
           className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
@@ -135,7 +135,7 @@ function LiveBadge({ live }) {
 
 function ToolChip({ tool, calls }) {
   return (
-    <span className="inline-flex min-h-[20px] items-center gap-1 rounded-full border border-[color:var(--fd-hair-2)] bg-zinc-500/5 px-2 font-mono text-[9px] text-zinc-400">
+    <span className="inline-flex min-h-[20px] items-center gap-1 rounded-full border border-[color:var(--fdx-rule)] bg-zinc-500/5 px-2 font-mono text-[9px] text-zinc-400">
       {tool}
       <span className="text-zinc-500">{calls}</span>
     </span>
@@ -148,7 +148,7 @@ function ReprobeButton({ probing, onClick }) {
   return (
     <button type="button" onClick={onClick} disabled={probing}
       title="Re-check live connection status (runs `claude mcp list`; read-only, nothing is killed or restarted)"
-      className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--fd-hair-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 hover:text-zinc-200 disabled:opacity-60">
+      className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--fdx-rule)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 hover:text-zinc-200 disabled:opacity-60">
       <span className={probing ? "inline-block animate-spin" : ""}>↻</span>
       {probing ? "probing" : "re-probe"}
     </button>
@@ -189,7 +189,7 @@ function ProcessPanel() {
           }
           right={
             <button type="button" onClick={load}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--fd-hair-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 hover:text-zinc-200">
+              className="inline-flex items-center gap-1.5 rounded-lg border border-[color:var(--fdx-rule)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 hover:text-zinc-200">
               ↻ refresh
             </button>
           }
@@ -216,7 +216,7 @@ function ProcessPanel() {
         ) : (
           procs.map((p) => (
             <div key={p.pid}
-              className="grid grid-cols-1 gap-2 border-b border-[color:var(--fd-hair-2)] px-5 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]">
+              className="grid grid-cols-1 gap-2 border-b border-[color:var(--fdx-rule)] px-5 py-3 last:border-b-0 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[13px] font-semibold text-zinc-100">
@@ -253,11 +253,11 @@ function CommsSkeleton() {
   return (
     <section className="fd-shell">
       <div className="fd-core animate-pulse">
-        <div className="flex min-h-[42px] items-center border-b border-[color:var(--fd-hair-2)] px-5">
+        <div className="flex min-h-[42px] items-center border-b border-[color:var(--fdx-rule)] px-5">
           <div className="h-2.5 w-40 rounded bg-zinc-800" />
         </div>
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="border-b border-[color:var(--fd-hair-2)] px-5 py-4 last:border-b-0">
+          <div key={i} className="border-b border-[color:var(--fdx-rule)] px-5 py-4 last:border-b-0">
             <div className="h-3 w-48 rounded bg-zinc-800" />
             <div className="mt-2.5 h-2.5 w-72 rounded bg-zinc-800/60" />
           </div>
@@ -276,7 +276,7 @@ function ServerRow({ s }) {
   const dim = s.registered && !used && !liveUp;
   const when = fmtWhen(s.last_used);
   return (
-    <div className={`grid grid-cols-1 gap-3 border-b border-[color:var(--fd-hair-2)] px-5 py-3.5 transition-colors last:border-b-0 hover:bg-zinc-500/5 md:grid-cols-[minmax(0,1.5fr)_auto] ${
+    <div className={`grid grid-cols-1 gap-3 border-b border-[color:var(--fdx-rule)] px-5 py-3.5 transition-colors last:border-b-0 hover:bg-zinc-500/5 md:grid-cols-[minmax(0,1.5fr)_auto] ${
       dim ? "opacity-55" : ""
     }`}>
       <div className="min-w-0">
@@ -374,7 +374,7 @@ export default function CommsView() {
           <div className="mt-2 text-sm text-zinc-300">Could not load the MCP registry.</div>
           <div className="mt-1 font-mono text-[11px] text-amber-400">{error}</div>
           <button type="button" onClick={() => load(range)}
-            className="mt-4 rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[11px] text-zinc-300 hover:bg-zinc-500/10">
+            className="mt-4 rounded-lg border border-[color:var(--fdx-rule)] px-3 py-1.5 font-mono text-[11px] text-zinc-300 hover:bg-zinc-500/10">
             Retry
           </button>
         </div>
@@ -392,7 +392,7 @@ export default function CommsView() {
     <div className="flex flex-col gap-4">
       {/* Totals + live health rollup */}
       <section className="fd-shell">
-        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-[color:var(--fd-hair-2)] sm:grid-cols-4 sm:divide-y-0">
+        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-[color:var(--fdx-rule)] sm:grid-cols-4 sm:divide-y-0">
           {[
             { label: "Servers", value: totals.servers ?? 0 },
             {
@@ -433,7 +433,7 @@ export default function CommsView() {
             }
           />
           {health.error && (
-            <div className="border-b border-[color:var(--fd-hair-2)] bg-amber-500/5 px-5 py-2 font-mono text-[10px] text-amber-400/90">
+            <div className="border-b border-[color:var(--fdx-rule)] bg-amber-500/5 px-5 py-2 font-mono text-[10px] text-amber-400/90">
               live probe: {health.error}
             </div>
           )}

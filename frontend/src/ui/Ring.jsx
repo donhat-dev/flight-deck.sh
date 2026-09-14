@@ -7,7 +7,7 @@ import React from "react";
 // presentational (no state, no interaction), so it's a safe, isolated swap
 // for any bar/number display without touching data flow. Shared by the
 // sidebar QuotaBar and the Spend Efficiency gauge.
-export default function Ring({ pct, size = 44, stroke = 4, color = "var(--fd-coral-hot)", trackColor = "var(--fd-hair)", showValue = false }) {
+export default function Ring({ pct, size = 44, stroke = 4, color = "var(--fdx-signal-hover)", trackColor = "var(--fdx-rule)", showValue = false }) {
   const p = pct == null ? 0 : Math.max(0, Math.min(100, pct));
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
@@ -16,11 +16,11 @@ export default function Ring({ pct, size = 44, stroke = 4, color = "var(--fd-cor
       <svg viewBox={`0 0 ${size} ${size}`} width={size} height={size} className="-rotate-90" aria-hidden="true">
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={trackColor} strokeWidth={stroke} />
         <circle
-          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct == null ? "var(--fd-faint)" : color} strokeWidth={stroke}
+          cx={size / 2} cy={size / 2} r={r} fill="none" stroke={pct == null ? "var(--fdx-text-muted)" : color} strokeWidth={stroke}
           strokeLinecap="round" strokeDasharray={`${(p / 100) * c} ${c}`}
           style={{
             color,
-            filter: pct != null ? "var(--fd-ring-glow)" : "none",
+            filter: pct != null ? "none" : "none",
             transition: "stroke-dasharray 1s cubic-bezier(.32,.72,0,1), stroke .3s",
           }}
         />

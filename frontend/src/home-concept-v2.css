@@ -253,7 +253,6 @@ body {
   flex: none;
   border-radius: 50%;
   background: var(--fd2-signal);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fd2-signal) 18%, transparent);
 }
 
 .v2-dot-live {
@@ -262,7 +261,6 @@ body {
 
 .v2-dot-live[data-paused="true"] {
   background: var(--fd2-muted);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fd2-muted) 18%, transparent);
   animation: none;
 }
 
@@ -745,9 +743,6 @@ body {
   font-weight: 700;
   letter-spacing: 0.01em;
   cursor: pointer;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 246, 235, 0.26),
-    4px 4px 0 var(--fd2-btn-depth);
   transition:
     color var(--fd2-fast) var(--fd2-ease),
     background-color var(--fd2-fast) var(--fd2-ease),
@@ -756,25 +751,16 @@ body {
 }
 
 .fd2-btn:hover:not(:disabled) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 246, 235, 0.3),
-    5px 5px 0 var(--fd2-btn-depth);
   transform: translate(-1px, -1px);
 }
 
 .fd2-btn:active:not(:disabled) {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 246, 235, 0.22),
-    1px 1px 0 var(--fd2-btn-depth);
   transform: translate(3px, 3px);
 }
 
 .fd2-btn:disabled {
   --fd2-btn-depth: var(--fd2-depth-muted);
   cursor: wait;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 246, 235, 0.14),
-    3px 3px 0 var(--fd2-btn-depth);
 }
 
 .fd2-btn[aria-busy="true"] {

@@ -71,7 +71,7 @@ function LinksTable({ graph }) {
         </thead>
         {groups.map((group) => (
           <tbody key={group.type}>
-            <tr className="border-t border-[color:var(--fd-hair-2)] bg-zinc-500/5">
+            <tr className="border-t border-[color:var(--fdx-rule)] bg-zinc-500/5">
               <th colSpan={6} className="px-5 py-2 text-left">
                 <span className="font-mono text-[10px] uppercase tracking-[0.17em] text-zinc-400">
                   {group.type}
@@ -84,7 +84,7 @@ function LinksTable({ graph }) {
             {group.rows.map((n) => (
               <tr
                 key={n.name}
-                className="border-t border-[color:var(--fd-hair-2)] align-top hover:bg-zinc-500/5"
+                className="border-t border-[color:var(--fdx-rule)] align-top hover:bg-zinc-500/5"
               >
                 <td className="px-5 py-2.5 font-mono text-[11px] text-zinc-200">{n.name}</td>
                 <td className="px-5 py-2.5 text-[12px] leading-snug text-zinc-500">
@@ -140,7 +140,7 @@ function LinksGraph({ graph }) {
       title="The same links, drawn"
       meta="One column per type. Positions come from the data, so they never move between opens."
     >
-      <div className="flex flex-wrap gap-x-6 gap-y-1.5 border-b border-[color:var(--fd-hair-2)] px-5 py-3">
+      <div className="flex flex-wrap gap-x-6 gap-y-1.5 border-b border-[color:var(--fdx-rule)] px-5 py-3">
         <Eyebrow className="w-full">How to read it</Eyebrow>
         {LEGEND.map((item) => (
           <span key={item.kind} className="flex items-center gap-2 text-[11px] text-zinc-500">

@@ -47,15 +47,31 @@ export default {
           600: "rgb(var(--e-600) / <alpha-value>)",
           700: "rgb(var(--e-700) / <alpha-value>)",
         },
-        // FlightDeck token aliases (for new components that opt in)
-        fd: {
-          void: "#050505", raise: "#0B0C10", "raise-2": "#101218",
-          text: "#F4F3EF", dim: "#9C9B96", faint: "#605F5C",
-          coral: "#D93A18", "coral-hot": "#FF5133", "coral-deep": "#B92E0F",
-          sky: "#4E93CC", "sky-deep": "#2E6FB0", bone: "#EFEDE6", ink: "#17191E",
-        },
+        // Semantic names bound to the live tokens. These are the vocabulary new
+        // markup should reach for; the zinc/emerald remap above keeps the
+        // existing 1573 usages working without churn.
+        surface: "var(--fdx-surface)",
+        "surface-raised": "var(--fdx-surface-raised)",
+        canvas: "var(--fdx-canvas)",
+        signal: "var(--fdx-signal)",
+        rule: "var(--fdx-rule)",
+        "rule-strong": "var(--fdx-rule-strong)",
+        muted: "var(--fdx-text-muted)",
+        environment: "var(--fdx-environment)",
       },
-      borderRadius: { pill: "999px" },
+      borderRadius: {
+        control: "var(--fdx-radius-control)",
+        block: "var(--fdx-radius-block)",
+        pill: "999px",
+        // the stock scale, re-pointed: anything that receives content is 5px
+        sm: "var(--fdx-radius-block)",
+        DEFAULT: "var(--fdx-radius-block)",
+        md: "var(--fdx-radius-block)",
+        lg: "var(--fdx-radius-block)",
+        xl: "var(--fdx-radius-block)",
+        "2xl": "var(--fdx-radius-block)",
+        "3xl": "var(--fdx-radius-block)",
+      },
       keyframes: {
         "fade-up": {
           "0%": { opacity: "0", transform: "translateY(10px)" },

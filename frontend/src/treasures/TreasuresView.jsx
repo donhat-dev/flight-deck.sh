@@ -3,7 +3,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { get, post, subscribe } from "../api.js";
 import LibraryHeader from "./library/LibraryHeader.jsx";
 import LibrarySearch from "./library/LibrarySearch.jsx";
-import { TreasureListRow, TreasureMobileCard, kb } from "./library/TreasureRow.jsx";
+import { TreasureListRow, TreasureMobileCard } from "./library/TreasureRow.jsx";
+import { kb } from "./format.js";
 
 /**
  * Treasures library.
@@ -30,9 +31,9 @@ function Skeleton() {
     <div className="space-y-4">
       <div className="h-9 w-48 rounded bg-zinc-800/70" />
       <div className="h-11 w-full rounded-lg bg-zinc-800/40" />
-      <div className="overflow-hidden rounded-xl border border-[color:var(--fd-hair-2)]">
+      <div className="overflow-hidden rounded-xl border border-[color:var(--fdx-rule)]">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="space-y-2 border-b border-[color:var(--fd-hair-2)] px-5 py-4 last:border-b-0">
+          <div key={i} className="space-y-2 border-b border-[color:var(--fdx-rule)] px-5 py-4 last:border-b-0">
             <div className="h-3.5 w-1/2 rounded bg-zinc-800/70" />
             <div className="h-2.5 w-1/3 rounded bg-zinc-800/40" />
           </div>
@@ -107,10 +108,10 @@ function CreatePanel({ onCreated, onCancel }) {
     ? path.trim().length > 0
     : title.trim().length > 0 && content.trim().length > 0;
   const input =
-    "w-full min-h-[44px] rounded-lg border border-[color:var(--fd-hair-2)] bg-transparent px-3.5 text-[14px] text-zinc-100 placeholder:text-zinc-600 focus:border-[color:var(--fd-coral)]/50 focus:outline-none";
+    "w-full min-h-[44px] rounded-lg border border-[color:var(--fdx-rule)] bg-transparent px-3.5 text-[14px] text-zinc-100 placeholder:text-zinc-600 focus:border-[color:var(--fdx-signal)]/50 focus:outline-none";
 
   return (
-    <section className="space-y-3 rounded-xl border border-[color:var(--fd-hair)] bg-zinc-500/[0.03] p-5">
+    <section className="space-y-3 rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-500/[0.03] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="text-[15px] font-semibold text-zinc-100">New treasure</h3>
         <div className="fdx-segmented" role="group" aria-label="Source">
@@ -175,7 +176,7 @@ function CreatePanel({ onCreated, onCancel }) {
 
 function DiscoverResult({ result, onImport, importing, newCount }) {
   return (
-    <section className="space-y-3 rounded-xl border border-[color:var(--fd-hair)] bg-zinc-500/[0.03] p-5">
+    <section className="space-y-3 rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-500/[0.03] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-[15px] text-zinc-100">
           <span className="font-mono">{newCount}</span> new document{newCount === 1 ? "" : "s"} found
@@ -192,7 +193,7 @@ function DiscoverResult({ result, onImport, importing, newCount }) {
       {/* Candidates listed by name and path, not by scan parameters. Selecting
           individual ones needs an API that accepts a subset — the endpoint is
           all-or-nothing today. */}
-      <ul className="divide-y divide-[color:var(--fd-hair-2)] overflow-hidden rounded-lg border border-[color:var(--fd-hair-2)]">
+      <ul className="divide-y divide-[color:var(--fdx-rule)] overflow-hidden rounded-lg border border-[color:var(--fdx-rule)]">
         {result.candidates.slice(0, 8).map((c) => (
           <li key={c.path} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5">
             <span className="min-w-0 space-y-0.5">
@@ -366,8 +367,8 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
                         importing={importing} onImport={() => runDiscover(true)} />
       )}
 
-      <section className="overflow-hidden rounded-xl border border-[color:var(--fd-hair-2)]">
-        <div className="hidden grid-cols-[minmax(0,1fr)_150px_190px_28px] gap-3 border-b border-[color:var(--fd-hair-2)] px-5 py-2.5 text-[12px] font-semibold tracking-[0.04em] text-zinc-500 md:grid">
+      <section className="overflow-hidden rounded-xl border border-[color:var(--fdx-rule)]">
+        <div className="hidden grid-cols-[minmax(0,1fr)_150px_190px_28px] gap-3 border-b border-[color:var(--fdx-rule)] px-5 py-2.5 text-[12px] font-semibold tracking-[0.04em] text-zinc-500 md:grid">
           <span>Title / source</span>
           <span>Status</span>
           <span>Updated</span>
@@ -392,7 +393,7 @@ export default function TreasuresView({ onOpenSession, onOpenTreasure }) {
         )}
 
         {sorted.length > 0 && (
-          <div className="flex items-center justify-between gap-3 border-t border-[color:var(--fd-hair-2)] px-5 py-3">
+          <div className="flex items-center justify-between gap-3 border-t border-[color:var(--fdx-rule)] px-5 py-3">
             <span className="font-mono text-[12px] text-zinc-500">
               {sorted.length} of {summary.total}
             </span>

@@ -56,7 +56,6 @@
   flex-direction: column;
   border: 1px solid var(--rdr-ring-edge);
   background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-block);
 }
 
 /* ---- head -------------------------------------------------------------- */
@@ -185,7 +184,6 @@
 .rdr-why-input::placeholder { color: var(--fdx-text-muted); }
 .rdr-why-input:focus-visible {
   outline: none;
-  box-shadow: 3px 3px 0 var(--fdx-orange);
 }
 
 /* The rule, not a hint: it states what the field is FOR, which is the one thing a

@@ -123,7 +123,7 @@ export default function ProblemsPanel({ lint, graph, error, onRetry }) {
           </thead>
           <tbody>
             {rows.length === 0 && (
-              <tr className="border-t border-[color:var(--fd-hair-2)]">
+              <tr className="border-t border-[color:var(--fdx-rule)]">
                 <td colSpan={5} className="px-5 py-10 text-center text-sm text-zinc-500">
                   {findings.length === 0
                     ? "Nothing drifted. Every memory has a source, a summary and a place in the index."
@@ -134,7 +134,7 @@ export default function ProblemsPanel({ lint, graph, error, onRetry }) {
             {rows.map((f, i) => (
               <tr
                 key={`${f.kind}-${f.memory}-${i}`}
-                className="border-t border-[color:var(--fd-hair-2)] align-top hover:bg-zinc-500/5"
+                className="border-t border-[color:var(--fdx-rule)] align-top hover:bg-zinc-500/5"
               >
                 <td className="px-5 py-3 text-[12px]"><KindCell kind={f.kind} /></td>
                 <td className="px-5 py-3 font-mono text-[11px] text-zinc-200">{f.memory}</td>

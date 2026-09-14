@@ -4,7 +4,7 @@ import React from "react";
  * The small pieces the three Memory panels share.
  *
  * Same shapes Comms and Hangar already use — an `Eyebrow`, a `fd-shell`/`fd-core`
- * panel, a hairline from `--fd-hair-2` — so this tab reads as another Systems view
+ * panel, a hairline from `--fdx-rule` — so this tab reads as another Systems view
  * rather than a second design. Nothing here holds state or fetches anything.
  */
 
@@ -21,7 +21,7 @@ export function Panel({ title, meta, right, children, bodyClassName = "" }) {
     <section className="fd-shell">
       <div className="fd-core">
         {(title || right) && (
-          <div className="flex min-h-[42px] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[color:var(--fd-hair-2)] px-5 py-2">
+          <div className="flex min-h-[42px] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-[color:var(--fdx-rule)] px-5 py-2">
             <div>
               <div className="text-xs font-bold tracking-tight text-zinc-100">{title}</div>
               {meta && <div className="mt-1 font-mono text-[10px] text-zinc-500">{meta}</div>}
@@ -43,7 +43,7 @@ export function Tile({ label, value, help, tone = "plain" }) {
     : tone === "good" ? "text-emerald-400"
       : "text-zinc-100";
   return (
-    <div className="border-t border-[color:var(--fd-hair-2)] px-5 py-4 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0">
+    <div className="border-t border-[color:var(--fdx-rule)] px-5 py-4 first:border-t-0 sm:border-l sm:border-t-0 sm:first:border-l-0">
       <Eyebrow>{label}</Eyebrow>
       <div className={`mt-1.5 font-mono text-[26px] leading-none tracking-[-0.02em] ${colour}`}>
         {value}
@@ -80,7 +80,7 @@ export function ChipRow({ label, items, value, onChange, className = "" }) {
             className={`inline-flex min-h-[26px] items-center gap-1.5 rounded border px-2.5 text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
               on
                 ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-300"
-                : "border-[color:var(--fd-hair-2)] text-zinc-400 hover:bg-zinc-500/10 hover:text-zinc-200"
+                : "border-[color:var(--fdx-rule)] text-zinc-400 hover:bg-zinc-500/10 hover:text-zinc-200"
             }`}
           >
             {item.label}

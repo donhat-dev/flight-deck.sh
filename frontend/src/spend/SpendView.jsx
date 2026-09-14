@@ -84,7 +84,7 @@ function Eyebrow({ children, className = "" }) {
 function InfoDot({ title }) {
   return (
     <span title={title}
-      className="grid h-[17px] w-[17px] shrink-0 cursor-help place-items-center rounded-full border border-[color:var(--fd-hair)] font-serif text-[10px] text-zinc-500">
+      className="grid h-[17px] w-[17px] shrink-0 cursor-help place-items-center rounded-full border border-[color:var(--fdx-rule)] font-serif text-[10px] text-zinc-500">
       i
     </span>
   );
@@ -126,7 +126,7 @@ function EffRow({ label, value }) {
 // One ranked Operational-signals row: colored dot + title + copy + mono value.
 function SignalRow({ mark, title, copy, value }) {
   return (
-    <div className="grid grid-cols-[9px_1fr_auto] items-start gap-2.5 border-b border-[color:var(--fd-hair-2)] py-2.5 last:border-b-0">
+    <div className="grid grid-cols-[9px_1fr_auto] items-start gap-2.5 border-b border-[color:var(--fdx-rule)] py-2.5 last:border-b-0">
       <span className="mt-1 h-[7px] w-[7px] shrink-0 rounded-full" style={{ background: mark }} />
       <div className="min-w-0">
         <div className="text-[11px] font-semibold text-zinc-100">{title}</div>
@@ -140,7 +140,7 @@ function SignalRow({ mark, title, copy, value }) {
 // Mono chip (skill / MCP usage) in the signals footer.
 function SignalChip({ children }) {
   return (
-    <span className="inline-flex min-h-[22px] items-center rounded-full border border-[color:var(--fd-hair-2)] bg-zinc-500/5 px-2 font-mono text-[9px] text-zinc-400">
+    <span className="inline-flex min-h-[22px] items-center rounded-full border border-[color:var(--fdx-rule)] bg-zinc-500/5 px-2 font-mono text-[9px] text-zinc-400">
       {children}
     </span>
   );
@@ -150,7 +150,7 @@ function SignalChip({ children }) {
 // title + mono meta line on the left, an arbitrary `right` node on the right.
 function PanelHead({ title, meta, right }) {
   return (
-    <div className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[color:var(--fd-hair-2)] px-5">
+    <div className="flex min-h-[42px] items-center justify-between gap-4 border-b border-[color:var(--fdx-rule)] px-5">
       <div>
         <div className="text-xs font-bold tracking-tight text-zinc-100">{title}</div>
         {meta && <div className="mt-1 font-mono text-[10px] text-zinc-500">{meta}</div>}
@@ -215,13 +215,13 @@ export default function SpendView({ summary, daily, byModel }) {
 
   // Concrete chart colors, theme-resolved (see useTokens).
   const tk = useTokens(useMemo(
-    () => ["--fd-coral", "--e-300", "--fd-sky", "--fd-faint", "--fd-hair-2"], []));
+    () => ["--fdx-signal", "--e-300", "--fdx-environment", "--fdx-text-muted", "--fdx-rule"], []));
   const chartColors = {
-    coral: tk["--fd-coral"] || "#D93A18",
-    coralLite: tk["--e-300"] ? `rgb(${tk["--e-300"]})` : "#FF6A4D",
-    sky: tk["--fd-sky"] || "#4E93CC",
-    faint: tk["--fd-faint"] || "rgba(244,243,239,0.38)",
-    hair: tk["--fd-hair-2"] || "rgba(255,255,255,0.07)",
+    coral: tk["--fdx-signal"] || "#e84d2a",
+    coralLite: tk["--e-300"] ? `rgb(${tk["--e-300"]})` : "#ff6344",
+    sky: tk["--fdx-environment"] || "#4e93cc",
+    faint: tk["--fdx-text-muted"] || "#aaa195",
+    hair: tk["--fdx-rule"] || "rgba(244,237,224,0.22)",
   };
 
   // Cost concentration: top-two models' share of total API-equivalent value.
@@ -231,20 +231,20 @@ export default function SpendView({ summary, daily, byModel }) {
     const top2Share = share(byModel[0]) + share(byModel[1]);
     const otherShare = byModel.slice(2).reduce((s, m) => s + share(m), 0);
     const palette = [
-      "rgb(var(--e-500))", "rgb(var(--e-300))", "var(--fd-sky)",
-      "var(--fd-sky-deep)", "var(--fd-faint)",
+      "rgb(var(--e-500))", "rgb(var(--e-300))", "var(--fdx-environment)",
+      "var(--fdx-environment-deep)", "var(--fdx-text-muted)",
     ];
     return {
       total,
       top2Share,
       otherShare,
       segments: byModel.slice(0, 5).map((m, i) => ({
-        pct: share(m), color: palette[i] || "var(--fd-faint)",
+        pct: share(m), color: palette[i] || "var(--fdx-text-muted)",
       })),
       list: [
         { name: shortModel(byModel[0]?.model), pct: share(byModel[0]), color: palette[0] },
         { name: shortModel(byModel[1]?.model), pct: share(byModel[1]), color: palette[1] },
-        { name: "Other models", pct: otherShare, color: "var(--fd-faint)" },
+        { name: "Other models", pct: otherShare, color: "var(--fdx-text-muted)" },
       ],
     };
   }, [byModel]);
@@ -263,7 +263,7 @@ export default function SpendView({ summary, daily, byModel }) {
             <InfoDot title="Comparable list-price value, not an invoice total" />
           </div>
           <div className="mt-3 font-mono text-[33px] leading-none tracking-[-0.02em]"
-               style={{ color: "var(--fd-coral-deep)" }}>
+               style={{ color: "var(--fdx-signal-active)" }}>
             {usd(summary.total_cost)}
           </div>
           <div className="mt-2 text-[11px] leading-[1.45] text-zinc-400">
@@ -279,7 +279,7 @@ export default function SpendView({ summary, daily, byModel }) {
         </div>
 
         {/* Avoided value */}
-        <div className="border-t border-[color:var(--fd-hair)] p-4 min-[900px]:border-l min-[900px]:border-t-0">
+        <div className="border-t border-[color:var(--fdx-rule)] p-4 min-[900px]:border-l min-[900px]:border-t-0">
           <div className="flex items-center justify-between gap-3">
             <Eyebrow>Avoided value</Eyebrow>
             <InfoDot title="Savings estimates use current API list prices" />
@@ -294,7 +294,7 @@ export default function SpendView({ summary, daily, byModel }) {
                 {usd(summary.cache_savings)}
               </div>
             </div>
-            <div className="h-px bg-[color:var(--fd-hair-2)]" />
+            <div className="h-px bg-[color:var(--fdx-rule)]" />
             <div className="grid grid-cols-[1fr_auto] items-end gap-3">
               <div>
                 <div className="text-[11px] text-zinc-400">Versus subscription</div>
@@ -308,14 +308,14 @@ export default function SpendView({ summary, daily, byModel }) {
         </div>
 
         {/* Efficiency */}
-        <div className="border-t border-[color:var(--fd-hair)] p-4 min-[900px]:border-l min-[900px]:border-t-0">
+        <div className="border-t border-[color:var(--fdx-rule)] p-4 min-[900px]:border-l min-[900px]:border-t-0">
           <div className="flex items-center justify-between gap-3">
             <Eyebrow>Efficiency</Eyebrow>
             <InfoDot title="Input-token cache performance" />
           </div>
           <div className="mt-4 grid grid-cols-[82px_1fr] items-center gap-4">
             <div className="relative grid place-items-center" style={{ width: 78, height: 78 }}>
-              <Ring pct={(summary.cache_hit_rate ?? 0) * 100} size={78} stroke={6} color="var(--fd-coral)" />
+              <Ring pct={(summary.cache_hit_rate ?? 0) * 100} size={78} stroke={6} color="var(--fdx-signal)" />
               <span className="absolute inset-0 grid place-items-center font-mono text-[15px] tracking-[-0.04em] text-zinc-100">
                 {pct(summary.cache_hit_rate)}
               </span>
@@ -345,7 +345,7 @@ export default function SpendView({ summary, daily, byModel }) {
                   <i className="h-[3px] w-[9px] rounded-sm" style={{ background: "rgb(var(--e-500))" }} />daily
                 </span>
                 <span className="inline-flex items-center gap-1.5">
-                  <i className="h-[3px] w-[9px] rounded-sm" style={{ background: "var(--fd-sky)" }} />7-day avg
+                  <i className="h-[3px] w-[9px] rounded-sm" style={{ background: "var(--fdx-environment)" }} />7-day avg
                 </span>
                 <span className="inline-flex items-center gap-1.5">
                   <i className="w-[9px] border-t border-dashed" style={{ borderColor: "#d97706" }} />reference
@@ -373,10 +373,10 @@ export default function SpendView({ summary, daily, byModel }) {
                     cursor={{ fill: "rgba(217,58,24,0.08)" }}
                     formatter={(v, name) => [usd(v), name === "avg7" ? "7-day avg" : "daily"]}
                     labelFormatter={fmtDay}
-                    labelStyle={{ color: "var(--fd-dim)", fontSize: 12 }}
+                    labelStyle={{ color: "var(--fdx-text-muted)", fontSize: 12 }}
                     contentStyle={{
-                      background: "var(--fd-raise-2)", border: "1px solid var(--fd-hair)",
-                      borderRadius: 14, fontFamily: "IBM Plex Mono", fontSize: 12, color: "var(--fd-text)",
+                      background: "var(--fdx-surface-raised)", border: "1px solid var(--fdx-rule)",
+                      borderRadius: 14, fontFamily: "IBM Plex Mono", fontSize: 12, color: "var(--fdx-text)",
                     }}
                   />
                   <ReferenceLine y={periodAvg} stroke="#d97706" strokeDasharray="4 3"
@@ -417,10 +417,10 @@ export default function SpendView({ summary, daily, byModel }) {
                   <SignalRow mark="#f59e0b" title="Long-context exposure"
                     value={`${longCtx}%`}
                     copy={`${longCtx}% of sessions exceed 150K context. Review retention before reducing it.`} />
-                  <SignalRow mark="var(--fd-coral)" title="Subagent-heavy sessions"
+                  <SignalRow mark="var(--fdx-signal)" title="Subagent-heavy sessions"
                     value={`${subagent}%`}
                     copy="All recent sessions spawned subagents. Inspect fan-out on high-cost runs." />
-                  <SignalRow mark="var(--fd-sky)" title="Cache performance"
+                  <SignalRow mark="var(--fdx-environment)" title="Cache performance"
                     value={pct(summary.cache_hit_rate)}
                     copy={`Cache hit remains strong. Uncached input is only ${compact(summary.input_tokens)} tokens.`} />
                   <div className="mt-3 flex flex-wrap gap-1.5">
@@ -445,16 +445,16 @@ export default function SpendView({ summary, daily, byModel }) {
           right={<span className="font-mono text-[10px] text-zinc-500">{byModel.length} models · sorted by cost ↓</span>}
         />
         <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.6fr)]">
-          <div className="overflow-x-auto border-b border-[color:var(--fd-hair-2)] lg:border-b-0 lg:border-r">
+          <div className="overflow-x-auto border-b border-[color:var(--fdx-rule)] lg:border-b-0 lg:border-r">
             <table className="w-full">
               <thead>
                 <tr className="font-mono text-[9px] uppercase text-zinc-500">
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 pl-5 text-left font-medium">Model</th>
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Input raw</th>
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Input uncached</th>
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Output</th>
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Cache read</th>
-                  <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Cost</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 pl-5 text-left font-medium">Model</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Input raw</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Input uncached</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Output</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Cache read</th>
+                  <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -467,7 +467,7 @@ export default function SpendView({ summary, daily, byModel }) {
                 )}
                 {byModel.map((m) => (
                   <tr key={m.model}
-                      className="border-b border-[color:var(--fd-hair-2)] transition-colors last:border-b-0 hover:bg-zinc-500/5">
+                      className="border-b border-[color:var(--fdx-rule)] transition-colors last:border-b-0 hover:bg-zinc-500/5">
                     <td className="px-4 py-2.5 pl-5 text-[11px] font-semibold text-zinc-100" title={m.model || ""}>
                       {shortModel(m.model)}
                       {!m.priced && (
@@ -481,7 +481,7 @@ export default function SpendView({ summary, daily, byModel }) {
                     <td className="px-4 py-2.5 text-right font-mono text-[11px] text-zinc-300">{compact(m.output)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-[11px] text-zinc-300">{compact(m.cache_read)}</td>
                     <td className="px-4 py-2.5 text-right font-mono text-[11px]"
-                        style={{ color: "var(--fd-coral-deep)" }}>
+                        style={{ color: "var(--fdx-signal-active)" }}>
                       {m.priced ? usd(m.cost) : "-"}
                     </td>
                   </tr>
@@ -497,7 +497,7 @@ export default function SpendView({ summary, daily, byModel }) {
             <div className="mt-1.5 text-[10px] text-zinc-400">
               of API-equivalent value comes from the top two models
             </div>
-            <div className="my-4 flex h-[13px] overflow-hidden rounded-lg" style={{ background: "var(--fd-raise-2)" }}>
+            <div className="my-4 flex h-[13px] overflow-hidden rounded-lg" style={{ background: "var(--fdx-surface-raised)" }}>
               {conc.segments.map((s, i) => (
                 <i key={i} style={{ width: `${s.pct * 100}%`, background: s.color }} />
               ))}

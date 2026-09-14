@@ -78,7 +78,6 @@
      deck", which every block gets; the offset says "this is the anchor", which
      only this one gets. Two different claims, so two different materials. */
   border-radius: var(--fdx-radius-block);
-  box-shadow: var(--fdx-shadow-block), var(--fdx-shadow-print);
 }
 
 .radio-eyebrow {
@@ -245,7 +244,6 @@
   border-left-color: var(--fdx-signal);
   /* The one place pink appears: a card background. */
   background: var(--fdx-card-tint);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 .radio-channel-name {

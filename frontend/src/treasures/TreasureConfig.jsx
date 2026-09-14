@@ -186,7 +186,7 @@ export function ConfigView({
                 onChange={(e) => onChange(f.key, e.target.value)}
                 spellCheck={false}
                 rows={f.key === "default_agent_notes" ? 6 : 8}
-                className="mt-1 min-h-[8rem] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-[color:var(--fd-coral)]/50 focus:outline-none"
+                className="mt-1 min-h-[8rem] w-full rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-[color:var(--fdx-signal)]/50 focus:outline-none"
               />
             </div>
           </section>

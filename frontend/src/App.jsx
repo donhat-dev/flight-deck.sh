@@ -16,12 +16,18 @@ import { IconBack, IconForward } from "./ui/icons.jsx";
 import CommsView from "./systems/CommsView.jsx";
 import ManualsView from "./systems/ManualsView.jsx";
 import HangarView from "./systems/HangarView.jsx";
+import MemoryView from "./memory/MemoryView.jsx";
 import RelayView from "./agui/RelayView.jsx";
 import MissionsView from "./systems/MissionsView.jsx";
+import TicketsView from "./tickets/TicketsView.jsx";
+import TicketForm from "./tickets/TicketForm.jsx";
 import AppearanceView from "./systems/AppearanceView.jsx";
 import TreasuresView from "./treasures/TreasuresView.jsx";
 import TreasureConfig from "./treasures/TreasureConfig.jsx";
 import NavGroup from "./ui/NavGroup.jsx";
+import PixelMark from "./ui/PixelMark.jsx";
+import PaletteToggle from "./ui/PaletteToggle.jsx";
+import { StatusBadge } from "./ui/FlightComponents.jsx";
 // Lazy: TreasureDetail pulls in Milkdown (WYSIWYG editor), a sizeable
 // dependency only ever needed on the single #/treasure/<id> route — keeping
 // it out of the main bundle instead of growing every other view's load.
@@ -40,6 +46,8 @@ function parseRoute(hash) {
   }
   const t = (hash || "").match(/^#\/treasure\/([^?]+)$/);
   if (t) return { name: "treasure", id: decodeURIComponent(t[1]) };
+  const k = (hash || "").match(/^#\/ticket\/([^?]+)$/);
+  if (k) return { name: "ticket", key: decodeURIComponent(k[1]) };
   if ((hash || "").match(/^#\/loom\/?$/)) return { name: "loom" };
   if ((hash || "").match(/^#\/welcome\/?$/)) return { name: "welcome" };
   return { name: "home" };
@@ -61,6 +69,10 @@ const goTreasure = (id) => {
   window.scrollTo(0, 0);
 };
 const goLoom = () => { window.location.hash = "#/loom"; window.scrollTo(0, 0); };
+const goTicket = (key) => {
+  window.location.hash = `#/ticket/${encodeURIComponent(key)}`;
+  window.scrollTo(0, 0);
+};
 // Session detail intentionally lands at the bottom (latest turn) on open —
 // but the window scroll position otherwise persists across the hash change
 // (single-page app, no browser scroll restoration), so without this, going
@@ -72,33 +84,13 @@ const goHome = () => { window.location.hash = "#/"; window.scrollTo(0, 0); };
 // Roundel + Wordmark now live in ./brand.jsx (shared with the marketing
 // Landing) and are imported at the top of this file.
 
-/* ---- day/night theme toggle (fixed, top-right) ------------------------- */
-// FlightDeck is Night by default (the app is a dark instrument panel). This
-// flips the whole app to the Day palette via <html data-theme="day"> (see
-// index.css). Choice persists in localStorage.
-function ThemeToggle() {
-  const [theme, setTheme] = useState(() => {
-    try { return localStorage.getItem("fd-theme") || "night"; } catch { return "night"; }
-  });
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    try { localStorage.setItem("fd-theme", theme); } catch { /* ignore */ }
-  }, [theme]);
-  const OPTS = [{ k: "night", ic: "☾" }, { k: "day", ic: "☀" }];
-  return (
-    <div role="group" aria-label="Theme"
-         className="fdx-segmented shrink-0">
-      {OPTS.map((o) => (
-        <button key={o.k} type="button" aria-pressed={theme === o.k}
-          aria-label={`${o.k === "day" ? "Day" : "Night"} mode`} title={`${o.k === "day" ? "Day" : "Night"} mode`}
-          onClick={() => setTheme(o.k)}
-          className="fdx-segmented-seg">
-          {o.ic}
-        </button>
-      ))}
-    </div>
-  );
-}
+/* ---- day/night theme toggle ------------------------------------------- */
+// FlightDeck is Night by default (the app is a dark instrument panel), and the
+// switch lives at the foot of the side menu. There used to be a second theme
+// mechanism here — a two-segment control with its own localStorage read — and it
+// is gone: `ui/PaletteToggle.jsx` already owned `<html data-theme>` for Radio
+// and the radar, so the dashboard passes it `variant="rail"` and the same
+// `fd-theme` key rather than writing the attribute from a second place.
 
 /* ---- scroll-to-top/bottom (floating) ----------------------------------- */
 // Long transcripts + the sessions list both scroll the window; these fixed
@@ -137,33 +129,42 @@ function ScrollButtons() {
 
 // Instrument vocabulary: Quota remains fixed in the sidebar; Route Loom is a
 // spatial workspace, separate from the transcript-oriented Logbook.
+// `mark` names an 8x8 pixel grid in ui/PixelMark.jsx. It replaced a single
+// Unicode glyph per row, which had two problems the marks do not: the shapes
+// available in a text font are not a set anybody designed together, and at 16px
+// several of them were the same lozenge. The mark also survives the rail
+// collapsing to 76px, where it is the only thing left of the row.
 const NAV = [
-  // { k: "pulse", label: "Pulse", icon: "◉" }, // SUSPENDED 2026-07-14: Pulse paused
-  { k: "usage", label: "Spend", icon: "◑" },
-  { k: "sessions", label: "Logbook", icon: "☰" },
-  { k: "loom", label: "Route Loom", icon: "⌁" },
-  { k: "graph", label: "Charts", icon: "⌗" },
-  { k: "diff", label: "Diff", icon: "⇄" },
-  { k: "hub", label: "Hub", icon: "⬡" },
+  // { k: "pulse", label: "Pulse", mark: "…" }, // SUSPENDED 2026-07-14: Pulse paused
+  { k: "usage", label: "Spend", mark: "spend" },
+  { k: "sessions", label: "Logbook", mark: "logbook" },
+  { k: "loom", label: "Route Loom", mark: "routeloom" },
+  { k: "graph", label: "Charts", mark: "charts" },
+  { k: "diff", label: "Diff", mark: "diff" },
+  { k: "tickets", label: "Tickets", mark: "tickets" },
+  { k: "hub", label: "Hub", mark: "hub" },
   // The first nav entry with children. Treasures stays a real view — the row
   // still opens the library — and Config is a page under it rather than three
   // separate entries for three text fields, which is how a settings panel is
   // shaped everywhere it works.
-  { k: "treasures", label: "Treasures", icon: "◈", children: [
-    { k: "treasure-config", label: "Config", icon: "⌘" },
+  { k: "treasures", label: "Treasures", mark: "treasures", children: [
+    { k: "treasure-config", label: "Config", mark: "config" },
   ] },
 ];
 // Systems section: environment management (read-only v1) as opposed to the
 // usage-analytics views above. Comms = MCP servers, Manuals = skills,
 // Hangar = Docker containers.
 const SYS_NAV = [
-  { k: "components", label: "Components", icon: "▦" },
-  { k: "comms", label: "Comms", icon: "⌬" },
-  { k: "manuals", label: "Manuals", icon: "⎘" },
-  { k: "hangar", label: "Hangar", icon: "⌂" },
-  { k: "relay", label: "Relay", icon: "⇌" },
-  { k: "missions", label: "Missions", icon: "▲" },
-  { k: "appearance", label: "Appearance", icon: "Aa" },
+  { k: "components", label: "Components", mark: "components" },
+  { k: "comms", label: "Comms", mark: "comms" },
+  { k: "manuals", label: "Manuals", mark: "manuals" },
+  // Next to Comms and Manuals because it belongs with them: those three are what
+  // an agent brings to a session — its servers, its skills, and what it remembers.
+  { k: "memory", label: "Memory", mark: "memory" },
+  { k: "hangar", label: "Hangar", mark: "hangar" },
+  { k: "relay", label: "Relay", mark: "relay" },
+  { k: "missions", label: "Missions", mark: "missions" },
+  { k: "appearance", label: "Appearance", mark: "appearance" },
 ];
 const RANGES = [
   { k: "today", label: "Today" },
@@ -252,7 +253,7 @@ const resetTime = (epoch) =>
 // Sized for the sidebar column (~190px usable).
 function QuotaBar({ label, win }) {
   const p = win?.used_percentage ?? null;
-  const color = p == null ? "var(--fd-faint)" : p > 90 ? "#fb7185" : p > 70 ? "#fbbf24" : "var(--fd-coral-hot)";
+  const color = p == null ? "var(--fdx-text-muted)" : p > 90 ? "#fb7185" : p > 70 ? "#fbbf24" : "var(--fdx-signal-hover)";
   const reset = win?.resets_at ? resetTime(win.resets_at) : (win?.resets_text || "-");
   return (
     <div className="flex items-center gap-3">
@@ -288,7 +289,7 @@ function SidebarQuota({ data, onRefresh }) {
     : "unavailable";
 
   return (
-    <div className="mx-3 mb-3 rounded-xl border border-zinc-800/70 bg-zinc-900/40 px-3 py-3">
+    <div className="mx-3 mb-3 shrink-0 rounded-xl border border-zinc-800/70 bg-zinc-900/40 px-3 py-3">
       <div className="flex items-center justify-between" title={`official · ${freshness}`}>
         <span className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Quota</span>
         <button
@@ -495,6 +496,14 @@ export default function App() {
   const [range, setRange] = useState("all");
   const [view, setView] = useState("usage");
   const [navOpen, setNavOpen] = useState(false); // mobile off-canvas sidebar
+  // Icon-only rail. A reading page wants its width back, but hiding the nav
+  // entirely costs the reader their bearings - the icons keep the map.
+  const [navRail, setNavRail] = useState(() => {
+    try { return localStorage.getItem("fd.navRail") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("fd.navRail", navRail ? "1" : "0"); } catch { /* private window */ }
+  }, [navRail]);
   // ticks so subagent "running" flags recompute even without a live update
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 5000); return () => clearInterval(id); }, []);
@@ -549,28 +558,31 @@ export default function App() {
   const NAV_ACTIVE = route.name === "session" ? null
     : route.name === "loom" ? "loom"
     : route.name === "treasure" ? "treasures"
+    : route.name === "ticket" ? "tickets"
     : view;
 
-  // One renderer for both nav sections so the button styling can't drift.
+  // One renderer for both nav sections so the row styling can't drift. Every
+  // difference between the two rail widths is a CSS rule hanging off
+  // `data-collapsed` on the rail, not a branch here — including the label, which
+  // stays in the accessibility tree while it is visually clipped, so the row
+  // keeps its accessible name from its own text at both widths.
   const navBtn = (n) => (
     <button
       key={n.k}
       type="button"
+      className="fdx-nav-button"
       aria-pressed={NAV_ACTIVE === n.k}
-      style={{ fontWeight: "var(--fdx-weight-label)" }}
       onClick={() => {
         setView(n.k);
         if (n.k === "loom") goLoom(); else goHome();
         setNavOpen(false);
       }}
-      className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm  transition-colors ${
-        NAV_ACTIVE === n.k
-          ? "bg-emerald-500/15 text-emerald-400"
-          : "text-zinc-400 hover:bg-zinc-900/70 hover:text-zinc-200"
-      }`}
+      title={n.label}
     >
-      <span className="w-4 text-center text-base leading-none opacity-80">{n.icon}</span>
-      {n.label}
+      <span className="fdx-nav-chip">
+        <PixelMark name={n.mark} />
+      </span>
+      <span className="fdx-nav-text">{n.label}</span>
     </button>
   );
 
@@ -614,84 +626,130 @@ export default function App() {
   // default view is untouched — the app still opens to Spend at #/.
   if (route.name === "welcome") return <Landing />;
 
+  // Reading a treasure is a focus mode: the artifact is a full document and the
+  // nav is not part of reading it, so the sidebar goes off-canvas on desktop too
+  // and the content reclaims its 224px. This reuses the existing off-canvas
+  // machinery rather than adding a second hide mechanism — the only change is that
+  // `lg` stops forcing the rail open, so `navOpen` governs every width.
+  const navHidden = route.name === "treasure";
+
   return (
-    <div className="min-h-[100dvh]">
+    // Same zoom correction as the bleed Shell: with `body { zoom: 1.12 }` a
+    // plain 100dvh floor is 12% taller than the viewport, so every page
+    // carried a scrollbar with nothing under it.
+    <div className="min-h-[calc(100dvh/var(--app-zoom,1))]">
       {/* atmosphere: mesh orbs behind everything, film grain on top (both inert) */}
       <div className="fd-mesh motion-safe:animate-mesh-drift" aria-hidden="true" />
       <div className="fd-grain" aria-hidden="true" />
-      {/* backdrop behind the off-canvas sidebar (mobile only) */}
+      {/* backdrop behind the off-canvas sidebar — on desktop too while the nav is
+          hidden, since there it is a real overlay and needs a click-away. */}
       {navOpen && (
         <button type="button" aria-label="Close menu" onClick={() => setNavOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden" />
+          className={`fixed inset-0 z-40 bg-black/60 backdrop-blur-sm ${navHidden ? "" : "lg:hidden"}`} />
       )}
-      {/* fixed left sidebar (off-canvas below lg) */}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-56 flex-col border-r border-zinc-800/80 bg-zinc-950/85 backdrop-blur-xl transition-transform duration-500 ease-[cubic-bezier(.32,.72,0,1)] lg:z-30 lg:translate-x-0 ${navOpen ? "translate-x-0" : "-translate-x-full"}`}>
-        <button type="button" onClick={() => { goHome(); setNavOpen(false); }} aria-label="FlightDeck home"
-          className="flex h-16 items-center gap-2.5 px-5 text-left text-zinc-100 transition-colors duration-500 hover:text-emerald-300">
-          <Roundel className="h-[22px] w-[22px]" />
-          <Wordmark className="text-[15px]" />
+      {/* the way back INTO the nav while it is hidden. Fixed and 36px, so it costs
+          no layout — a top bar here would take back the vertical space the focus
+          mode just freed. Bottom-left, not top-left: the detail's own back button
+          occupies the top-left of the reclaimed area, and two controls stacked
+          there would collide. Below `lg` the mobile top bar already has a
+          hamburger. */}
+      {navHidden && !navOpen && (
+        <button
+          type="button"
+          onClick={() => setNavOpen(true)}
+          aria-label="Show menu"
+          aria-expanded={false}
+          className="fixed bottom-3 left-2 z-40 hidden h-9 w-9 items-center justify-center rounded-lg border border-zinc-800/80 bg-zinc-950/80 text-zinc-400 backdrop-blur-xl transition-colors hover:text-zinc-100 lg:flex"
+        >
+          <span aria-hidden="true" className="text-[15px] leading-none">☰</span>
         </button>
-        <nav className="flex flex-col gap-1 px-3" aria-label="Views">
+      )}
+      {/* fixed left sidebar (off-canvas below lg, and on every width while a
+          treasure is open) */}
+      {/* Two widths, one attribute. `data-collapsed` is the whole switch: the
+          272px menu and the 76px chip rail differ only in CSS rules hanging off
+          it, so there is no second set of class names here to fall out of step.
+          Tailwind still owns the off-canvas position and slide, which is the one
+          job it was already doing correctly. */}
+      <aside
+        id="fd-side-menu"
+        data-collapsed={navRail ? "true" : "false"}
+        className={`fdx-rail fixed inset-y-0 left-0 z-50 flex flex-col lg:z-30 ${navHidden ? "" : "lg:translate-x-0"} ${navOpen ? "translate-x-0" : "-translate-x-full"}`}
+      >
+        <button type="button" className="fdx-rail-brand" aria-label="FlightDeck home"
+          onClick={() => { goHome(); setNavOpen(false); }}>
+          <Roundel className="h-[22px] w-[22px]" />
+          <span className="fdx-nav-text"><Wordmark className="text-[15px]" /></span>
+        </button>
+        {/* The nav is the ONLY part allowed to grow, and it scrolls once it runs
+            out of room. Without `min-height: 0` a flex child refuses to shrink
+            below its content, so a nav this long pushed Quota and the live/theme
+            row past the bottom edge — the two things that must stay reachable were
+            the two the overflow ate. */}
+        <nav className="fdx-nav" aria-label="Views">
+          {/* Each group label is a real word expanded and a short rule collapsed,
+              at one height either way so the rows below it do not shift. The word
+              stays in the accessibility tree at both widths. */}
+          <div className="fdx-nav-label"><span>Views</span></div>
           {/* NavGroup renders a childless entry as `renderLeaf(item)` and nothing
               else, so every flat entry here is exactly the button it was before. */}
           {NAV.map((n) => (
             <NavGroup key={n.k} item={n} view={NAV_ACTIVE} renderLeaf={navBtn}
                       onSelect={(k) => { setView(k); goHome(); setNavOpen(false); }} />
           ))}
-          <div className="mb-1 mt-3 px-3 text-[10px] uppercase tracking-[0.18em] text-zinc-600"
-            style={{ fontWeight: "var(--fdx-weight-label)" }}>
-            Systems
-          </div>
+          <div className="fdx-nav-label"><span>Systems</span></div>
           {SYS_NAV.map(navBtn)}
           {/* Radar belongs to Systems, but it cannot be a SYS_NAV entry: it is its
               own Vite entry rather than a view in this SPA, so it has to be an
               anchor. Styled exactly like navBtn on purpose — a link that looked
-              different would read as broken — with the arrow as the only signal that
-              it leaves the dashboard, the same contract Radio uses under Planes. */}
-          <a
-            href="/radar.html"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm  text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
-            style={{ fontWeight: "var(--fdx-weight-label)" }}
-          >
-            {/* A crosshair, not a diamond. `◈` was the first choice and at 16px it
-                was indistinguishable from Treasures' `◆`, which is the one thing an
-                icon in a scannable list must not be. Checked against the real font
-                stack — Space Grotesk has this codepoint, so it is not a tofu box on
-                the machine that matters. */}
-            <span className="w-4 text-center text-base leading-none opacity-80">⌖</span>
-            Radar
-            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
+              different would read as broken — with the trailing mark as the only
+              signal that it leaves the dashboard, the same contract Radio uses
+              under Planes. */}
+          <a href="/radar.html" className="fdx-nav-button" title="Radar"
+             onClick={() => setNavOpen(false)}>
+            <span className="fdx-nav-chip"><PixelMark name="radar" /></span>
+            <span className="fdx-nav-text">Radar</span>
+            <PixelMark name="leavesApp" className="fdx-nav-away" />
           </a>
           {/* Radio is a separate Vite entry, not a view in this SPA, so it is an
-              anchor rather than a setView button. Styled like navBtn on purpose:
-              a link that looked different would read as broken, and the arrow is
-              what signals it leaves the dashboard. */}
-          <div className="mb-1 mt-3 px-3 text-[10px] uppercase tracking-[0.18em] text-zinc-600"
-            style={{ fontWeight: "var(--fdx-weight-label)" }}>
-            Planes
-          </div>
-          <a
-            href="/radio.html"
-            onClick={() => setNavOpen(false)}
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm  text-zinc-400 transition-colors hover:bg-zinc-900/70 hover:text-zinc-200"
-            style={{ fontWeight: "var(--fdx-weight-label)" }}
-          >
-            <span className="w-4 text-center text-base leading-none opacity-80">◎</span>
-            Radio
-            <span className="ml-auto text-[11px] opacity-50" aria-hidden="true">↗</span>
+              anchor rather than a setView button. */}
+          <div className="fdx-nav-label"><span>Planes</span></div>
+          <a href="/radio.html" className="fdx-nav-button" title="Radio"
+             onClick={() => setNavOpen(false)}>
+            <span className="fdx-nav-chip"><PixelMark name="radio" /></span>
+            <span className="fdx-nav-text">Radio</span>
+            <PixelMark name="leavesApp" className="fdx-nav-away" />
           </a>
         </nav>
-        <SidebarQuota data={quota} onRefresh={refreshQuota} />
-        <div className="mt-auto flex items-center gap-2 px-5 py-4 text-xs">
-          <span className={`h-1.5 w-1.5 rounded-full ${live ? "animate-live-pulse bg-emerald-400" : "bg-zinc-600"}`} />
-          <span className="text-zinc-400">{live ? "live" : "offline"}</span>
-          <span className="ml-auto"><ThemeToggle /></span>
+        {!navRail && <SidebarQuota data={quota} onRefresh={refreshQuota} />}
+        {/* `mt-auto` is gone on purpose: the nav's `flex: 1` now takes the slack,
+            so keeping both would be two rules competing to place the same row. */}
+        <div className="fdx-rail-footer">
+          <div className="fdx-rail-live">
+            <StatusBadge tone={live ? "live" : "neutral"} pulse={live}>
+              <span className="fdx-nav-text">{live ? "Live" : "Offline"}</span>
+            </StatusBadge>
+          </div>
+          <PaletteToggle variant="rail" persistKey="fd-theme" initial="night" />
         </div>
+        {/* The width switch. At the foot of the rail, where a control that changes
+            the frame belongs - not among the views it would compete with. */}
+        <button type="button" className="fdx-rail-collapse"
+          onClick={() => setNavRail((r) => !r)}
+          aria-expanded={!navRail} aria-controls="fd-side-menu"
+          aria-label={navRail ? "Expand the menu" : "Collapse the menu"}
+          title={navRail ? "Expand the menu" : "Collapse the menu"}>
+          <span className="fdx-nav-chip"><PixelMark name="chevron" flip={navRail} /></span>
+          <span className="fdx-nav-text">{navRail ? "Expand" : "Collapse"}</span>
+        </button>
       </aside>
 
-      {/* content (offset by sidebar width on desktop; sits above the mesh) */}
-      <div className="relative z-10 lg:pl-56">
+      {/* content (offset by sidebar width on desktop, except in focus mode where
+          the sidebar is an overlay; sits above the mesh) */}
+      {/* The offset comes from the same two width tokens the rail is sized from,
+          so the content and the menu cannot disagree about how wide it is. */}
+      <div className="fdx-rail-offset relative z-10"
+           data-rail={navHidden ? "hidden" : navRail ? "collapsed" : "expanded"}>
       {/* mobile top bar: hamburger + wordmark (hidden on desktop) */}
       <div className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-zinc-800/80 bg-zinc-950/80 px-4 backdrop-blur-xl lg:hidden">
         <button type="button" onClick={() => setNavOpen((o) => !o)} aria-label="Menu" aria-expanded={navOpen}
@@ -705,9 +763,10 @@ export default function App() {
       {route.name === "session" ? (
         // Session detail owns its sticky "← Logbook" back-nav + real session
         // title, so it renders inside the shared contained Shell but WITHOUT a
-        // shared Header (its own is the single, richer title bar). Contained:
-        // scrolls with the window; the Shell main supplies padding + max-width.
-        <Shell variant="contained">
+        // shared Header (its own is the single, richer title bar). Bleed: the
+        // transcript owns the viewport - its header and rails stay put and only
+        // the stream scrolls, which is what makes a 38k-turn session readable.
+        <Shell variant="bleed">
           <SessionDetail sessionId={route.id} initialView={route.view} onBack={goHome} />
         </Shell>
       ) : route.name === "treasure" ? (
@@ -715,12 +774,26 @@ export default function App() {
         // by a hash route, owning its own sticky back-nav, rendered inside the
         // contained Shell WITHOUT a shared Header. `key` forces a clean remount
         // (fresh fetch, fresh Milkdown instance) when navigating treasure -> treasure.
-        <Shell variant="contained">
+        // Uncapped width, since this is the view that hides the nav to gain room:
+        // under the shared 1440px cap the freed space became margin, measured at
+        // +12px of actual preview.
+        <Shell variant="contained" maxWidthClassName="max-w-none">
           <React.Suspense fallback={<div className="p-6 text-sm text-zinc-500">Loading…</div>}>
             <TreasureDetail key={route.id} id={route.id}
                             onBack={() => { setView("treasures"); goHome(); }}
                             onOpenSession={(sid) => { setView("sessions"); goSession(sid); }} />
           </React.Suspense>
+        </Shell>
+      ) : route.name === "ticket" ? (
+        <Shell variant="contained" maxWidthClassName="max-w-none"
+               header={<Header title="Ticket" subtitle="Dev-side phase, links and plan" />}>
+          <TicketForm key={route.key} ticketKey={route.key}
+                      onBack={() => { setView("tickets"); goHome(); }} />
+        </Shell>
+      ) : view === "tickets" ? (
+        <Shell variant="contained" maxWidthClassName="max-w-none"
+               header={<Header title="Tickets" subtitle="Open to closed — the baton says who has it, the reason says what holds it" />}>
+          <TicketsView onOpen={goTicket} />
         </Shell>
       ) : route.name === "loom" || view === "loom" ? (
         <Shell variant="bleed" header={<Header title="Route Loom" />}>
@@ -746,8 +819,13 @@ export default function App() {
         <Shell variant="contained" header={<Header title="Manuals" subtitle="Skills — inventory & usage" />}>
           <ManualsView />
         </Shell>
+      ) : view === "memory" ? (
+        <Shell variant="contained" header={<Header title="Memory"
+          subtitle="Auto-memory store — what drifted, what is in there, how it connects" />}>
+          <MemoryView />
+        </Shell>
       ) : view === "hangar" ? (
-        <Shell variant="contained" header={<Header title="Hangar" subtitle="Docker containers — read-only board" />}>
+        <Shell variant="contained" header={<Header title="Hangar" subtitle="Compose stacks — read-only board" />}>
           <HangarView />
         </Shell>
       ) : view === "relay" ? (

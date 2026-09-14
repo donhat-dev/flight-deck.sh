@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { get } from "../api.js";
 import { streamRun, resumeRun } from "./client.js";
 import { initialRun, applyEvent } from "./reducer.js";
+import ApprovalDock from "./ApprovalDock.jsx";
 
 /* ---- Relay: an AG-UI event flow, live ----------------------------------- */
 // FlightDeck speaks to the agent backend over an AG-UI-shaped event stream:
@@ -37,7 +38,7 @@ function Eyebrow({ children, className = "" }) {
 
 function Seg({ options, value, onChange }) {
   return (
-    <div className="inline-flex overflow-hidden rounded-lg border border-[color:var(--fd-hair-2)]">
+    <div className="inline-flex overflow-hidden rounded-lg border border-[color:var(--fdx-rule)]">
       {options.map((o) => (
         <button key={o.key} type="button" onClick={() => onChange(o.key)}
           className={`px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
@@ -55,8 +56,8 @@ function ToolCard({ it }) {
   let args = it.args;
   try { args = JSON.stringify(JSON.parse(it.args), null, 2); } catch { /* partial */ }
   return (
-    <div className="rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/[0.03]">
-      <div className="flex items-center gap-2 border-b border-[color:var(--fd-hair-2)] px-3 py-1.5">
+    <div className="rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/[0.03]">
+      <div className="flex items-center gap-2 border-b border-[color:var(--fdx-rule)] px-3 py-1.5">
         <span className={`h-1.5 w-1.5 rounded-full ${it.status === "done" ? (it.isError ? "bg-rose-400" : "bg-emerald-400") : "bg-amber-400 animate-live-pulse"}`} />
         <span className="font-mono text-[11px] font-semibold text-sky-300">{it.name}</span>
         <span className="font-mono text-[9px] uppercase tracking-wide text-zinc-600">tool call</span>
@@ -65,7 +66,7 @@ function ToolCard({ it }) {
         <pre className="overflow-x-auto px-3 py-2 font-mono text-[10px] leading-[1.5] text-zinc-400">{args}</pre>
       )}
       {it.result != null && (
-        <pre className={`overflow-x-auto border-t border-[color:var(--fd-hair-2)] px-3 py-2 font-mono text-[10px] leading-[1.5] ${it.isError ? "text-rose-300/90" : "text-zinc-500"}`}>{String(it.result).slice(0, 800)}</pre>
+        <pre className={`overflow-x-auto border-t border-[color:var(--fdx-rule)] px-3 py-2 font-mono text-[10px] leading-[1.5] ${it.isError ? "text-rose-300/90" : "text-zinc-500"}`}>{String(it.result).slice(0, 800)}</pre>
       )}
     </div>
   );
@@ -75,15 +76,15 @@ function TimelineItem({ it }) {
   if (it.kind === "step") {
     return (
       <div className="flex items-center gap-2 pt-1">
-        <span className="h-px w-4 bg-[color:var(--fd-hair-2)]" />
+        <span className="h-px w-4 bg-[color:var(--fdx-rule)]" />
         <span className="font-mono text-[9px] uppercase tracking-[0.15em] text-zinc-600">{it.name}</span>
-        <span className="h-px flex-1 bg-[color:var(--fd-hair-2)]" />
+        <span className="h-px flex-1 bg-[color:var(--fdx-rule)]" />
       </div>
     );
   }
   if (it.kind === "message") {
     return (
-      <div className="rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/[0.04] px-3.5 py-2.5">
+      <div className="rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/[0.04] px-3.5 py-2.5">
         <Eyebrow className="mb-1">{it.role}</Eyebrow>
         <div className="whitespace-pre-wrap text-[12.5px] leading-[1.6] text-zinc-200">
           {it.text}
@@ -127,9 +128,9 @@ function ApprovalCard({ interrupt, busy, onDecide }) {
           <Eyebrow className="mb-1">{interrupt.toolName} command</Eyebrow>
           {editing ? (
             <textarea value={cmd} onChange={(e) => setCmd(e.target.value)} rows={2}
-              className="w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/5 px-3 py-2 font-mono text-[11px] text-zinc-200 outline-none focus:border-emerald-500/40" />
+              className="w-full rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/5 px-3 py-2 font-mono text-[11px] text-zinc-200 outline-none focus:border-emerald-500/40" />
           ) : (
-            <pre className="overflow-x-auto rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/5 px-3 py-2 font-mono text-[11px] text-zinc-300">{cmd}</pre>
+            <pre className="overflow-x-auto rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/5 px-3 py-2 font-mono text-[11px] text-zinc-300">{cmd}</pre>
           )}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -143,7 +144,7 @@ function ApprovalCard({ interrupt, busy, onDecide }) {
             Reject
           </button>
           <button type="button" disabled={busy} onClick={() => setEditing((v) => !v)}
-            className="rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 disabled:opacity-50">
+            className="rounded-lg border border-[color:var(--fdx-rule)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-zinc-400 transition-colors hover:bg-zinc-500/10 disabled:opacity-50">
             {editing ? "Cancel edit" : "Edit"}
           </button>
         </div>
@@ -169,7 +170,7 @@ function StatePanel({ state, flash }) {
           ))}
         </dl>
         {files.length > 0 && (
-          <div className="mt-3 border-t border-[color:var(--fd-hair-2)] pt-2">
+          <div className="mt-3 border-t border-[color:var(--fdx-rule)] pt-2">
             <Eyebrow className="mb-1">files touched · {files.length}</Eyebrow>
             <div className="space-y-0.5">
               {files.slice(-8).map((f, i) => (
@@ -270,14 +271,14 @@ export default function RelayView() {
             <span className={`font-mono text-[11px] uppercase tracking-wide ${st.text}`}>{st.label}</span>
             {run.runId && <span className="font-mono text-[10px] text-zinc-600">{run.runId}</span>}
           </div>
-          <div className="h-6 w-px bg-[color:var(--fd-hair-2)]" />
+          <div className="h-6 w-px bg-[color:var(--fdx-rule)]" />
           <div className="flex items-center gap-2">
             <Eyebrow>mode</Eyebrow>
             <Seg options={[{ key: "demo", label: "Demo" }, { key: "replay", label: "Replay" }]} value={mode} onChange={setMode} />
           </div>
           {mode === "replay" && (
             <select value={sessionId} onChange={(e) => setSessionId(e.target.value)}
-              className="max-w-[260px] rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/5 px-2.5 py-1 font-mono text-[11px] text-zinc-300 outline-none">
+              className="max-w-[260px] rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/5 px-2.5 py-1 font-mono text-[11px] text-zinc-300 outline-none">
               {sessions.map((s) => (
                 <option key={s.id} value={s.id}>{(s.title || s.id).slice(0, 44)}</option>
               ))}
@@ -290,7 +291,7 @@ export default function RelayView() {
           <div className="ml-auto flex items-center gap-2">
             {busy ? (
               <button type="button" onClick={() => abortRef.current?.abort()}
-                className="rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-zinc-400 hover:bg-zinc-500/10">
+                className="rounded-lg border border-[color:var(--fdx-rule)] px-3 py-1.5 font-mono text-[11px] uppercase tracking-wide text-zinc-400 hover:bg-zinc-500/10">
                 Stop
               </button>
             ) : (
@@ -303,6 +304,10 @@ export default function RelayView() {
         </div>
       </section>
 
+      {/* Synchronous approval channel: tool calls a PreToolUse hook escalated,
+          separate from this run's own demo/replay interrupt below. */}
+      <ApprovalDock />
+
       {/* Approval card when interrupted */}
       {run.status === "interrupted" && run.interrupt && (
         <ApprovalCard interrupt={run.interrupt} busy={busy} onDecide={decide} />
@@ -312,7 +317,7 @@ export default function RelayView() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
         <section className="fd-shell">
           <div className="fd-core">
-            <div className="flex min-h-[42px] items-center justify-between border-b border-[color:var(--fd-hair-2)] px-5">
+            <div className="flex min-h-[42px] items-center justify-between border-b border-[color:var(--fdx-rule)] px-5">
               <div className="text-xs font-bold tracking-tight text-zinc-100">Event stream</div>
               <div className="font-mono text-[10px] text-zinc-500">{run.timeline.length} items</div>
             </div>

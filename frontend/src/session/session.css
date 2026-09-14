@@ -1,0 +1,431 @@
+/* ===================================================================
+   Session transcript type + colour system (docs/session-detail-typography.md,
+   candidate D-prime).
+
+   Sizes and line boxes are measured values, not guesses: Outfit x-height is
+   0.485em and IBM Plex Mono is 0.532em, so 13.5px mono is the optical match
+   for 15px prose. Line boxes are declared in px because 13 x 1.538 is 19.99,
+   not 20, and the row virtualizer measures every row.
+
+   Everything themes through --fd-* so Day works without a second stylesheet.
+   =================================================================== */
+
+.fds {
+  /* status. Deliberately NOT the brand accent: coral means interaction. */
+  --fds-ok: #3fb950;
+  --fds-warn: #e3b341;
+  --fds-err: #f85149;
+  --fds-info: var(--fdx-environment);
+
+  /* diff */
+  --fds-add-bg: rgba(63, 185, 80, 0.13);
+  --fds-add-fg: #7ee787;
+  --fds-del-bg: rgba(248, 81, 73, 0.13);
+  --fds-del-fg: #ffa198;
+
+  /* ANSI SGR 30-37 then 90-97, tuned for the night ground */
+  --fds-a0: #6e7681; --fds-a1: #ff6b60; --fds-a2: #3fb950; --fds-a3: #e3b341;
+  --fds-a4: #6cb6ff; --fds-a5: #d2a8ff; --fds-a6: #56d4dd; --fds-a7: var(--fdx-text);
+  --fds-b0: #8b949e; --fds-b1: #ffa198; --fds-b2: #7ee787; --fds-b3: #f2cc60;
+  --fds-b4: #a5d6ff; --fds-b5: #e2c5ff; --fds-b6: #b3f0ff; --fds-b7: #ffffff;
+
+  /* the ground machine output sits on */
+  --fds-well: #07080b;
+
+  /* The reading column. 660px was the measured 103-character line, but a
+     transcript is read at a desk on a wide screen and the operator asked for
+     the width back: prose now fills the stream, capped at 90vw so it never
+     runs edge to edge on an ultrawide. The measure grows with the window,
+     which is the trade that was made deliberately. */
+  --fds-read: min(90vw, 100%);
+}
+
+:root[data-theme="day"] .fds {
+  --fds-ok: #1f7052;
+  --fds-warn: #865d0c;
+  --fds-err: #a82e3d;
+  --fds-add-bg: rgba(31, 112, 82, 0.10);
+  --fds-add-fg: #14563d;
+  --fds-del-bg: rgba(168, 46, 61, 0.10);
+  --fds-del-fg: #8a1f2c;
+  --fds-a0: #6d655a; --fds-a1: #a82e3d; --fds-a2: #1f7052; --fds-a3: #865d0c;
+  --fds-a4: #2e6395; --fds-a5: #6b3fa0; --fds-a6: #12707d; --fds-a7: var(--fdx-text);
+  --fds-b0: #8a8175; --fds-b1: #c04455; --fds-b2: #2b8a68; --fds-b3: #9c7213;
+  --fds-b4: #3e7cb1; --fds-b5: #7d4fb8; --fds-b6: #1a8593; --fds-b7: #201d18;
+  --fds-well: #efe9dc;
+}
+
+/* ---- the five text roles ------------------------------------------- */
+.fds-prompt {
+  font-family: "Outfit Variable", "Outfit", system-ui, sans-serif;
+  font-size: 16px; line-height: 24px; font-weight: 500;
+  color: var(--fdx-text);
+}
+.fds-prose {
+  font-family: "Outfit Variable", "Outfit", system-ui, sans-serif;
+  font-size: 15px; line-height: 24px; font-weight: 400;
+  color: var(--fdx-text);
+}
+/* Upright, not italic: a long run of italic on a near-black ground costs more
+   legibility than the demotion is worth. Size and colour already demote it. */
+.fds-think {
+  font-family: "Outfit Variable", "Outfit", system-ui, sans-serif;
+  font-size: 14px; line-height: 20px; font-weight: 400;
+  color: var(--fdx-text-muted);
+}
+.fds-mono {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13.5px; line-height: 20px; font-weight: 400;
+  font-variant-ligatures: none;
+}
+.fds-label {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px; line-height: 12px; font-weight: 600;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+
+/* ---- the asymmetric column ----------------------------------------- */
+/* Prose is read in lines, machine output is scanned in columns, so they do
+   not share a width. */
+.fds-read { max-width: var(--fds-read); width: 100%; }
+.fds-wide { max-width: 100%; }
+
+/* ---- tool card ------------------------------------------------------ */
+.fds-card {
+  width: 100%;
+  border: 1px solid var(--fdx-rule);
+  border-radius: 12px;
+  background: var(--fdx-surface);
+  overflow: hidden;
+}
+.fds-card[data-tone="err"] { border-color: color-mix(in srgb, var(--fds-err) 40%, transparent); }
+.fds-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 12px; width: 100%; text-align: left;
+  background: var(--fdx-surface-raised);
+  border-bottom: 1px solid var(--fdx-rule);
+}
+.fds-head:hover { background: color-mix(in srgb, var(--fdx-surface-raised) 88%, var(--fdx-text)); }
+.fds-dot { width: 6px; height: 6px; border-radius: 999px; flex: none; }
+.fds-target {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12.5px; line-height: 20px; color: var(--fdx-text);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.fds-badge {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+  padding: 3px 8px; border-radius: 999px; flex: none;
+  font-variant-numeric: tabular-nums;
+}
+.fds-well {
+  background: var(--fds-well);
+  padding: 10px 12px;
+  overflow-x: auto;
+}
+.fds-fold {
+  display: flex; align-items: center; gap: 8px; width: 100%;
+  padding: 7px 12px; border-top: 1px solid var(--fdx-rule);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--fds-info);
+}
+.fds-fold:hover { background: var(--fdx-surface-raised); }
+
+/* ---- machine output ------------------------------------------------- */
+.fds-line { white-space: pre; }
+.fds-wrap .fds-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fds-dim { color: var(--fdx-text-muted); }
+.fds-faint { color: var(--fdx-text-muted); }
+
+.fds-diff-row { display: flex; align-items: flex-start; }
+.fds-diff-num {
+  flex: none; width: 38px; text-align: right; padding-right: 10px;
+  color: var(--fdx-text-muted); user-select: none;
+  font-variant-numeric: tabular-nums;
+}
+.fds-diff-add { background: var(--fds-add-bg); color: var(--fds-add-fg); }
+.fds-diff-del { background: var(--fds-del-bg); color: var(--fds-del-fg); }
+.fds-diff-ctx { color: var(--fdx-text-muted); }
+.fds-diff-fold { color: var(--fdx-text-muted); background: var(--fdx-rule); }
+
+/* ---- focus mode ----------------------------------------------------- */
+.fds-collapsed-prose {
+  display: flex; align-items: center; gap: 9px;
+  padding: 6px 10px; border-radius: 8px;
+  background: var(--fdx-surface-raised);
+  color: var(--fdx-text-muted);
+}
+.fds-key {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px; font-weight: 600;
+  padding: 3px 7px; border-radius: 6px;
+  border: 1px solid var(--fdx-rule); background: var(--fdx-surface-raised);
+  color: var(--fdx-text);
+}
+.fds-cursor { box-shadow: 0 0 0 2px var(--fdx-signal-hover); }
+
+/* ---- focus ring, one rule for the whole surface --------------------- */
+.fds :focus-visible {
+  outline: 2px solid var(--fdx-signal-hover);
+  outline-offset: 3px;
+}
+
+/* ---- screen layout (mock S1) ---------------------------------------- */
+/* Header, then three columns: prompts, stream, instruments. The rails drop
+   out on narrow viewports before the stream ever gets squeezed. */
+.fds-page {
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+
+.fds-header {
+  flex: none; padding: 14px 32px;
+  border-bottom: 1px solid var(--fdx-rule);
+}
+.fds-hrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.fds-hrow-title { align-items: flex-end; margin-top: 10px; }
+.fds-back { color: var(--fdx-text-muted); }
+.fds-back:hover { color: var(--fdx-signal-hover); }
+.fds-live { display: flex; align-items: center; gap: 7px; }
+.fds-live-dot { width: 6px; height: 6px; border-radius: 999px; background: var(--fdx-rule); }
+.fds-live-dot[data-on="true"] { background: var(--fdx-signal-hover); }
+.fds-title {
+  font-family: "Outfit Variable", "Outfit", system-ui, sans-serif;
+  font-size: 20px; line-height: 26px; font-weight: 700; letter-spacing: -0.02em;
+  color: var(--fdx-text);
+}
+.fds-meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 7px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.fds-meta i { font-style: normal; opacity: 0.5; }
+.fds-meta-hot { color: var(--fds-warn); }
+.fds-views {
+  display: flex; gap: 4px; padding: 3px; flex: none;
+  border-radius: 999px; background: var(--fdx-surface-raised); border: 1px solid var(--fdx-rule);
+}
+.fds-pill {
+  padding: 6px 13px; border-radius: 999px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.fds-pill:hover { color: var(--fdx-text); }
+.fds-pill[data-on="true"] { background: var(--fdx-signal); color: #fff; }
+.fds-pill[data-focus="true"] { background: var(--fdx-signal-hover); color: var(--fdx-surface); }
+
+.fds-body { display: flex; align-items: stretch; width: 100%; flex: 1; min-height: 0; }
+/* The rail itself does not scroll. Its tabs stay at the top and the keys stay
+   at the foot; only the list between them moves, so the reader never loses the
+   controls while looking for a prompt. */
+.fds-rail {
+  flex: none; display: flex; flex-direction: column; gap: 10px;
+  padding: 18px 16px; overflow: hidden; min-height: 0;
+}
+.fds-panel-body {
+  flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 10px;
+  margin-right: -6px; padding-right: 6px;
+}
+.fds-rail-l { width: 250px; border-right: 1px solid var(--fdx-rule); }
+.fds-rail-r { width: 270px; border-left: 1px solid var(--fdx-rule); }
+.fds-stream {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  /* Three times the old gutter. A transcript read at a desk wants air between
+     the text and the rails, not another 64px of line. */
+  padding: 14px 96px 0;
+}
+.fds-stream > [data-testid="virtuoso-scroller"],
+.fds-stream > div:last-child { min-height: 0; }
+
+/* A rail is a convenience; the transcript is not. Drop them in that order. */
+@media (max-width: 1560px) { .fds-rail-r { display: none; } }
+@media (max-width: 1560px) { .fds-stream { padding: 14px 48px 0; } }
+@media (max-width: 1240px) { .fds-rail-l { display: none; } .fds-stream { padding: 14px 16px 0; } }
+
+/* prompts rail */
+.fds-prow {
+  display: flex; gap: 9px; padding: 8px 8px 8px 7px; border-radius: 8px;
+  width: 100%; text-align: left;
+}
+.fds-prow:hover { background: var(--fdx-surface); }
+.fds-prow[data-on="true"] { background: var(--fdx-surface-raised); }
+.fds-prow-bar { flex: none; width: 2px; border-radius: 2px; background: var(--fdx-rule); }
+.fds-prow[data-on="true"] .fds-prow-bar { background: var(--fdx-signal-hover); }
+.fds-prow-label {
+  font-family: "Outfit Variable", "Outfit", system-ui, sans-serif;
+  font-size: 12px; line-height: 17px; color: var(--fdx-text-muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fds-prow[data-on="true"] .fds-prow-label { color: var(--fdx-text); }
+.fds-prow-meta { display: flex; gap: 8px; margin-top: 3px; }
+
+/* instruments rail */
+.fds-reading {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 9px 0; border-bottom: 1px solid var(--fdx-rule);
+}
+.fds-reading-value {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 15px; font-weight: 600; color: var(--fdx-text);
+  font-variant-numeric: tabular-nums;
+}
+.fds-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fds-chip {
+  padding: 5px 10px; border-radius: 999px; border: 1px solid var(--fdx-rule);
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.fds-chip[data-on="true"] {
+  border-color: var(--fdx-signal-hover); color: var(--fdx-signal-hover);
+  background: color-mix(in srgb, var(--fdx-signal-hover) 13%, transparent);
+}
+
+/* day divider + the keys strip */
+.fds-day { display: flex; align-items: center; gap: 12px; padding-bottom: 4px; }
+.fds-day-rule { flex: 1; height: 1px; background: var(--fdx-rule); }
+.fds-keys {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: auto; padding-top: 14px; border-top: 1px solid var(--fdx-rule);
+}
+.fds-keys-item { display: flex; align-items: center; gap: 9px; }
+.fds-keys-text { font-size: 12px; color: var(--fdx-text-muted); }
+.fds-note { padding: 40px 0; text-align: center; color: var(--fdx-text-muted); }
+
+/* The indent that matters is INSIDE the call: what went in, and what came back.
+   Indenting the whole card only pushed every tool call away from the prose it
+   belongs to and bought nothing. */
+.fds-indent { width: 100%; }
+
+/* input block: the command as typed, newlines kept */
+.fds-io-in {
+  background: var(--fds-well);
+  padding: 10px 12px;
+  border-bottom: 1px dashed var(--fdx-rule);
+  overflow-x: auto;
+}
+.fds-io-in .fds-line { white-space: pre; }
+/* output block: one step in from the input, so the eye reads cause then effect */
+.fds-io-out { padding-left: 14px; border-left: 2px solid var(--fdx-rule); }
+.fds-io-out .fds-well { padding-left: 10px; }
+
+.fds-well { tab-size: 2; }
+/* Code colours follow VS Code Dark+ / Pylance rather than the ANSI ramp. This
+   text is read by people who spend their day in that editor, and a familiar
+   mapping is read faster than a self-consistent one: orange means string,
+   green means comment, purple means keyword, yellow means callable. Terminal
+   output keeps the ANSI ramp, because that is what the producer wrote. */
+.fds {
+  --tk-kw:   #c586c0;
+  --tk-str:  #ce9178;
+  --tk-num:  #b5cea8;
+  --tk-com:  #6a9955;
+  --tk-tag:  #569cd6;
+  --tk-attr: #9cdcfe;
+  --tk-fn:   #dcdcaa;
+  --tk-var:  #9cdcfe;
+  --tk-punc: rgba(212, 212, 212, 0.75);
+}
+:root[data-theme="day"] .fds {
+  --tk-kw:   #af00db;
+  --tk-str:  #a31515;
+  --tk-num:  #098658;
+  --tk-com:  #008000;
+  --tk-tag:  #800000;
+  --tk-attr: #0451a5;
+  --tk-fn:   #795e26;
+  --tk-var:  #001080;
+  --tk-punc: rgba(46, 44, 40, 0.72);
+}
+.tk-kw   { color: var(--tk-kw); }
+.tk-str  { color: var(--tk-str); }
+.tk-num  { color: var(--tk-num); }
+.tk-com  { color: var(--tk-com); font-style: italic; }
+.tk-tag  { color: var(--tk-tag); }
+.tk-attr { color: var(--tk-attr); }
+.tk-punc { color: var(--tk-punc); }
+.tk-fn   { color: var(--tk-fn); }
+.tk-var  { color: var(--tk-var); }
+
+/* a short answer rides in the header instead of hiding behind a triangle */
+.fds-inline-result {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 12px; color: var(--fdx-text-muted); flex: none;
+  max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fds-head[data-inline="true"] { cursor: default; }
+.fds-head[data-inline="true"]:hover { background: var(--fdx-surface-raised); }
+
+/* widget beside its raw source */
+.fds-split { display: grid; grid-template-columns: 1fr 1fr; align-items: start; }
+.fds-split-right { border-left: 1px solid var(--fdx-rule); }
+@media (max-width: 1100px) { .fds-split { grid-template-columns: 1fr; } }
+
+/* line gutter for a highlighted file */
+.fds-code-num {
+  display: inline-block; width: 44px; padding-right: 12px; text-align: right;
+  color: var(--fdx-text-muted); user-select: none; font-variant-numeric: tabular-nums;
+}
+
+/* ---- one panel, three tabs ------------------------------------------- */
+.fds-tabs {
+  display: flex; gap: 2px; padding: 3px; flex: none;
+  border-radius: 999px; background: var(--fdx-surface-raised); border: 1px solid var(--fdx-rule);
+}
+.fds-tab {
+  flex: 1; padding: 6px 8px; border-radius: 999px;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 9px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--fdx-text-muted);
+}
+.fds-tab:hover { color: var(--fdx-text); }
+.fds-tab[data-on="true"] { background: var(--fdx-signal); color: #fff; }
+
+/* ---- tool mix --------------------------------------------------------- */
+.fds-mix { display: flex; flex-direction: column; gap: 4px; }
+.fds-mix-stack {
+  display: flex; height: 8px; border-radius: 999px; overflow: hidden;
+  background: var(--fdx-surface-raised); margin-top: 4px;
+}
+.fds-mix-seg { display: block; height: 100%; }
+.fds-mix-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.fds-mix-key { display: flex; align-items: center; gap: 5px; }
+.fds-mix-dot { width: 6px; height: 6px; border-radius: 999px; }
+.fds-mix-bars { display: flex; flex-direction: column; gap: 5px; margin-top: 6px; }
+.fds-mix-row { display: flex; align-items: center; gap: 8px; }
+.fds-mix-name {
+  flex: none; width: 96px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px; color: var(--fdx-text-muted);
+}
+.fds-mix-track { flex: 1; height: 6px; border-radius: 999px; background: var(--fdx-surface-raised); overflow: hidden; }
+.fds-mix-fill { display: block; height: 100%; border-radius: 999px; }
+.fds-mix-count, .fds-mix-pct {
+  flex: none; text-align: right;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 10px; font-variant-numeric: tabular-nums; color: var(--fdx-text);
+}
+.fds-mix-count { width: 46px; }
+.fds-mix-pct { width: 38px; color: var(--fdx-text-muted); }
+
+/* ---- one colour per tool -------------------------------------------- */
+/* The status dot stays status. This is identity: after a hundred cards the eye
+   finds "the Edit ones" by colour long before it reads the word. */
+.fds-tool { color: var(--tool-c, var(--fdx-text-muted)); }
+.fds-card { border-left: 2px solid var(--tool-c, transparent); }
+
+/* ---- word wrap, toggled with W --------------------------------------- */
+.fds-wrap .fds-line,
+.fds-wrap-all .fds-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.fds-wrap-all .fds-io-in { overflow-x: hidden; }
+.fds-wrap-all .fds-well { overflow-x: hidden; }
+
+/* ---- grep-shaped output ----------------------------------------------- */
+.tk-path { color: var(--fds-a6); }
+.tk-lineno { color: var(--fds-a5); }

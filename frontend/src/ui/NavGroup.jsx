@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from "react";
 
+import PixelMark from "./PixelMark.jsx";
+
 /**
  * One level of nesting for the sidebar nav.
  *
@@ -44,45 +46,44 @@ export default function NavGroup({ item, view, onSelect, renderLeaf }) {
   const panelId = `navgroup-${item.k}`;
 
   return (
-    <div>
-      <div className="flex items-center">
+    <div className="fdx-nav-group">
+      <div className="fdx-nav-group-row">
         {/* The row navigates, exactly as it did when this entry was a leaf, and
             opens the group on the way — going to a section and finding its
             children hidden would read as the click having half-failed. It never
             closes: that is the caret's job. */}
         <button
           type="button"
+          className="fdx-nav-button"
           aria-pressed={isActiveParent}
-          style={{ fontWeight: "var(--fdx-weight-label)" }}
+          // At 76px the children are not on screen, so a child route would leave
+          // no row marked anywhere and the menu would stop saying where you are.
+          // The parent wears the mark in that one case; expanded, the child row
+          // wears it and the parent stays quiet, because two marked rows for one
+          // route is worse than none.
+          data-active-child={isActiveChild ? "true" : "false"}
+          title={item.label}
           onClick={() => { onSelect?.(item.k); setOpen(true); }}
-          className={`flex flex-1 items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm transition-colors ${
-            isActiveParent
-              ? "bg-emerald-500/15 text-emerald-400"
-              : "text-zinc-400 hover:bg-zinc-900/70 hover:text-zinc-200"
-          }`}
         >
-          <span className="w-4 text-center text-base leading-none opacity-80">{item.icon}</span>
-          {item.label}
+          <span className="fdx-nav-chip">
+            <PixelMark name={item.mark} />
+          </span>
+          <span className="fdx-nav-text">{item.label}</span>
         </button>
         <button
           type="button"
+          className="fdx-nav-caret"
           aria-expanded={open}
           aria-controls={panelId}
-          aria-label={`${open ? "Collapse" : "Expand"} ${item.label}`}
+          aria-label={`${open ? "Hide" : "Show"} what is under ${item.label}`}
           onClick={() => setOpen((o) => !o)}
-          className="mr-1 rounded p-1.5 text-[10px] leading-none text-zinc-500 transition-colors hover:bg-zinc-900/70 hover:text-zinc-300"
         >
-          <span
-            aria-hidden="true"
-            className={`inline-block transition-transform duration-200 ${open ? "rotate-90" : ""}`}
-          >
-            ▸
-          </span>
+          <PixelMark name="chevron" />
         </button>
       </div>
       {/* Kept in the DOM (hidden, not unmounted) so `aria-controls` always
           resolves to a real element regardless of open state. */}
-      <div id={panelId} className={`mt-1 flex flex-col gap-1 pl-6 text-[13px] ${open ? "" : "hidden"}`}>
+      <div id={panelId} className="fdx-nav-children" hidden={!open}>
         {children.map((child) => (
           <React.Fragment key={child.k}>{renderLeaf(child)}</React.Fragment>
         ))}

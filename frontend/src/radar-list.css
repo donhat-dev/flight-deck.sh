@@ -50,13 +50,11 @@
 }
 .rdr-card[aria-current="true"] {
   border-left: 3px solid var(--fdx-orange);
-  box-shadow: var(--fdx-shadow-control-quiet);
 }
 .rdr-card[data-new="true"] {
   border-style: solid;
   border-color: var(--fdx-depth-muted);
   background: none;
-  box-shadow: none;
   align-items: center;
   justify-content: center;
   gap: 0.4rem;

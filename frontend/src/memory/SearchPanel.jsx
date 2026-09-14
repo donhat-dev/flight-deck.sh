@@ -37,7 +37,7 @@ function Highlight({ text, needle }) {
 function Result({ row, needle }) {
   const inSummary = (row.description || "").toLowerCase().includes(needle.toLowerCase());
   return (
-    <article className="border-t border-[color:var(--fd-hair-2)] px-5 py-3.5 first:border-t-0">
+    <article className="border-t border-[color:var(--fdx-rule)] px-5 py-3.5 first:border-t-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <h3 className="font-mono text-[12px] text-zinc-100">{row.name}</h3>
         <TypeTag>{row.type || "untyped"}</TypeTag>
@@ -118,7 +118,7 @@ export default function SearchPanel({ query, draft, onDraft, onSearch, result, b
               onChange={(e) => onDraft(e.target.value)}
               placeholder="A word to look for"
               aria-describedby={`${id}-help`}
-              className="mt-1.5 w-full border-b border-[color:var(--fd-hair-2)] bg-transparent pb-1.5 font-mono text-[15px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/60"
+              className="mt-1.5 w-full border-b border-[color:var(--fdx-rule)] bg-transparent pb-1.5 font-mono text-[15px] text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-emerald-500/60"
             />
             <p id={`${id}-help`} className="mt-2 text-[11px] text-zinc-500">
               Finds words anywhere in a memory, not only in the one-line summary.
@@ -143,7 +143,7 @@ export default function SearchPanel({ query, draft, onDraft, onSearch, result, b
                 key={word}
                 type="button"
                 onClick={() => { onDraft(word); onSearch(word); }}
-                className="rounded border border-[color:var(--fd-hair-2)] px-2 py-0.5 font-mono text-[11px] text-zinc-400 hover:bg-zinc-500/10 hover:text-zinc-200"
+                className="rounded border border-[color:var(--fdx-rule)] px-2 py-0.5 font-mono text-[11px] text-zinc-400 hover:bg-zinc-500/10 hover:text-zinc-200"
               >
                 {word}
               </button>

@@ -87,7 +87,6 @@
   flex-direction: column;
   border: 1px solid var(--rdr-ring-edge);
   background: var(--fdx-surface-raised);
-  box-shadow: var(--fdx-shadow-block);
   min-width: 0;
   /* The panel is intentionally taller than its content, but a blip with a long
      move history still has to be readable without growing the page. */

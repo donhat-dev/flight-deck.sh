@@ -57,7 +57,10 @@ describe("offset depth detection", () => {
     `;
     const { violations, depthBases } = lintCss(css);
     expect(depthBases).toContain(".btn");
-    expect(violations).toEqual([]); // a button is interactive — allowed
+    // Under the depth ladder this was allowed, because a button was interactive.
+    // Flat removed the allowance: what the test still proves is that the lint
+    // sees a shadow two aliases away rather than reporting the button as flat.
+    expect(violations.map((v) => v.rule)).toEqual(["C3"]);
     const { vars } = { vars: new Map([["--a", "var(--b)"], ["--b", "2px 2px 0 red"]]) };
     expect(resolveValue("var(--a)", vars)).toBe("2px 2px 0 red");
   });
@@ -91,51 +94,85 @@ describe("offset depth detection", () => {
 
 // ---------------------------------------------------------------- C3a
 
-describe("C3a — depth marks interaction, not decoration", () => {
+describe("C3 — the product is flat", () => {
   it("FIRES on a static panel that lifts off the page", () => {
-    const css = `.summary-card { box-shadow: 5px 5px 0 #ccc; }`;
-    expect(ids(lintCss(css))).toEqual(["C3a"]);
+    expect(ids(lintCss(`.summary-card { box-shadow: 5px 5px 0 #ccc; }`))).toEqual(["C3"]);
   });
 
-  it("allows an interactive control", () => {
-    expect(ids(lintCss(`.fd2-btn:hover { box-shadow: 5px 5px 0 #ccc; }`))).toEqual([]);
-  });
-
-  it("allows the page shell, which is ground rather than figure", () => {
-    expect(ids(lintCss(`.wb-shell { box-shadow: 6px 6px 0 #ccc; }`))).toEqual([]);
-  });
-
-  it("accepts an ARIA interaction state", () => {
-    // aria-pressed IS an interaction state by definition, so a segmented
-    // control whose selected segment stands proud is allowed — this is how
-    // Spend's range control stopped putting depth on all four segments.
+  it("FIRES on an interactive control too — this is the inversion", () => {
+    // Under the depth ladder a control was the ONE thing allowed to lift. Flat
+    // removed the rungs, so the allowance went with them: a button separates by
+    // fill, a one-pixel rule and its pill, and none of those cast anything.
+    expect(ids(lintCss(`.fd2-btn:hover { box-shadow: 5px 5px 0 #ccc; }`))).toEqual(["C3"]);
     expect(ids(lintCss(`.sc-range-seg[aria-pressed="true"] { box-shadow: 2px 2px 0 #ccc; }`)))
+      .toEqual(["C3"]);
+  });
+
+  it("FIRES on the page shell, which used to be exempt as ground", () => {
+    expect(ids(lintCss(`.wb-shell { box-shadow: 6px 6px 0 #ccc; }`))).toEqual(["C3"]);
+  });
+
+  it("catches the blurred form, which the old rule let through", () => {
+    // `0 18px 48px` sat on the Day page shell for weeks: hasOffsetDepth only
+    // looked for a hard offset, so a blur was invisible to the lint.
+    expect(ids(lintCss(`.fd-shell { box-shadow: 0 18px 48px rgba(0,0,0,.28); }`))).toEqual(["C3"]);
+    expect(ids(lintCss(`.fd-core { box-shadow: 0 1px 2px rgba(60,52,40,.12); }`))).toEqual(["C3"]);
+  });
+
+  it("allows inset, which describes an edge and casts nothing", () => {
+    expect(ids(lintCss(`.row[data-selected="true"] { box-shadow: inset 2px 0 0 #e84d2a; }`)))
       .toEqual([]);
-    // …but a plain aria label is not a state, so it earns nothing.
-    expect(ids(lintCss(`.panel[aria-label="Signal"] { box-shadow: 2px 2px 0 #ccc; }`)))
-      .toEqual(["C3a"]);
+    expect(ids(lintCss(`.tab[aria-selected="true"] { box-shadow: inset 0 -4px 0 #e84d2a; }`)))
+      .toEqual([]);
+    expect(ids(lintCss(`.fd-core { box-shadow: inset 0 1px 0 rgba(255,255,255,.55); }`)))
+      .toEqual([]);
   });
 
-  it("treats a trigger as the control it is", () => {
-    expect(ids(lintCss(`.wb-trace-trigger { box-shadow: 4px 4px 0 #ccc; }`))).toEqual([]);
-  });
-
-  it("attaches a marker whose reason wrapped onto a second line", () => {
-    const css = `/* composition-lint-allow: C3a — a reason long enough that it
-       wraps, which is the normal case for an honest one */
-      .summary-card { box-shadow: 5px 5px 0 #ccc; }`;
-    expect(ids(lintCss(css))).toEqual([]);
-  });
-
-  it("allows a static region ONLY when it is the declared anchor", () => {
-    const bare = `.on-air { box-shadow: 5px 5px 0 #ccc; }`;
-    expect(ids(lintCss(bare))).toEqual(["C3a"]);
-    const marked = `/* composition: anchor */\n.on-air { box-shadow: 5px 5px 0 #ccc; }`;
+  it("allows the declared overlay, and still demands a reason", () => {
+    const bare = `.fdx-console { box-shadow: 0 18px 48px rgba(0,0,0,.28); }`;
+    expect(ids(lintCss(bare))).toEqual(["C3"]);
+    const marked = `/* composition-lint-allow: C3 — an overlay separates from live
+       content underneath, which a hairline cannot do */
+      .fdx-console { box-shadow: 0 18px 48px rgba(0,0,0,.28); }`;
     expect(ids(lintCss(marked))).toEqual([]);
+    const noReason = `/* composition-lint-allow: C3 — x */
+      .fdx-console { box-shadow: 0 18px 48px rgba(0,0,0,.28); }`;
+    expect(ids(lintCss(noReason))).toEqual(["C3"]);
+  });
+
+  it("resolves through a variable, so a token cannot hide a shadow", () => {
+    const kit = `:root { --fdx-shadow-float: 0 18px 48px rgba(0,0,0,.28); }`;
+    const use = `.panel { box-shadow: var(--fdx-shadow-float); }`;
+    const vars = collectVars([kit]);
+    expect(ids(lintCss(use, { inheritedVars: vars }))).toEqual(["C3"]);
+  });
+
+  it("has no budget any more, because zero is the budget", () => {
+    const five = [1, 2, 3, 4, 5]
+      .map((n) => `.btn-${n} { box-shadow: 4px 4px 0 #ccc; }`)
+      .join("\n");
+    // Five shadows are five violations, not one budget overrun.
+    expect(ids(lintCss(five))).toEqual(["C3", "C3", "C3", "C3", "C3"]);
+  });
+
+  it("still catches an exempted shadow rendered once per row", () => {
+    const jsx = `
+      <ul>
+        {sessions.map((s) => (
+          <li key={s.id} className="channel-row raised">{s.name}</li>
+        ))}
+      </ul>`;
+    expect(ids(lintJsx(jsx, [".raised"]))).toEqual(["C3"]);
+  });
+
+  it("allows a class gated on the selected row", () => {
+    const jsx = `
+      {sessions.map((s) => (
+        <li className={s.id === selected ? "channel-row raised" : "channel-row"}>{s.name}</li>
+      ))}`;
+    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
   });
 });
-
-// ---------------------------------------------------------------- C1
 
 describe("C1 — one anchor per screen", () => {
   it("FIRES on a second anchor", () => {
@@ -163,55 +200,10 @@ describe("C1 — one anchor per screen", () => {
   });
 });
 
-// ---------------------------------------------------------------- C3b
-
-describe("C3b — the depth budget", () => {
-  it("counts only depth visible at rest", () => {
-    // Depth that appears while the pointer is down is not competing for
-    // attention, so it must not spend the budget.
-    const css = [1, 2, 3, 4, 5, 6]
-      .map((n) => `.btn-${n}:hover { box-shadow: 4px 4px 0 #ccc; }`)
-      .join("\n");
-    expect(ids(lintCss(css))).toEqual([]);
-    expect(lintCss(css).depthBases).toEqual([]);
-  });
-
-  it("does not spend budget on frames", () => {
-    const css = ["shell", "page", "board", "sheet", "frame"]
-      .map((n) => `.x-${n} { box-shadow: 6px 6px 0 #ccc; }`)
-      .join("\n");
-    expect(ids(lintCss(css))).toEqual([]);
-  });
-
-  it("exempts a sheet that declares itself a component library", () => {
-    const five = [1, 2, 3, 4, 5]
-      .map((n) => `.btn-${n} { box-shadow: 4px 4px 0 #ccc; }`)
-      .join("\n");
-    expect(ids(lintCss(five))).toEqual(["C3b"]);
-    const library = `/* composition: library */\n${five}`;
-    expect(ids(lintCss(library))).toEqual([]);
-    expect(lintCss(library).kind).toBe("library");
-  });
-
-  it("FIRES past the budget, counting bases not declarations", () => {
-    const variants = ["", ":hover", ":active", ":disabled"]
-      .map((s) => `.btn${s} { box-shadow: 4px 4px 0 #ccc; }`)
-      .join("\n");
-    expect(ids(lintCss(variants))).toEqual([]); // four states, one element
-
-    const five = [1, 2, 3, 4, 5]
-      .map((n) => `.btn-${n} { box-shadow: 4px 4px 0 #ccc; }`)
-      .join("\n");
-    expect(ids(lintCss(five))).toEqual(["C3b"]);
-    expect(ids(lintCss(five, { budget: 5 }))).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------- C6a
-
 describe("C6a — the card tint has one home", () => {
   it("FIRES when pink becomes a shadow or text", () => {
-    expect(ids(lintCss(`.btn { box-shadow: 4px 4px 0 var(--fdx-pink); }`))).toEqual(["C6a"]);
+    // Two violations now: pink in a shadow (C6a) and a shadow at all (C3).
+    expect(ids(lintCss(`.btn { box-shadow: 4px 4px 0 var(--fdx-pink); }`))).toEqual(["C3", "C6a"]);
     expect(ids(lintCss(`.label { color: var(--fdx-card-tint); }`))).toEqual(["C6a"]);
   });
 
@@ -224,22 +216,23 @@ describe("C6a — the card tint has one home", () => {
     // Day is an orange key with a black shadow, Night the reverse, so orange is
     // legitimately a fill. Banning it as "depth only" was the previous contract.
     expect(ids(lintCss(`.btn { background: var(--fdx-orange); }`))).toEqual([]);
-    expect(ids(lintCss(`.btn:hover { box-shadow: 4px 4px 0 var(--fdx-orange); }`))).toEqual([]);
+    // C6a still leaves orange alone; C3 fires because it is a shadow.
+    expect(ids(lintCss(`.btn:hover { box-shadow: 4px 4px 0 var(--fdx-orange); }`))).toEqual(["C3"]);
   });
 
-  it("treats a declared block lift as ground material, not rationed depth", () => {
-    // The block recipe carries a softened accent offset. Read as control depth it
-    // would flag every panel on every screen; the token name is what says which
-    // it is.
+  it("no longer exempts declared block material, because flat has no ground lift", () => {
+    // This exemption existed so a softened block offset would not be read as
+    // rationed control depth. Flat deleted the distinction: an outset is an
+    // outset whatever the token is called, and the token name can no longer
+    // buy one. The block recipe itself was removed from index.css.
     const kit = `:root { --fdx-shadow-block: 0.2rem 0.2rem 0 rgba(0,0,0,.2), 0 1rem 2rem -1rem rgba(0,0,0,.3); }`;
     const block = `.panel { box-shadow: var(--fdx-shadow-block); }`;
     const vars = collectVars([kit]);
-    expect(ids(lintCss(block, { inheritedVars: vars }))).toEqual([]);
-    expect(lintCss(block, { inheritedVars: vars }).depthBases).toEqual([]);
+    expect(ids(lintCss(block, { inheritedVars: vars }))).toEqual(["C3"]);
 
-    // The same geometry written inline is still control depth, and still flagged.
+    // Written inline it fires for the same reason, not a different one.
     const inline = `.panel { box-shadow: 0.2rem 0.2rem 0 rgba(0,0,0,.2); }`;
-    expect(ids(lintCss(inline))).toEqual(["C3a"]);
+    expect(ids(lintCss(inline))).toEqual(["C3"]);
   });
 
   it("honours an exemption that carries a reason, and rejects one that does not", () => {
@@ -281,80 +274,6 @@ describe("C6b — a role wears its own colour", () => {
 
 // ---------------------------------------------------------------- C3c (JSX)
 
-describe("C3c — depth inside a repeated list", () => {
-  it("FIRES on a depth class rendered once per row", () => {
-    const jsx = `
-      <ul>
-        {sessions.map((s) => (
-          <li key={s.id} className="channel-row raised">{s.name}</li>
-        ))}
-      </ul>`;
-    expect(ids(lintJsx(jsx, [".raised"]))).toEqual(["C3c"]);
-  });
-
-  it("allows depth gated on the selected row", () => {
-    const jsx = `
-      {sessions.map((s) => (
-        <li className={s.id === selected ? "channel-row raised" : "channel-row"}>{s.name}</li>
-      ))}`;
-    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
-  });
-
-  it("separates unconditional depth from attribute-gated depth", () => {
-    // This distinction was found by the lint flagging Radio's own channel rows.
-    // The class is written statically in the .map(), but the depth belongs to
-    // `[data-selected="true"]`, so only one row ever has it. Flagging the class
-    // would have punished the pattern that makes the gate visible in the first
-    // place; the fix is to feed C3c only classes whose depth has no gate.
-    const gated = `.row { padding: 1rem; }
-      .row[data-selected="true"] { box-shadow: 2px 2px 0 #ccc; }`;
-    expect(lintCss(gated).unconditionalDepth).toEqual([]);
-    expect(lintCss(gated).depthBases).toEqual([".row"]);
-
-    const always = `.row:not(.x) { box-shadow: 2px 2px 0 #ccc; }
-      .card-raised { box-shadow: 2px 2px 0 #ccc; }`;
-    expect(lintCss(always).unconditionalDepth).toEqual([".card-raised"]);
-
-    const jsx = `{rows.map((r) => <li className="row" key={r.id}>{r.n}</li>)}`;
-    expect(ids(lintJsx(jsx, lintCss(gated).unconditionalDepth))).toEqual([]);
-    expect(ids(lintJsx(jsx, [".row"]))).toEqual(["C3c"]);
-  });
-
-  it("honours a JSX exemption above the .map(, and still needs a reason", () => {
-    // Same mechanism as the CSS side, because the neo-brutalist tab bank is a
-    // real override: every key in a preset bank stands proud.
-    const withReason = `
-      {/* composition-lint-allow: C3c — a preset bank, bounded by a code change */}
-      {TABS.map((t) => <button className="raised" key={t.k}>{t.label}</button>)}`;
-    expect(ids(lintJsx(withReason, [".raised"]))).toEqual([]);
-
-    const bare = `
-      {/* composition-lint-allow: C3c */}
-      {TABS.map((t) => <button className="raised" key={t.k}>{t.label}</button>)}`;
-    expect(ids(lintJsx(bare, [".raised"]))).toEqual(["C3c"]);
-  });
-
-  it("does not treat a .map( inside a comment as a list", () => {
-    const jsx = `/* rows.map((r) => <li className="raised" />) */
-<b className="raised" />`;
-    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
-  });
-
-  it("ignores depth outside any list", () => {
-    const jsx = `<section className="on-air raised">…</section>`;
-    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
-  });
-
-  it("stops treating code as list-scoped once the map closes", () => {
-    const jsx = `
-      {rows.map((r) => <li key={r.id}>{r.n}</li>)}
-      <footer className="raised">total</footer>`;
-    expect(ids(lintJsx(jsx, [".raised"]))).toEqual([]);
-  });
-});
-
-// ---------------------------------------------------------------- the contract
-
 describe("the real stylesheets satisfy the contract", () => {
   const sheets = fs
     .readdirSync(SRC, { withFileTypes: true })
@@ -385,9 +304,12 @@ describe("the real stylesheets satisfy the contract", () => {
       (name) => lintCss(read(name), { inheritedVars: kitVars }).unconditionalDepth,
     );
     const files = walkJsx();
-    // Without these two, an empty class set or an empty file list would make
-    // the assertion below pass while checking nothing.
-    expect(depthClasses.length).toBeGreaterThan(3);
+    // The old guard here asserted at least four depth-bearing classes existed,
+    // which was true while depth was rationed and is false now that it is gone.
+    // An empty set IS the contract, so what needs guarding is the file walk.
+    // Exactly the one declared overlay. It stays in the set on purpose: if
+    // someone ever renders the console once per row, the JSX half still fires.
+    expect(depthClasses).toEqual([".fdx-console"]);
     expect(files.length).toBeGreaterThan(5);
 
     const violations = files.flatMap(
