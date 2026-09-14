@@ -9,6 +9,7 @@ reads it here, on demand, one file at a time.
 import glob
 import json
 import os
+from collections import deque
 
 # Per-block character cap. A single session can be 20+ MB (long tool outputs),
 # which would blow up both the JSON response and the browser. We keep the head
@@ -136,6 +137,24 @@ def _norm_block(b) -> dict | None:
     return None
 
 
+# The block types `_norm_block` knows how to render. Kept next to it so the
+# cheap counter below cannot drift from the real normalizer.
+_RENDERABLE_BLOCKS = ("text", "thinking", "tool_use", "tool_result", "image")
+
+
+def _has_renderable(obj: dict) -> bool:
+    """Would `_norm_turn` keep this line? Answers it without building or
+    truncating a single block — for counting only, where the turns themselves
+    are never returned."""
+    raw = (obj.get("message") or {}).get("content")
+    if isinstance(raw, str):
+        return bool(raw.strip())
+    if isinstance(raw, list):
+        return any(isinstance(b, dict) and b.get("type") in _RENDERABLE_BLOCKS
+                   for b in raw)
+    return False
+
+
 def _norm_turn(obj: dict) -> dict | None:
     """Turn one `user`/`assistant` JSONL line into a chat turn, or None if it
     carries nothing renderable."""
@@ -173,84 +192,140 @@ def _norm_turn(obj: dict) -> dict | None:
     }
 
 
-def build_transcript(path: str, offset: int = 0, limit: int = _MAX_TURNS) -> dict:
-    """Parse a session `.jsonl` into an ordered, normalized transcript.
+# ---- turn index --------------------------------------------------------
+# Rebuilding a transcript window used to re-parse the whole file: 800ms on a
+# 130 MB session, paid again on every live-follow tick. Instead we keep a byte
+# offset per renderable turn, cached per file and EXTENDED in place as the file
+# grows — a session .jsonl is append-only, so a tick costs only the new bytes.
+_INDEX_CACHE: dict[str, dict] = {}
+_INDEX_CACHE_MAX = 64
 
-    Streams the file line by line; captures the ai-title / cwd / gitBranch /
-    version for a header, and every renderable user/assistant turn. Turns are
-    windowed by (offset, limit) with `_MAX_TURNS` as a hard cap."""
-    limit = max(0, min(limit, _MAX_TURNS))
-    title = None
-    title_is_custom = False  # user rename / fork label — wins over ai-title/summary
-    project = git_branch = version = None
-    agent_type = None   # subagent transcripts carry attributionAgent (e.g. "Explore")
-    first_ts = last_ts = None
-    turns: list[dict] = []
-    total = 0  # renderable turns seen (pre-window)
 
-    with open(path, "r", encoding="utf-8", errors="replace") as fh:
-        for line in fh:
-            line = line.strip()
+def _blank_index() -> dict:
+    return {"offsets": [], "title": None, "title_is_custom": False,
+            "project": None, "git_branch": None, "version": None,
+            "agent_type": None, "first_ts": None, "last_ts": None,
+            "pos": 0, "size": 0, "mtime_ns": 0}
+
+
+def _scan_index(path: str, idx: dict) -> None:
+    """Read everything after `idx['pos']` and fold it into the index.
+
+    Offsets are BYTE offsets, so the file is read in binary; a trailing line
+    without its newline is a writer mid-append and is left for the next pass."""
+    with open(path, "rb") as fh:
+        fh.seek(idx["pos"])
+        while True:
+            start = fh.tell()
+            raw = fh.readline()
+            if not raw:
+                break
+            if not raw.endswith(b"\n"):
+                break                      # incomplete tail line: retry later
+            idx["pos"] = fh.tell()
+            line = raw.strip()
             if not line:
                 continue
             try:
-                obj = json.loads(line)
+                obj = json.loads(line.decode("utf-8", "replace"))
             except json.JSONDecodeError:
                 continue
-
             typ = obj.get("type")
-            # user-set custom title (rename) or a fork's "Forked: …" label —
-            # highest priority, and once seen an ai-title can't override it.
             if typ == "custom-title" and obj.get("customTitle"):
-                title = obj["customTitle"]
-                title_is_custom = True
+                idx["title"] = obj["customTitle"]
+                idx["title_is_custom"] = True
                 continue
-            if typ == "ai-title" and obj.get("aiTitle") and not title_is_custom:
-                title = obj["aiTitle"]
+            if typ == "ai-title" and obj.get("aiTitle") and not idx["title_is_custom"]:
+                idx["title"] = obj["aiTitle"]
                 continue
-            if typ == "summary" and obj.get("summary") and not title:
-                title = obj["summary"]
+            if typ == "summary" and obj.get("summary") and not idx["title"]:
+                idx["title"] = obj["summary"]
                 continue
             if typ not in _CHAT_TYPES:
                 continue
-
-            # header fields: first non-empty wins (they're stable per session)
-            if project is None:
-                project = obj.get("cwd")
-            if git_branch is None:
-                git_branch = obj.get("gitBranch")
-            if version is None:
-                version = obj.get("version")
-            if agent_type is None and obj.get("attributionAgent"):
-                agent_type = obj.get("attributionAgent")
-
-            turn = _norm_turn(obj)
-            if turn is None:
+            for key, src in (("project", "cwd"), ("git_branch", "gitBranch"),
+                             ("version", "version"), ("agent_type", "attributionAgent")):
+                if idx[key] is None and obj.get(src):
+                    idx[key] = obj[src]
+            if not _has_renderable(obj):
                 continue
-            ts = turn.get("ts")
+            ts = obj.get("timestamp")
             if ts:
-                if first_ts is None or ts < first_ts:
-                    first_ts = ts
-                if last_ts is None or ts > last_ts:
-                    last_ts = ts
+                if idx["first_ts"] is None or ts < idx["first_ts"]:
+                    idx["first_ts"] = ts
+                if idx["last_ts"] is None or ts > idx["last_ts"]:
+                    idx["last_ts"] = ts
+            idx["offsets"].append(start)
 
-            # window: keep only [offset, offset+limit)
-            if offset <= total < offset + limit:
+
+def _index(path: str) -> dict:
+    """The cached index for `path`, extended or rebuilt as the file demands."""
+    st = os.stat(path)
+    hit = _INDEX_CACHE.get(path)
+    if hit is not None and hit["mtime_ns"] == st.st_mtime_ns and hit["size"] == st.st_size:
+        return hit
+    # Growth is an append; anything else (truncated, rewritten) means rebuild.
+    idx = hit if (hit is not None and st.st_size >= hit["size"]) else _blank_index()
+    _scan_index(path, idx)
+    idx["mtime_ns"], idx["size"] = st.st_mtime_ns, st.st_size
+    if path not in _INDEX_CACHE and len(_INDEX_CACHE) >= _INDEX_CACHE_MAX:
+        _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
+    _INDEX_CACHE[path] = idx
+    return idx
+
+
+def _read_turns(path: str, offsets: list[int], start: int, count: int) -> list[dict]:
+    """Normalize just the turns in [start, start+count) by seeking to each."""
+    turns: list[dict] = []
+    if count <= 0:
+        return turns
+    with open(path, "rb") as fh:
+        for i in range(start, min(start + count, len(offsets))):
+            fh.seek(offsets[i])
+            raw = fh.readline()
+            try:
+                obj = json.loads(raw.decode("utf-8", "replace"))
+            except json.JSONDecodeError:
+                continue
+            turn = _norm_turn(obj)
+            if turn is not None:
                 turns.append(turn)
-            total += 1
+    return turns
+
+
+def build_transcript(path: str, offset: int = 0, limit: int = _MAX_TURNS,
+                     anchor: str = "head") -> dict:
+    """Parse a session `.jsonl` into an ordered, normalized transcript.
+
+    Only the requested window is normalized — the rest of the file is touched
+    once, to index it, and never again while it is unchanged.
+
+    `anchor="tail"` ignores `offset` and returns the LAST `limit` turns: what a
+    reader opening a 38k-turn session actually wants, and the only way to reach
+    its end without shipping everything before it."""
+    limit = max(0, min(limit, _MAX_TURNS))
+    idx = _index(path)
+    total = len(idx["offsets"])
+    win_offset = max(0, total - limit) if anchor == "tail" else min(max(0, offset), total)
+    turns = _read_turns(path, idx["offsets"], win_offset, limit)
 
     return {
-        "title": title,
-        "project": project,
-        "git_branch": git_branch,
-        "version": version,
-        "agent_type": agent_type,
-        "first_ts": first_ts,
-        "last_ts": last_ts,
+        "title": idx["title"],
+        "project": idx["project"],
+        "git_branch": idx["git_branch"],
+        "version": idx["version"],
+        "agent_type": idx["agent_type"],
+        "first_ts": idx["first_ts"],
+        "last_ts": idx["last_ts"],
         "turn_count": total,
-        "offset": offset,
+        "offset": win_offset,
         "returned": len(turns),
-        "truncated": (offset + len(turns)) < total,
+        # `truncated` = the window is not the whole session. `has_before` /
+        # `has_after` tell the reader WHICH end is missing — what a
+        # scroll-to-load client needs to decide which way to fetch.
+        "truncated": total > len(turns),
+        "has_before": win_offset > 0,
+        "has_after": win_offset + len(turns) < total,
         "turns": turns,
     }
 
@@ -328,6 +403,7 @@ def _read_subagent_file(path: str) -> dict | None:
     agent_id = os.path.basename(path)[len("agent-"):-len(".jsonl")]
     agent_type = model = first_ts = last_ts = dispatch = None
     turns = 0
+    renderable = 0   # chat turns the detail view would draw (user + assistant)
     comp = {"input_tokens": 0, "cache_read_input_tokens": 0,
             "cache_creation_input_tokens": 0, "output_tokens": 0}
     try:
@@ -351,6 +427,8 @@ def _read_subagent_file(path: str) -> dict | None:
                     first_ts = ts
                 if last_ts is None or ts > last_ts:
                     last_ts = ts
+            if obj.get("type") in _CHAT_TYPES and _has_renderable(obj):
+                renderable += 1
             if obj.get("type") != "assistant":
                 if dispatch is None and obj.get("type") == "user":
                     raw = (obj.get("message") or {}).get("content")
@@ -376,6 +454,7 @@ def _read_subagent_file(path: str) -> dict | None:
         "agent_type": agent_type,
         "model": model,
         "turns": turns,
+        "renderable_turns": renderable,
         "input_tokens": comp["input_tokens"],
         "cache_read": comp["cache_read_input_tokens"],
         "cache_create_5m": comp["cache_creation_input_tokens"],
@@ -410,32 +489,79 @@ def subagent_usage(projects_dir: str, session_id: str,
     return out
 
 
+def _agent_id_of(path: str) -> str:
+    return os.path.basename(path)[len("agent-"):-len(".jsonl")]
+
+
+def _subagent_thread(path: str, limit: int = _MAX_SUBAGENT_TURNS) -> dict | None:
+    """One subagent transcript, turns included — the shape the UI renders when
+    a nested thread is expanded."""
+    try:
+        sub = build_transcript(path, offset=0, limit=limit)
+    except OSError:
+        return None
+    turns = sub.get("turns", [])
+    return {
+        "agent_id": _agent_id_of(path),
+        "agent_type": sub.get("agent_type"),
+        "turn_count": sub.get("turn_count"),
+        "truncated": sub.get("truncated"),
+        "first_ts": sub.get("first_ts"),
+        "last_ts": sub.get("last_ts"),
+        "dispatch": _dispatch_text(turns),
+        "turns": turns,
+        "loaded": True,
+    }
+
+
 def load_session(projects_dir: str, session_id: str, offset: int = 0,
-                 limit: int = _MAX_TURNS) -> dict | None:
+                 limit: int = _MAX_TURNS, anchor: str = "head",
+                 subagent_turns: bool = False) -> dict | None:
     """Resolve + parse a session by id (plus its nested subagent transcripts).
-    None if no matching file exists."""
+    None if no matching file exists.
+
+    Subagent threads ship as METADATA by default. On a real session that is the
+    whole difference between a 15 MB response and a 4 MB one: 65 nested threads
+    carried 10 MB of turns that render collapsed and are usually never opened.
+    They are fetched one at a time on expand (`load_subagent`); pass
+    `subagent_turns=True` for the old all-in-one payload."""
     path = find_session_file(projects_dir, session_id)
     if not path:
         return None
-    data = build_transcript(path, offset=offset, limit=limit)
+    data = build_transcript(path, offset=offset, limit=limit, anchor=anchor)
     data["session_id"] = session_id
 
     subs = []
     for sp in find_subagent_files(projects_dir, session_id):
-        try:
-            sub = build_transcript(sp, offset=0, limit=_MAX_SUBAGENT_TURNS)
-        except OSError:
+        if subagent_turns:
+            thread = _subagent_thread(sp)
+            if thread is not None:
+                subs.append(thread)
             continue
-        agent_id = os.path.basename(sp)[len("agent-"):-len(".jsonl")]
+        # Lean path: the mtime-cached usage parser already carries every field
+        # the collapsed row shows, and never materializes a turn.
+        meta = _parse_subagent_file(sp)
+        if meta is None:
+            continue
         subs.append({
-            "agent_id": agent_id,
-            "agent_type": sub.get("agent_type"),
-            "turn_count": sub.get("turn_count"),
-            "truncated": sub.get("truncated"),
-            "first_ts": sub.get("first_ts"),
-            "last_ts": sub.get("last_ts"),
-            "dispatch": _dispatch_text(sub.get("turns", [])),
-            "turns": sub.get("turns", []),
+            "agent_id": meta["agent_id"],
+            "agent_type": meta["agent_type"],
+            "turn_count": meta.get("renderable_turns", meta["turns"]),
+            "truncated": False,
+            "first_ts": meta["first_ts"],
+            "last_ts": meta["last_ts"],
+            "dispatch": meta["dispatch"],
+            "turns": None,     # fetched on expand
+            "loaded": False,
         })
     data["subagents"] = subs
     return data
+
+
+def load_subagent(projects_dir: str, session_id: str, agent_id: str,
+                  limit: int = _MAX_SUBAGENT_TURNS) -> dict | None:
+    """One nested thread of a session, by agent id. None if it does not exist."""
+    for sp in find_subagent_files(projects_dir, session_id):
+        if _agent_id_of(sp) == agent_id:
+            return _subagent_thread(sp, limit=limit)
+    return None

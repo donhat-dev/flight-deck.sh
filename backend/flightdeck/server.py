@@ -18,9 +18,10 @@ from flightdeck.hub.nodes import load as hub_load
 from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
+from flightdeck.tickets import store as tickets_store
 from flightdeck.routers import (charts, core, decisions, diff, hub, memory, missions,
-                               radar, sessions, stream, treasures, treasure_config,
-                               appearance)
+                               radar, send, sessions, stream, tickets, treasures,
+                               treasure_config, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -51,6 +52,7 @@ def create_app() -> FastAPI:
     # Treasures MCP has never been run in this environment.
     treasures_store.init(write_conn)
     radar_store.init(write_conn)
+    tickets_store.init(write_conn)
     flows_dir = os.environ.get("TOKEN_AUDIT_FLOWS_DIR") or os.path.join(
         os.path.dirname(__file__), "..", "flows")
 
@@ -69,7 +71,11 @@ def create_app() -> FastAPI:
     # Endpoint routers (extracted from the old create_app mega-factory).
     app.include_router(core.router)
     app.include_router(sessions.router)
+    # Writes into a session by spawning the CLI. Own router because everything
+    # in sessions.router is read-only.
+    app.include_router(send.router)
     app.include_router(missions.router)
+    app.include_router(tickets.router)
     app.include_router(charts.router)
     app.include_router(diff.router)
     app.include_router(hub.router)

@@ -4,10 +4,23 @@ name: flightdeck-odoo
 
 services:
   odoo:
-    image: odoo:19.0
+    # odoo:19.0 with the `claude` binary and fd-runner added; see Dockerfile.
+    build:
+      context: ../..
+      dockerfile: docker/odoo19/Dockerfile
+    image: flightdeck-odoo19:local
     container_name: flightdeck-odoo19
     restart: unless-stopped
-    command: ["odoo", "-c", "/etc/odoo/odoo.conf"]
+    # fd-runner is the second process in this container: it keeps the claude
+    # sessions Odoo starts here. Odoo and the runner share the spool under
+    # /var/lib/odoo, so no network is involved. The re-exec through the
+    # entrypoint keeps its database-argument handling.
+    command:
+      - sh
+      - -c
+      - >-
+        fd-runner -spool /var/lib/odoo/spool/container -claude /usr/local/bin/claude &
+        exec /entrypoint.sh odoo -c /etc/odoo/odoo.conf
     environment:
       # The image entrypoint waits on Postgres using these, not the conf file.
       HOST: pgcore-17
@@ -28,14 +41,18 @@ services:
       #   setfacl -R -d -m u:100:rX ~/.claude/projects
       # The second line is what keeps new session files readable.
       - ${HOME}/.claude/projects:/mnt/claude-projects:ro
+      # Commands for the runner on the host, and its events back. Written by
+      # this container's uid 100, moved and answered by the host runner, so
+      # the host grants it read-write with an ACL:
+      #   setfacl -R    -m u:100:rwX ~/.flightdeck/spool
+      #   setfacl -R -d -m u:100:rwX ~/.flightdeck/spool
+      - ${HOME}/.flightdeck/spool:/mnt/spool
       - odoo-data:/var/lib/odoo
     ports:
       - "8029:8069"
-    # Sending a message needs the `claude` binary, which lives on the host and
-    # not in this image, so the send path is an HTTP call out to the FlightDeck
-    # backend. Without this the name does not resolve at all: the container has
-    # no route to the host by default, and the bridge gateway refuses while
-    # uvicorn is bound to loopback.
+    # The send path still calls the FlightDeck backend on the host. Without this
+    # the name does not resolve at all: the container has no route to the host
+    # by default, and the bridge gateway refuses while uvicorn is bound to loopback.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:

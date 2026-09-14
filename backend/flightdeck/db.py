@@ -225,6 +225,17 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_session ON tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_tool ON tool_calls(tool);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_server ON tool_calls(server);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
+CREATE TABLE IF NOT EXISTS message_text (
+  uuid TEXT PRIMARY KEY,
+  session_id TEXT,
+  project TEXT,
+  role TEXT,
+  ts TEXT,
+  seq INTEGER,
+  text TEXT,
+  tool_input TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_message_text_session ON message_text(session_id, seq);
 """
 
 # PostgreSQL schema. messages/tool_calls/files are DERIVED from the JSONL and
@@ -233,6 +244,21 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
 # input (custom titles) so it stays LOGGED (durable). hub_credentials is created
 # LOGGED by hub/credentials.py.
 _SCHEMA_PG = """
+-- Search prerequisites. pg_trgm and unaccent are TRUSTED extensions on PG13+,
+-- so the database owner can create them without superuser. The `vi_en` config
+-- is `simple` (no stemming -- the corpus is bilingual VI/EN and full of code
+-- identifiers, which English stemming mangles) plus unaccent, so `tim kiem`
+-- finds `tim kiem`.
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+CREATE EXTENSION IF NOT EXISTS unaccent;
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_ts_config WHERE cfgname = 'vi_en') THEN
+    CREATE TEXT SEARCH CONFIGURATION vi_en (COPY = simple);
+    ALTER TEXT SEARCH CONFIGURATION vi_en
+      ALTER MAPPING FOR word, hword, hword_part WITH unaccent, simple;
+  END IF;
+END $$;
 CREATE UNLOGGED TABLE IF NOT EXISTS messages (
   uuid text PRIMARY KEY,
   session_id text,
@@ -282,6 +308,43 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_session ON tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_tool ON tool_calls(tool);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_server ON tool_calls(server);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
+
+-- Conversation text, extracted from the same JSONL as `messages`. Separate table
+-- because `messages` holds only assistant turns that carry a `usage` object,
+-- while search needs user turns too. UNLOGGED for the same reason as the others:
+-- it is derived and rebuildable (a full re-parse of 1.2GB takes ~3s).
+--
+-- `tsv` is a STORED generated column, so it can only call IMMUTABLE functions.
+-- `unaccent()` is STABLE and would be rejected here -- which is why the accent
+-- folding lives inside the `vi_en` text-search CONFIGURATION instead (created
+-- above): `to_tsvector('vi_en', ...)` with a constant config name IS immutable.
+CREATE UNLOGGED TABLE IF NOT EXISTS message_text (
+  uuid text PRIMARY KEY,
+  session_id text,
+  project text,
+  role text,
+  ts timestamptz,
+  seq bigint,
+  text text,
+  tool_input text,
+  tsv tsvector GENERATED ALWAYS AS (
+    setweight(to_tsvector('vi_en', coalesce(text, '')), 'A') ||
+    setweight(to_tsvector('vi_en', coalesce(tool_input, '')), 'B')
+  ) STORED,
+  -- Claude Code writes a NEW jsonl with NEW uuids when a session is resumed,
+  -- forked or compacted, copying the prior history in. Measured on the local
+  -- corpus: 52% of rows are a duplicate of another row's content. The uuid PK
+  -- cannot see that, so search dedupes on this hash at query time instead --
+  -- keeping the rows faithful to the corpus and the results free of copies.
+  content_hash text GENERATED ALWAYS AS (
+    md5(coalesce(text, '') || coalesce(tool_input, ''))
+  ) STORED
+);
+CREATE INDEX IF NOT EXISTS idx_message_text_hash ON message_text(content_hash);
+CREATE INDEX IF NOT EXISTS idx_message_text_tsv ON message_text USING GIN (tsv);
+CREATE INDEX IF NOT EXISTS idx_message_text_trgm ON message_text USING GIN (text gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_message_text_session ON message_text(session_id, seq);
+CREATE INDEX IF NOT EXISTS idx_message_text_ts ON message_text(ts);
 """
 
 

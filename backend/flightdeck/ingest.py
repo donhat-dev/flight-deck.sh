@@ -16,6 +16,76 @@ _TOOL_COLS = ("id", "session_id", "project", "ts", "tool", "server", "detail")
 _stat_cache: dict = {}
 
 
+# Per-block caps for the searchable text mirror. `text` matches transcript.py's
+# _MAX_BLOCK_CHARS so the two readers agree on what a "block" is. `tool_input` is
+# capped far tighter: measured over the real corpus it is 40.9MB uncapped against
+# 24.0MB of actual prose, and the searchable part of a tool call (path, command,
+# query) always sits at the front.
+_MAX_TEXT_CHARS = 24000
+_MAX_TOOL_INPUT_CHARS = 1000
+
+# JSONL line types that carry conversation content. Everything else -- attachment,
+# file-history-snapshot, queue-operation, mode, last-prompt -- is bookkeeping.
+# Measured: those are 96.9% of the corpus bytes and 0% of what anyone searches for,
+# which is why the filter lives HERE, at ingest, and not in the query.
+_CHAT_TYPES = ("user", "assistant")
+
+_TEXT_COLS = ("uuid", "session_id", "project", "role", "ts", "seq", "text",
+              "tool_input")
+
+
+def text_row(obj: dict, seq: int) -> dict | None:
+    """Extract the searchable half of one user/assistant line, or None.
+
+    Keeps `text` blocks (what was said) and `tool_use` inputs (what was run --
+    paths, commands, queries). Drops `tool_result` and `image`: together they are
+    over 65% of the payload and searching them returns noise, not answers.
+    """
+    if obj.get("type") not in _CHAT_TYPES:
+        return None
+    msg = obj.get("message") or {}
+    content = msg.get("content")
+    texts, inputs = [], []
+    if isinstance(content, str):
+        texts.append(content)
+    else:
+        for block in (content or []):
+            if not isinstance(block, dict):
+                continue
+            kind = block.get("type")
+            if kind == "text":
+                texts.append(block.get("text") or "")
+            elif kind == "tool_use":
+                inputs.append(json.dumps(block.get("input") or {},
+                                         ensure_ascii=False)[:_MAX_TOOL_INPUT_CHARS])
+    text = "\n".join(t for t in texts if t).strip()[:_MAX_TEXT_CHARS]
+    tool_input = "\n".join(inputs).strip() or None
+    if not text and not tool_input:
+        return None
+    return {
+        "uuid": obj.get("uuid"),
+        "session_id": obj.get("sessionId"),
+        "project": obj.get("cwd"),
+        "role": obj.get("type"),
+        "ts": obj.get("timestamp"),
+        "seq": seq,
+        "text": text or None,
+        "tool_input": tool_input,
+    }
+
+
+def _insert_message_text(conn, row: dict) -> None:
+    """Idempotent by uuid: re-reading a file the `files` gate already covered is
+    a no-op rather than a duplicate-key crash."""
+    if not row or not row.get("uuid"):
+        return
+    conn.execute(
+        f"INSERT INTO message_text ({','.join(_TEXT_COLS)}) "
+        f"VALUES ({','.join('?' * len(_TEXT_COLS))}) "
+        "ON CONFLICT(uuid) DO NOTHING",
+        tuple(row[c] for c in _TEXT_COLS))
+
+
 def parse_line(obj: dict) -> dict | None:
     if obj.get("type") != "assistant":
         return None
@@ -156,11 +226,16 @@ def ingest_file(conn, path: str) -> int:
     key = (st.st_mtime, st.st_size)
     if _stat_cache.get(path) == key:
         return 0
-    rec = conn.execute("SELECT bytes_ingested, size FROM files WHERE path=?",
-                       (path,)).fetchone()
+    rec = conn.execute(
+        "SELECT bytes_ingested, size, lines_ingested FROM files WHERE path=?",
+        (path,)).fetchone()
     start = 0
+    base_line = 0
     if rec and st.st_size >= rec["size"]:
         start = rec["bytes_ingested"]
+        # Absolute line number is what `seq` orders a session by, so resuming
+        # mid-file must continue the count, not restart it.
+        base_line = rec["lines_ingested"] or 0
     # else: new file or truncated/rotated -> re-ingest from 0
     new_rows = 0
     lines = 0
@@ -175,8 +250,14 @@ def ingest_file(conn, path: str) -> int:
             committed += len(raw)
             lines += 1
             try:
-                obj = json.loads(raw)
-            except json.JSONDecodeError:
+                # Decode explicitly. `json.loads` on raw bytes sniffs the
+                # encoding from the first four, so a torn write that leaves a
+                # run of NUL bytes is read as UTF-32 and raises
+                # UnicodeDecodeError, which is not a JSONDecodeError and took
+                # the whole ingest down with it. One real session on disk has
+                # such a line.
+                obj = json.loads(raw.decode("utf-8", "replace"))
+            except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
                 continue
             row = parse_line(obj)
             if row and _upsert(conn, row):
@@ -187,6 +268,10 @@ def ingest_file(conn, path: str) -> int:
             # assistant line carries BOTH a usage row and its tool_use block,
             # so run it for every line (INSERT OR IGNORE keeps it idempotent).
             _insert_tool_calls(conn, obj)
+            # Searchable text mirror. Independent of the usage/title branches
+            # above: a user turn carries no usage row but is exactly what a
+            # later search is looking for.
+            _insert_message_text(conn, text_row(obj, base_line + lines))
     conn.execute(
         "INSERT INTO files (path, mtime, size, bytes_ingested, lines_ingested) "
         "VALUES (?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET "
@@ -222,8 +307,35 @@ def _maybe_backfill_tool_calls(conn) -> bool:
     return True
 
 
+def _maybe_backfill_message_text(conn) -> bool:
+    """One-time migration, same shape as _maybe_backfill_tool_calls.
+
+    message_text was added after the corpus was already ingested, so the `files`
+    byte-offset gate would keep every existing session from ever yielding a text
+    row. If message_text is empty while messages is not, clear `files` to force a
+    full re-scan; every writer on that path is idempotent (messages PK, tool_calls
+    INSERT OR IGNORE, message_text ON CONFLICT DO NOTHING). Self-disables as soon
+    as message_text has one row. Full re-parse of the local corpus: ~3s.
+    """
+    has_text = conn.execute(
+        "SELECT EXISTS(SELECT 1 FROM message_text)").fetchone()[0]
+    if has_text:
+        return False
+    has_msgs = conn.execute(
+        "SELECT EXISTS(SELECT 1 FROM messages)").fetchone()[0]
+    if not has_msgs:
+        return False
+    conn.execute("DELETE FROM files")
+    conn.commit()
+    _stat_cache.clear()
+    print("[ingest] message_text backfill: cleared files table to re-scan for "
+          "conversation text (all writers on this path are idempotent)")
+    return True
+
+
 def ingest_all(conn, projects_dir: str) -> int:
     _maybe_backfill_tool_calls(conn)
+    _maybe_backfill_message_text(conn)
     projects_dir = os.path.expanduser(projects_dir)
     total = 0
     for path in glob.glob(os.path.join(projects_dir, "**", "*.jsonl"),
@@ -236,6 +348,7 @@ def ingest_paths(conn, paths) -> int:
     """Ingest a specific set of changed files (watcher delta) instead of
     re-globbing the whole tree. Non-jsonl / missing paths are skipped."""
     _maybe_backfill_tool_calls(conn)
+    _maybe_backfill_message_text(conn)
     total = 0
     for path in paths:
         if str(path).endswith(".jsonl"):

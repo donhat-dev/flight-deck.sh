@@ -2,9 +2,13 @@
 `create_app()` mega-factory).
 
 Single-process, 1-worker by design (see docs/host-stack-migration.md): the
-in-process snapshot cache (`app.state.snap`), the module-level `asyncio.Event`
-SSE fan-out (`_updated`), and the watcher/poll threads all assume ONE process.
-Nothing here is multi-worker or async-converted.
+in-process snapshot cache (`app.state.snap`), the `events.BUS` fan-out, and the
+watcher/poll threads all assume ONE process. Nothing here is multi-worker or
+async-converted.
+
+Every path that used to set the old payload-less `_updated` event now emits
+`summary.updated` on the bus instead; `routers/stream.py` still renders that
+kind as the same `summary-updated` SSE frame, so browser clients saw no change.
 
 `Runtime` owns the long-lived write connection + the ingest/snapshot machinery;
 `lifespan` wires the watcher + periodic loops. Endpoint routers read shared
@@ -20,11 +24,13 @@ from pathlib import Path
 from fastapi import FastAPI
 
 from flightdeck import db, ingest, metrics, rtk, usage_poll
+from flightdeck.events import BUS
 from flightdeck.treasures import filestore
 
-# Module-level SSE fan-out event: set by the ingest paths / poll loops, awaited
-# by the /api/stream generator. Module-level on purpose (1-worker assumption).
-_updated = asyncio.Event()
+# The kind every "the snapshot moved" producer below emits. One constant rather
+# than the literal at five call sites: the string is the routing key, and a typo
+# in it fails silently (no subscriber matches) instead of raising.
+SUMMARY_UPDATED = "summary.updated"
 
 _RANGES = ("today", "7d", "30d", "all")
 DEBOUNCE_SECONDS = 2.0
@@ -222,8 +228,10 @@ class Runtime:
                 rep, path=os.environ.get("TOKEN_AUDIT_LOCAL_REPORT_FILE"))
         except Exception:
             return False
-        if notify and getattr(self.app.state, "loop", None) is not None:
-            self.app.state.loop.call_soon_threadsafe(_updated.set)
+        if notify:
+            # `BUS.emit` does its own loop hop, so the previous
+            # `app.state.loop` guard is no longer this caller's problem.
+            BUS.emit(SUMMARY_UPDATED, source="usage-poll")
         return True
 
 
@@ -233,6 +241,11 @@ async def lifespan(app: FastAPI):
     rt.reingest()
     loop = asyncio.get_event_loop()
     app.state.loop = loop
+    # Give the bus the loop that owns the SSE subscriber queues. Until this
+    # runs, `BUS.emit` still reaches in-process sinks (synchronously) but has
+    # nowhere to queue — which is exactly the state the test suite and the CLI
+    # run in, and why binding is explicit rather than discovered per emit.
+    BUS.bind(loop)
     observer = None
 
     # Raise the sync threadpool ceiling (anyio default is 40). Under a burst
@@ -253,7 +266,7 @@ async def lifespan(app: FastAPI):
             rt.reingest_paths(batch)   # delta: only changed files
         else:
             rt.reingest()              # safety fallback (no paths captured)
-        loop.call_soon_threadsafe(_updated.set)
+        BUS.emit(SUMMARY_UPDATED, source="watcher", paths=len(batch))
 
     rt.reingest_debounce = Debouncer(
         DEBOUNCE_SECONDS, _debounced_reingest, name="fd-reingest-debounce")
@@ -294,10 +307,11 @@ async def lifespan(app: FastAPI):
     # the transcript tree — a wrap/update/link there never re-ingests). It
     # only debounces a burst of writes (a wrapped artifact touches source,
     # artifact.html, and meta.json together) down to roughly one fire, then
-    # sets the SAME `_updated` event the /api/stream SSE endpoint already
-    # awaits. `summary-updated` is a generic "something changed" ping — the
-    # Treasures dashboard view consumes it too, alongside the usage-ledger
-    # refresh it was originally built for, so it just refetches its list.
+    # emits the SAME `summary.updated` kind the /api/stream SSE endpoint turns
+    # into a `summary-updated` frame. That frame is a generic "something
+    # changed" ping — the Treasures dashboard view consumes it too, alongside
+    # the usage-ledger refresh it was originally built for, so it just
+    # refetches its list. `source` is what tells the two apart in a log.
     treasures_observer = None
     try:
         from watchdog.observers import Observer as _Observer
@@ -315,7 +329,7 @@ async def lifespan(app: FastAPI):
                     rebuild()
                 except Exception as e:
                     print(f"[treasures] origin watch rebuild failed: {e}")
-            loop.call_soon_threadsafe(_updated.set)
+            BUS.emit(SUMMARY_UPDATED, source="treasures-watch")
 
         rt.treasures_debounce = Debouncer(
             TREASURES_DEBOUNCE_SECONDS, _treasures_ping,
@@ -442,7 +456,7 @@ async def lifespan(app: FastAPI):
             while not poll_stop.wait(reingest_interval):
                 try:
                     rt.reingest()
-                    loop.call_soon_threadsafe(_updated.set)
+                    BUS.emit(SUMMARY_UPDATED, source="reingest-loop")
                 except Exception:
                     traceback.print_exc()
         threading.Thread(target=_reingest_loop, daemon=True).start()

@@ -6,13 +6,13 @@ SQLite DB (see hub/store.py, hub/credentials.py). Credential writes serialize on
 the same `runtime.lock` the watcher/ingest hold, so they never interleave with
 an in-flight ingest transaction on the shared write connection.
 """
-from fastapi import APIRouter, HTTPException, Request
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from flightdeck import db
 from flightdeck.hub import (credentials, engine, presets as hub_presets,
-                             registry as hub_registry, store)
-
-router = APIRouter(tags=["hub"])
+                             registry as hub_registry, store, triggers)
 
 
 def _resolve_cred_factory(request: Request):
@@ -34,6 +34,20 @@ def _resolve_cred_factory(request: Request):
         d["kind"] = cred["kind"]
         return d
     return _resolve
+
+
+def _bind_triggers(request: Request) -> None:
+    # Keep flightdeck.hub.triggers pointed at THIS app's flows_dir/credential
+    # resolver. The trigger event sink reacts to bus events with no request of
+    # its own to read app.state from, so something has to hand it that context
+    # -- see triggers.py's module docstring for why a router-level dependency
+    # (re-bind on every Hub request) is enough given FlightDeck's single-
+    # process/single-app design, including the throwaway app + tmp_path each
+    # test spins up.
+    triggers.bind(request.app.state.flows_dir, _resolve_cred_factory(request))
+
+
+router = APIRouter(tags=["hub"], dependencies=[Depends(_bind_triggers)])
 
 
 def _require_flow_shape(flow):
@@ -152,3 +166,31 @@ def hub_run(request: Request, body: dict):
     _require_flow_shape(flow)
     return engine.run_flow(flow, seed=body.get("seed"),
                            resolve_credential=_resolve_cred_factory(request))
+
+
+@router.post("/api/hub/webhook/{token}")
+def hub_webhook(request: Request, token: str, body: Optional[dict] = None):
+    # Kill switch first: an operator who has decided every trigger must stop
+    # gets a clear 503, not a silent no-op that leaves them guessing whether
+    # the call even reached the process.
+    if triggers.triggers_disabled():
+        raise HTTPException(status_code=503, detail="hub triggers are disabled")
+    flows_dir = request.app.state.flows_dir
+    trig = triggers.find_webhook_trigger(flows_dir, token)
+    if trig is None:
+        # Unknown token and disabled-trigger token produce the EXACT same
+        # response (see triggers.find_webhook_trigger) so a probing client
+        # cannot learn whether a token exists by watching for a status change.
+        raise HTTPException(status_code=404, detail="not found")
+    # Fire-and-forget: the caller gets {ok, run_id} the instant a thread is
+    # dispatched, never waiting on the flow itself (a webhook is by nature an
+    # external caller who may time out long before a flow with an HTTP/XML-RPC
+    # node completes).
+    run_id = triggers.dispatch(flows_dir, trig, body or {},
+                               resolve_credential=_resolve_cred_factory(request),
+                               source="webhook")
+    if run_id is None:
+        # Only reachable if a previous run for this trigger is still in
+        # flight -- the kill switch was already handled above as a 503.
+        return {"ok": False, "run_id": None}
+    return {"ok": True, "run_id": run_id}
