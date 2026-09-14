@@ -13,6 +13,7 @@
                 <field name="tool_call_count" sum="Tool calls"/>
                 <field name="duration_hours" sum="Hours"/>
                 <field name="total_cost" sum="Cost"/>
+                <field name="runtime_state" optional="show"/>
                 <field name="following" optional="show" widget="boolean_toggle"/>
                 <field name="session_id" optional="hide"/>
             </list>
@@ -29,6 +30,13 @@
                             string="Recompute totals" class="btn-secondary"/>
                     <button name="action_open_channel" type="object"
                             string="Open in Discuss" class="btn-secondary"/>
+                    <button name="action_start_runtime" type="object" string="Start"
+                            class="btn-primary" invisible="not runner_id or runtime_state != 'stopped'"/>
+                    <button name="action_interrupt_runtime" type="object" string="Interrupt"
+                            class="btn-secondary" invisible="runtime_state != 'busy'"/>
+                    <button name="action_stop_runtime" type="object" string="Stop"
+                            class="btn-secondary" invisible="runtime_state == 'stopped'"/>
+                    <field name="runtime_state" widget="statusbar"/>
                     <field name="following" widget="boolean_toggle"/>
                 </header>
                 <sheet>
@@ -36,6 +44,11 @@
                         <button name="action_open_messages" type="object"
                                 class="oe_stat_button" icon="fa-dollar">
                             <field name="total_cost" widget="statinfo" string="Cost"/>
+                        </button>
+                        <button name="action_open_decisions" type="object"
+                                class="oe_stat_button" icon="fa-hand-paper-o"
+                                invisible="not pending_decision_count">
+                            <field name="pending_decision_count" widget="statinfo" string="Waiting"/>
                         </button>
                         <button name="action_open_transcript" type="object"
                                 class="oe_stat_button" icon="fa-comments">
@@ -66,6 +79,17 @@
                             <field name="cache_create"/>
                             <field name="tool_call_count"/>
                             <field name="treasure_count"/>
+                        </group>
+                        <group string="Runtime" name="runtime">
+                            <field name="runner_id"/>
+                            <field name="cwd" placeholder="Taken from the transcript, else the runner default"/>
+                            <field name="live_permission_mode"/>
+                            <field name="live_model"/>
+                            <field name="live_effort"/>
+                            <field name="allow_live"/>
+                            <field name="runner_pid" invisible="not runner_pid"/>
+                            <field name="runner_cost"/>
+                            <field name="runtime_error" invisible="not runtime_error"/>
                         </group>
                     </group>
                     <notebook>

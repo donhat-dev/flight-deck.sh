@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="flight_deck.TranscriptField">
-        <TranscriptBox resId="resId" class="'fd_box_inline'"/>
+        <TranscriptBox resId="resId" record="props.record" class="'fd_box_inline'"/>
     </t>
 </templates>

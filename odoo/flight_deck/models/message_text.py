@@ -1,4 +1,9 @@
+import base64
+import json
+
 from odoo import api, fields, models
+
+from .transcript_reader import IMAGE_TYPES
 
 
 class FlightdeckMessageText(models.Model):
@@ -21,6 +26,12 @@ class FlightdeckMessageText(models.Model):
     tool_output = fields.Text("Tool output")
     # The id the tool result comes back under, so a later line can find this row.
     tool_use_id = fields.Char(index=True)
+    # Where the images a call returned can be found, never the images
+    # themselves: `[{"media_type": ..., "index": ...}]` plus the byte the
+    # result's line starts at. One screenshot is around 200 KB of base64, and
+    # the file that already holds them is mounted here anyway.
+    tool_images = fields.Text("Images returned")
+    tool_result_offset = fields.Integer()
 
     _uuid_uniq = models.Constraint("unique(uuid)", "Transcript line already imported.")
 
@@ -55,7 +66,49 @@ class FlightdeckMessageText(models.Model):
             "tool_name": self.tool_name,
             "tool_input": self.tool_input,
             "tool_output": self.tool_output,
+            "tool_images": self.tool_images,
         }
+
+    def _image_block(self, index):
+        """The bytes of one image this call returned, read back from the file.
+
+        Returns `(data, media_type)`, or None when the file has moved on: a
+        transcript that was rewritten leaves every offset pointing at the wrong
+        line, which is why the line found there has to name this same call.
+        """
+        self.ensure_one()
+        try:
+            wanted = json.loads(self.tool_images or "[]")
+        except ValueError:
+            return None
+        if not any(image.get("index") == index for image in wanted):
+            return None
+        path = self.session_ref_id._transcript_path()
+        if not path:
+            return None
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(self.tool_result_offset or 0)
+                raw = fh.readline()
+            blocks = (json.loads(raw).get("message") or {}).get("content") or []
+        except (OSError, ValueError):
+            return None
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("tool_use_id") != self.tool_use_id:
+                continue
+            content = block.get("content")
+            if not isinstance(content, list) or index >= len(content):
+                return None
+            item = content[index] if isinstance(content[index], dict) else {}
+            source = item.get("source") or {}
+            if item.get("type") != "image" or source.get("media_type") not in IMAGE_TYPES:
+                return None
+            try:
+                return base64.b64decode(source.get("data") or "", validate=True), \
+                    source["media_type"]
+            except (ValueError, TypeError):
+                return None
+        return None
 
     def _bus_update(self):
         for line in self:

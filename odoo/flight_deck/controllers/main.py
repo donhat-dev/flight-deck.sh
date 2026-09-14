@@ -50,3 +50,33 @@ class FlightDeckArtifact(http.Controller):
             treasure.attachment_id.raw,
             headers=[("Content-Type", "text/html; charset=utf-8")],
         )
+
+
+class FlightDeckToolImage(http.Controller):
+    """Serve one image a tool call returned.
+
+    The row says which file, which byte and which block; the bytes never reach
+    the database. Reading the row is what the permission check rides on: a user
+    who cannot read the transcript line gets nothing here either.
+    """
+
+    @http.route("/flight_deck/tool_image/<int:line_id>/<int:index>",
+                type="http", auth="user")
+    def tool_image(self, line_id, index, **kw):
+        line = request.env["flightdeck.message.text"].browse(line_id).exists()
+        if not line:
+            return request.not_found()
+        found = line._image_block(index)
+        if not found:
+            return request.not_found()
+        data, media_type = found
+        return request.make_response(data, headers=[
+            ("Content-Type", media_type),
+            ("Content-Length", str(len(data))),
+            # The media type is read out of a transcript, so the browser is
+            # told to render it as that and nothing else.
+            ("X-Content-Type-Options", "nosniff"),
+            ("Content-Security-Policy", "default-src 'none'"),
+            # Bytes at a byte offset in an append-only file do not change.
+            ("Cache-Control", "private, max-age=604800"),
+        ])

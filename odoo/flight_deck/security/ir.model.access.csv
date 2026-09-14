@@ -15,3 +15,9 @@ access_tag_user,tag.user,model_flightdeck_treasure_tag,group_user,1,0,0,0
 access_tag_manager,tag.manager,model_flightdeck_treasure_tag,group_manager,1,1,1,1
 access_price_user,price.user,model_flightdeck_model_price,group_user,1,0,0,0
 access_price_manager,price.manager,model_flightdeck_model_price,group_manager,1,1,1,1
+access_runner_user,runner.user,model_flightdeck_runner,group_user,1,0,0,0
+access_runner_manager,runner.manager,model_flightdeck_runner,group_manager,1,1,1,1
+access_runner_command_user,runner.command.user,model_flightdeck_runner_command,group_user,1,0,0,0
+access_runner_command_manager,runner.command.manager,model_flightdeck_runner_command,group_manager,1,1,1,1
+access_decision_user,decision.user,model_flightdeck_decision,group_user,1,1,0,0
+access_decision_manager,decision.manager,model_flightdeck_decision,group_manager,1,1,1,1

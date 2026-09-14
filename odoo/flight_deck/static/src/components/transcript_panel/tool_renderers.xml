@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flight_deck.ToolRaw">
+        <div class="fd_tool_body">
+            <t t-if="props.open">
+                <div class="fd_tool_label">Output</div>
+                <pre class="fd_tool_out"
+                     t-esc="props.line.tool_output or 'No output recorded for this call.'"/>
+            </t>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.ToolImages">
+        <div class="fd_tool_body">
+            <div class="fd_shots">
+                <a t-foreach="shots" t-as="shot" t-key="shot.url" class="fd_shot"
+                   t-att-href="shot.url" target="_blank" rel="noreferrer"
+                   t-att-title="shot.label">
+                    <img t-att-src="shot.url" t-att-alt="shot.label" loading="lazy"
+                         t-on-error="() => this.onShotError(shot.url)"/>
+                </a>
+            </div>
+            <t t-if="props.open">
+                <div class="fd_tool_label">Output</div>
+                <pre class="fd_tool_out"
+                     t-esc="props.line.tool_output or 'The call returned images and no text.'"/>
+            </t>
+        </div>
+    </t>
+
+</templates>

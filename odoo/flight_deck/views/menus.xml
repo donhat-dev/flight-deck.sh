@@ -4,6 +4,8 @@
     <menuitem id="menu_logbook" name="Logbook" parent="menu_root" action="action_logbook" sequence="10"/>
     <menuitem id="menu_treasure" name="Treasures" parent="menu_root" action="action_treasure" sequence="20"/>
     <menuitem id="menu_spend" name="Spend" parent="menu_root" action="action_spend" sequence="30"/>
+    <menuitem id="menu_decision" name="Approvals" parent="menu_root" action="action_decision" sequence="40"/>
     <menuitem id="menu_config" name="Configuration" parent="menu_root" sequence="90" groups="flight_deck.group_manager"/>
+    <menuitem id="menu_runner" name="Runners" parent="menu_config" action="action_runner" sequence="5"/>
     <menuitem id="menu_price" name="Model prices" parent="menu_config" action="action_price" sequence="10"/>
 </odoo>

@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="view_runner_list" model="ir.ui.view">
+        <field name="name">flightdeck.runner.list</field>
+        <field name="model">flightdeck.runner</field>
+        <field name="arch" type="xml">
+            <list string="Runners">
+                <field name="name"/>
+                <field name="zone"/>
+                <field name="kind"/>
+                <field name="spool_dir"/>
+                <field name="permission_mode"/>
+                <field name="last_event_at"/>
+                <field name="status"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_runner_form" model="ir.ui.view">
+        <field name="name">flightdeck.runner.form</field>
+        <field name="model">flightdeck.runner</field>
+        <field name="arch" type="xml">
+            <form string="Runner">
+                <header>
+                    <button name="action_new_session" type="object" string="New session"
+                            class="btn-primary"/>
+                    <button name="action_poll_now" type="object" string="Read events"
+                            class="btn-secondary"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name" placeholder="Host runner"/></h1>
+                        <field name="status" readonly="1"/>
+                    </div>
+                    <group>
+                        <group string="Where">
+                            <field name="zone" placeholder="host"/>
+                            <field name="kind"/>
+                            <field name="spool_dir" placeholder="/mnt/spool/host"/>
+                            <field name="transcript_root" placeholder="/mnt/claude-projects"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="How claude starts">
+                            <field name="default_cwd" placeholder="/home/user/.flightdeck/runner-home"/>
+                            <field name="default_model"/>
+                            <field name="default_effort"/>
+                            <field name="permission_mode"/>
+                            <field name="allowed_tools" placeholder="Read,Grep,Bash(git diff *)"/>
+                        </group>
+                        <group string="Events">
+                            <field name="events_offset"/>
+                            <field name="next_seq"/>
+                            <field name="last_event_at"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Commands" name="commands">
+                            <field name="command_ids" nolabel="1">
+                                <list create="0" default_order="seq desc">
+                                    <field name="create_date"/>
+                                    <field name="seq"/>
+                                    <field name="op"/>
+                                    <field name="session_ref_id"/>
+                                    <field name="state" decoration-danger="state == 'failed'"
+                                           decoration-success="state == 'done'"/>
+                                    <field name="error"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Sessions" name="sessions">
+                            <field name="session_ids" nolabel="1">
+                                <list create="0">
+                                    <field name="write_date" string="Last write"/>
+                                    <field name="name"/>
+                                    <field name="runtime_state"/>
+                                    <field name="runner_cost"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_runner" model="ir.actions.act_window">
+        <field name="name">Runners</field>
+        <field name="res_model">flightdeck.runner</field>
+        <field name="view_mode">list,form</field>
+    </record>
+</odoo>

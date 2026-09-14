@@ -1,4 +1,5 @@
 import glob
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -210,7 +211,14 @@ class FlightdeckSession(models.Model):
         elif size == offset:
             return 0
 
-        rows, results, consumed, lines = transcript_reader.read_tail(path, offset, first_line)
+        try:
+            rows, results, consumed, lines = transcript_reader.read_tail(path, offset, first_line)
+        except OSError as e:
+            # A file the runner has not shared yet, or one whose ACL was lost.
+            # The next tick reads it; failing the whole pass would stop every
+            # other followed session too.
+            _logger.warning("cannot read %s yet: %s", path, e)
+            return 0
         Text = self.env["flightdeck.message.text"]
         by_uuid = {}
         if rows:
@@ -232,7 +240,12 @@ class FlightdeckSession(models.Model):
                 ("tool_output", "=", False),
             ])
             for call in calls:
-                call.tool_output = results[call.tool_use_id]
+                found = results[call.tool_use_id]
+                vals = {"tool_output": found["text"]}
+                if found.get("images"):
+                    vals["tool_images"] = json.dumps(found["images"])
+                    vals["tool_result_offset"] = found.get("offset") or 0
+                call.write(vals)
             calls._bus_update()
 
         self.write({

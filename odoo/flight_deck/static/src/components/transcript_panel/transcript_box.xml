@@ -7,6 +7,8 @@
                 <span class="fd_box_count">
                     <t t-esc="shown.length"/> of <t t-esc="state.total"/> turns
                 </span>
+                <span t-if="state.runtime" t-attf-class="fd_box_state fd_box_state_{{state.runtime}}"
+                      t-att-title="state.runtimeError" t-esc="state.runtime"/>
                 <span class="fd_box_spacer"/>
                 <button class="fd_box_chip" t-att-class="{ 'fd_off': !roles.user }"
                         t-on-click="() => this.toggleRole('user')">User</button>
@@ -38,11 +40,8 @@
                             </div>
                             <pre t-attf-class="fd_tool_in {{ state.open[line.id] ? '' : 'fd_clamp' }}"
                                  t-esc="line.tool_input"/>
-                            <t t-if="state.open[line.id]">
-                                <div class="fd_tool_label">Output</div>
-                                <pre class="fd_tool_out"
-                                     t-esc="line.tool_output or 'No output recorded for this call.'"/>
-                            </t>
+                            <t t-component="rendererOf(line)"
+                               t-props="{ line: line, open: !!state.open[line.id] }"/>
                         </div>
                     </div>
                     <div t-if="!shown.length" class="fd_box_empty">No turns to show.</div>
@@ -52,22 +51,99 @@
                 </t>
             </div>
 
-            <!-- Sending runs a real turn, which takes seconds, so the box says
-                 so and stays disabled until it comes back. The reply is not
-                 added here: it arrives over the bus like any other turn. -->
+            <!-- The process is parked while this is on screen: the runner is
+                 holding the CLI's request open until one of these buttons
+                 answers it, or its own timeout does. -->
+            <div t-if="ask" class="fd_ask" tabindex="0" t-ref="ask" t-on-keydown="onAskKeydown">
+                <div class="fd_ask_head">
+                    <span class="fd_ask_badge">Permission</span>
+                    <span class="fd_ask_tool" t-esc="ask.tool_name"/>
+                    <span class="fd_box_spacer"/>
+                    <span t-if="state.asks.length > 1" class="fd_ask_more">
+                        +<t t-esc="state.asks.length - 1"/> more waiting
+                    </span>
+                </div>
+                <div t-if="ask.summary" class="fd_ask_summary" t-esc="ask.summary"/>
+                <div t-if="ask.description" class="fd_ask_desc" t-esc="ask.description"/>
+                <div t-if="ask.blocked_path" class="fd_ask_path">
+                    Reaches outside the working directory: <span t-esc="ask.blocked_path"/>
+                </div>
+                <pre t-if="ask.tool_input" class="fd_ask_input" t-esc="ask.tool_input"/>
+                <div class="fd_ask_actions">
+                    <button class="btn btn-primary btn-sm" t-att-disabled="state.deciding"
+                            t-on-click="() => this.decide('allow', 'once')">Allow</button>
+                    <button class="btn btn-secondary btn-sm" t-att-disabled="state.deciding"
+                            t-on-click="() => this.decide('allow', 'session')">Allow for this session</button>
+                    <button t-if="ask.can_remember" class="btn btn-secondary btn-sm"
+                            t-att-disabled="state.deciding"
+                            t-on-click="() => this.decide('allow', 'always')">Always allow</button>
+                    <span class="fd_box_spacer"/>
+                    <button class="btn btn-outline-danger btn-sm" t-att-disabled="state.deciding"
+                            t-on-click="() => this.decide('deny')">Deny</button>
+                </div>
+                <div class="fd_ask_hint">Enter allows once, Escape denies.</div>
+            </div>
+
+            <!-- Sending only queues the turn for the runner; the reply arrives
+                 over the bus like any other turn, and the state chip above says
+                 what the process is doing meanwhile. -->
             <div class="fd_box_compose">
                 <div t-if="state.error" class="fd_box_error" t-esc="state.error"/>
+                <div t-if="!state.error and state.runtimeError" class="fd_box_error" t-esc="state.runtimeError"/>
                 <textarea class="fd_box_input" rows="1" t-ref="draft"
                           t-att-disabled="state.sending or !props.resId"
                           t-model="state.draft"
                           t-on-keydown="onKeydown"
                           title="Enter sends, Shift+Enter starts a new line."
-                          t-attf-placeholder="{{ state.sending ? 'Waiting for the reply…' : 'Message this session…' }}"/>
-                <button class="fd_box_send" t-on-click="() => this.send()"
-                        t-att-disabled="state.sending or !state.draft.trim()">
-                    <t t-if="state.sending">Sending…</t>
-                    <t t-else="">Send</t>
-                </button>
+                          t-att-placeholder="placeholder"/>
+                <div class="fd_box_bar">
+                    <select class="fd_box_mode" t-on-change="setMode"
+                            title="What Claude may do without asking. Takes effect on the next turn.">
+                        <option t-foreach="modes" t-as="mode" t-key="mode[0]"
+                                t-att-value="mode[0]" t-att-selected="state.mode === mode[0]"
+                                t-esc="mode[1]"/>
+                    </select>
+                    <span t-if="state.modeSaving" class="fd_box_hint">saving…</span>
+                    <div class="fd_box_picker">
+                        <button class="fd_box_badge" t-on-click.stop="togglePicker"
+                                title="Which model answers, and how hard it works.">
+                            <t t-esc="modelLabel"/>
+                            <span t-if="effortLabel" class="fd_box_badge_effort" t-esc="effortLabel"/>
+                        </button>
+                        <div t-if="state.picking" class="fd_box_menu" t-on-click.stop="">
+                            <div class="fd_box_menu_head">Select a model</div>
+                            <button t-foreach="state.models" t-as="m" t-key="m.value"
+                                    class="fd_box_menu_item"
+                                    t-att-class="{ fd_on: state.model === m.value }"
+                                    t-on-click="() => this.pickModel(m.value)">
+                                <span class="fd_box_menu_label">
+                                    <t t-esc="m.label"/>
+                                    <span t-if="state.model === m.value" class="fd_box_menu_tick">✓</span>
+                                </span>
+                                <span class="fd_box_menu_note" t-esc="m.note"/>
+                            </button>
+                            <div class="fd_box_menu_head">
+                                Effort
+                                <span class="fd_box_menu_note">
+                                    Changing this on a running session costs one turn.
+                                </span>
+                            </div>
+                            <div class="fd_box_menu_efforts">
+                                <button t-foreach="state.efforts" t-as="e" t-key="e.value"
+                                        class="fd_box_menu_pill"
+                                        t-att-class="{ fd_on: state.effort === e.value }"
+                                        t-on-click="() => this.pickEffort(e.value)"
+                                        t-esc="e.label"/>
+                            </div>
+                        </div>
+                    </div>
+                    <span class="fd_box_spacer"/>
+                    <button class="fd_box_send" t-on-click="() => this.send()"
+                            t-att-disabled="state.sending or !state.draft.trim()">
+                        <t t-if="state.sending">Sending…</t>
+                        <t t-else="">Send</t>
+                    </button>
+                </div>
             </div>
         </div>
     </t>

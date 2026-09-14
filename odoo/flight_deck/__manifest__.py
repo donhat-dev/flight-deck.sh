@@ -13,6 +13,8 @@
         "data/transcript_subtype_data.xml",
         "data/follow_cron.xml",
         "views/session_views.xml",
+        "views/runner_views.xml",
+        "views/decision_views.xml",
         "views/message_views.xml",
         "views/treasure_views.xml",
         "views/price_views.xml",

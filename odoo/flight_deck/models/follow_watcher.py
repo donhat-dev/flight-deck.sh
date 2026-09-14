@@ -101,6 +101,11 @@ class _Watcher(threading.Thread):
                     path = session._transcript_path()
                     if path:
                         dirs.add(os.path.dirname(path))
+                # A runner's events file lives in its spool directory, and it
+                # is written right after the turn lands in the transcript.
+                for runner in env["flightdeck.runner"].search([]):
+                    if runner.spool_dir and os.path.isdir(runner.spool_dir):
+                        dirs.add(runner.spool_dir)
         except Exception:
             _logger.exception("could not list followed sessions")
         return dirs

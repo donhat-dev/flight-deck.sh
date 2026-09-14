@@ -20,6 +20,7 @@ function compileTranscriptPanel() {
     setAttributes(box, {
         "t-component": "__comp__.fdTranscriptBox",
         resId: "__comp__.props.record.resId or false",
+        record: "__comp__.props.record",
         class: "'fd_box_aside'",
     });
     append(hook, box);
