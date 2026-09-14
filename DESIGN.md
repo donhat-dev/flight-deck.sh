@@ -7,6 +7,8 @@ Behavior and accessibility contract: `docs/flightdeck-component-system.md`
 
 This file is the visual source of truth for humans, coding agents, and screen-generation tools. New screens must feel native to FlightDeck before they feel novel. If a token value changes in code, update this file in the same change.
 
+**Single source, as of 2026-09-07. Flat since the same day** — the four-rung offset ladder was written, trialled for an afternoon and reverted. The Night Ops tokens are the baseline, depth is gone, §5 is now the flat state contract and §4 carries the radius split. The ladder is preserved in `showcases/flightdeck-depth-unification.html` and `OUTDATED_CHOICES.md`, not in the code. The parallel `design-system-flightdeck-night` skill is retired and moved to `orphans/`; its Night Ops direction (Outfit, `#050505`, double-bezel, glow, pill radii) is recorded in `OUTDATED_CHOICES.md` for reading older artifacts and the `pencil-new.pen` canvas history. Nothing else describes FlightDeck's visual language. Where this file and the code disagree, **the code wins and this file gets corrected** — `frontend/src/ui/compositionLint.test.jsx` is the executable half of this contract, and its rule ids are cited below.
+
 ## 1. Visual Theme and Atmosphere
 
 FlightDeck is a warm, tactile operational instrument: the precision of an aircraft checklist combined with the clarity of a printed technical manual. It is dark without becoming cyberpunk, expressive without becoming decorative, and dense without feeling cramped.
@@ -14,15 +16,15 @@ FlightDeck is a warm, tactile operational instrument: the precision of an aircra
 - **Density: 8/10 — Cockpit Dense.** Operational data is compact, aligned, and scan-first. Space separates decisions, not every individual fact.
 - **Variance: 6/10 — Offset Asymmetric.** Heroes and editorial sections use uneven splits, offset alignment, and controlled negative space. Product data remains grid-disciplined.
 - **Motion: 5/10 — Fluid and Restrained.** Motion confirms state, sequence, or live activity. Static controls do not move merely to attract attention.
-- **Material language:** warm paper, charcoal ink, coral signal, hairline rules, square controls, printed offset depth.
-- **Lighting direction:** every physical shadow falls four pixels down and right. Do not invent a second light source.
-- **Surface philosophy:** use joined planes and rules before floating cards. Elevation is reserved for actionable controls, overlays, and featured instrument surfaces.
+- **Material language:** warm paper, charcoal ink, coral signal, hairline rules, pill-shaped actions on square panels, flat surfaces. Nothing in the product lifts off the page.
+- **Lighting direction:** none. There is no physical shadow in the product. Separation comes from a hairline, a change of ground value, or type weight, in that order.
+- **Surface philosophy:** joined planes and rules, never floating cards. Elevation is reserved for a true overlay, which has to separate from what it covers; it is not available to controls, panels or cards.
 
 The result should resemble a working control deck rendered by an editorial design studio, never a generic SaaS dashboard.
 
 ## 2. Color Palette and Functional Roles
 
-Coral is the only product accent. Pink and orange are depth materials, not additional accents: they may appear in offset shadows but never as decorative text, navigation color, or arbitrary highlights.
+Coral is the only product accent. **Pink is a card tint — a background, never a shadow and never text** (`compositionLint` C6a fires on either). **Orange is both a face and a depth**, because Day is an orange key with a dark offset and Night is the reverse; treating orange as depth-only was the previous contract and is no longer true. Neither is a decorative text colour, a navigation colour, or an arbitrary highlight.
 
 ### Night palette
 
@@ -39,13 +41,14 @@ Coral is the only product accent. Pink and orange are depth materials, not addit
 - **Action Hover** (`#BD351B`) — primary control hover face.
 - **Action Pressed** (`#A92D16`) — primary control pressed face.
 - **Ink Frame** (`#211812`) — the structural border separating a control face from its depth.
-- **Pink Depth** (`#F47F96`) — default primary and inverse control offset.
+- **Card Tint** (`#F47F96`, token `--fdx-card-tint`) — selected and featured card backgrounds. Background only.
 - **Orange Depth** (`#FF9A35`) — secondary, loading, and error control offset.
 - **Muted Depth** (`#4C4139`) — disabled control offset.
 - **Critical** (`#F16D74`) — error status and inline validation.
 - **Warning** (`#E6B85C`) — delayed or cautionary state.
 - **Positive** (`#62C59B`) — live, connected, and completed state.
 - **Focus Signal** (`#FF7355`) — keyboard focus outline only.
+- **Environment Blue** (`#4E93CC`, deeper `#3E7CB1` / `#2E6FB0`) — panels, chart series and the roundel horizon **only**. Never a button, a link, a badge or a navigation accent, and never mixed into the neutral ramp. Listed here because the code has used it since before this file existed; it is an environment colour, not a second accent.
 
 ### Day palette
 
@@ -56,20 +59,21 @@ Coral is the only product accent. Pink and orange are depth materials, not addit
 - **Muted Ink** (`#6D655A`) — descriptions and metadata.
 - **Day Coral Signal** (`#D94625`) — active product accent.
 - **Day Action Face** (`#C73A1E`) — primary button face.
-- **Day Pink Depth** (`#E96884`) — default offset depth.
+- **Day Card Tint** (`#E96884`) — selected and featured card backgrounds. Background only.
 - **Day Orange Depth** (`#ED881F`) — loading, secondary, and error offset depth.
 - **Day Positive** (`#1F7052`) — live and success.
 - **Day Warning** (`#865D0C`) — caution.
 - **Day Critical** (`#A82E3D`) — errors.
 - **Day Focus** (`#B42F12`) — keyboard focus.
+- **Day Environment Blue** (`#2E6395`) — same scope as Night.
 
 ### Color rules
 
 1. Use Coral Signal for one primary decision or one active state in a local region.
-2. Never use Pink Depth or Orange Depth as body text, badges, charts, or navigation accents.
+2. Never use the Card Tint as a shadow, body text, badge, chart series, or navigation accent. Never use Orange as body text or a chart series; as a control face or a control depth it is correct.
 3. Status colors always include a label, value, icon shape, or position cue.
 4. Do not use blue-purple gradients, neon edges, bloom, or outer glows.
-5. Do not mix cool blue-gray neutrals into the warm paper and ink family.
+5. Do not mix cool blue-gray neutrals into the warm paper and ink family. The Environment Blue is not a neutral and is scoped by its own rule above.
 6. Avoid decorative gradients. Ambient color may use a restrained radial wash below 12% opacity.
 
 ## 3. Typography Architecture
@@ -105,51 +109,80 @@ Use only the established spacing scale:
 
 Shape rules:
 
-- Controls use `2px` or `5px` radii.
-- Floating overlays may use `10px`.
-- Do not apply pill radii to primary buttons, cards, fields, or tabs.
-- Status dots and switch tracks may be circular because their geometry communicates state.
-- Product cards are normally square and joined. Rounded floating cards are exceptional.
+Radius says what a thing **is**, not how important it is. Two families, and an element belongs to exactly one:
 
-## 5. Control Depth Contract
+- **Actions are pills** (`--fdx-radius-control`, `999px`): button, icon button, input field, select, toggle and its track, segmented control, tab, filter pill, badge, pagination control. If a pointer press changes state, it is a pill.
+- **Everything else is `5px`** (`--fdx-radius-block`): panel, card, table, table row, group header, popover, sheet, rail, chip, widget slot, code block. If it receives content, it is a block.
+- Floating overlays may use `10px` (`--fdx-radius-md`).
+- Status dots stay circular, because their geometry is the state.
+- Product blocks are joined into rule grids. A rounded floating card is exceptional and needs a reason.
 
-Every tactile control separates three visual layers:
+The pair is the point: a pill beside a `5px` panel reads as an action against a surface, with no depth spent. A `5px` button and a pill-shaped table both break the distinction and are defects.
+
+## 5. Control State Contract
+
+Controls are flat. A control separates from its ground by **fill, a one-pixel rule, and its pill shape** — never by a shadow. Two layers only:
 
 1. **Face** — the state-bearing surface.
-2. **Frame** — a two-pixel Ink Frame that gives the control a physical edge.
-3. **Depth** — a solid offset shadow with a color different from the face.
+2. **Rule** — a one-pixel hairline giving the control an edge against its ground.
 
-Default physical values:
+### 5.1 How state is expressed
 
-- Rest: `4px 4px 0`
-- Hover: `5px 5px 0` with the face moving `-1px, -1px`
-- Pressed: `1px 1px 0` with the face moving `3px, 3px`
-- Disabled: `3px 3px 0` using Muted Depth
-- Inner edge: a one-pixel warm highlight at approximately 26% opacity
+The ladder that offset shadows used to carry is carried by ground value instead. Each step is one surface up the ground scale from §2, so no new token is needed.
 
-The face and depth must never use the same color. Do not replace the offset with a blurred drop shadow. Do not remove depth from loading or disabled states; reduce contrast while retaining mass.
+| State | Face | Rule | Extra |
+|---|---|---|---|
+| Rest | Instrument Surface | Hairline | none |
+| Hover | Raised Instrument Surface | Strong Rule | none |
+| Active, pressed | Raised Instrument Surface | Strong Rule | the press is confirmed by colour, not by travel |
+| Selected, current | Raised Instrument Surface | Strong Rule | a two-pixel coral **inset** bar on the leading edge |
+| Focus-visible | unchanged | unchanged | `outline: 2px solid Coral Signal; outline-offset: 2px` |
+| Disabled | Instrument Surface at 40% | Hairline | `pointer-events: none`, label stays legible |
+| Loading | unchanged | unchanged | label swaps to a mono `WORKING` with a pulsing dot; repeat activation refused |
+
+A primary action carries the Action Face fill. That is what makes it primary — one per region, and it needs no height to say so.
+
+### 5.2 Inset is not depth
+
+`inset` shadows stay legal and are the only shadow form a control may carry: the two-pixel coral leading bar on a selected row, the four-pixel coral rule under an open tab, the one-pixel warm highlight on a light surface. They describe an edge inside the element and cast nothing. `compositionLint` allows `inset` and fires on every outset form.
+
+### 5.3 The one exception
+
+A true overlay may carry a soft shadow, because it separates from live content underneath rather than from its own ground. Today that is `.fdx-console` alone, and the exemption is declared where the code is, with a `composition-lint-allow` marker and a reason. A panel, card or popover that merely wants to look important does not qualify.
+
+### 5.4 Invariants
+
+No outset shadow anywhere except the declared overlay. No blurred shadow on any ground plane. No control travel on press. Disabled and loading keep the exact footprint of rest, so nothing reflows when state changes.
 
 ## 6. Component Inventory and Styling
 
-The public contract contains exactly 18 components. New primitives require an implementation, a product example, responsive rules, keyboard behavior, tests, and documentation before entering this inventory.
+The public contract contains exactly 19 components. New primitives require an implementation, a product example, responsive rules, keyboard behavior, tests, and documentation before entering this inventory.
 
 ### Actions
 
 #### Button
 
-- Primary: Action Face, Ink Frame, Pink Depth, warm-white label.
-- Secondary: Instrument Surface, Warm Paper frame, Orange Depth.
-- Inverse: Warm Paper face, Ink Frame, Pink Depth.
-- Error: deep critical face, Ink Frame, Orange Depth.
-- Loading retains orange depth and displays a compact activity indicator without accepting repeat activation.
-- Active state physically moves into its shadow.
+- Pill radius, one-pixel rule, no shadow (§4, §5).
+- Primary: Action Face, warm-white label. One per region, and the fill is what says so.
+- Secondary: Instrument Surface, Warm Paper rule.
+- Inverse: Warm Paper face, Inverse Ink label.
+- Error: deep critical face, warm-white label.
+- Loading keeps the footprint and shows a compact activity indicator without accepting repeat activation.
+- Active state changes fill and rule. It does not move.
 - Labels are verb-first and describe the result.
 
 #### IconButton
 
-- Uses the same physical grammar in a square 44-pixel target.
+- Uses the same flat grammar in a pill-shaped 44-pixel target.
 - Requires an accessible label and title.
-- One icon only; use consistent 1.7–2px strokes.
+- One icon only. The 1.7–2px stroke rule scopes to the line icons in `ui/icons.jsx`; a PixelMark is a fill and is exempt.
+
+#### PixelMark
+
+- Navigation and mode marks are 8x8 filled grids drawn at 16px, so one cell is exactly two device pixels and the edges stay crisp (`shapeRendering: crispEdges`).
+- Authored as an ASCII grid and compiled to a single `<path>` at module load, so a mistyped grid throws on import instead of drawing a wrong-but-plausible shape. Reference: `frontend/src/ui/PixelMark.jsx`.
+- No icon font and no icon dependency. A mark that cannot be read at 16px does not belong in the set.
+- The mark sits in a `5px` chip carrying its own fill and rule, no shadow. A chip is a mark, not an action; the nav row around it is the action and takes the pill. The chip is what survives a rail collapsing to 76px, because the label does not.
 
 ### Input
 
@@ -175,7 +208,7 @@ The public contract contains exactly 18 components. New primitives require an im
 #### CheckField
 
 - Retains a native checkbox in the accessibility tree.
-- Custom square mark uses Ink Frame and a two-pixel Orange or Pink Depth.
+- Custom mark uses a one-pixel rule at `5px` radius and a coral fill when checked. A checkbox is a mark, not an action, so it does not take the pill.
 - Use for independent selection or explicit acknowledgement.
 
 #### Toggle
@@ -349,10 +382,13 @@ FlightDeck copy is concise, direct, and operational.
 - No serif fonts in the product interface.
 - No purple or blue neon aesthetic.
 - No outer glow, bloom, glassy neon edge, or blurred control shadow.
-- No face and depth using the same color.
+- No outset shadow on anything except the one declared overlay.
+- No control that travels on press.
+- No pill on a panel, table, card or chip.
+- No `5px` radius on a button, field, toggle or tab.
+- No blurred shadow on a ground plane.
 - No pink or orange depth colors reused as arbitrary accents.
 - No gradient text on large headings.
-- No pill-shaped primary controls.
 - No custom mouse cursor.
 - No emoji as interface iconography.
 - No overlapping text, imagery, or controls.
@@ -373,7 +409,7 @@ A FlightDeck screen is complete only when:
 
 - it uses the Night or Day palette without introducing another accent;
 - typography follows the display/body/mono roles;
-- actionable controls preserve face, frame, and depth;
+- actionable controls are flat pills with a face and a rule, and blocks are `5px`;
 - layout is contained, asymmetric where editorial, and grid-disciplined where operational;
 - all states are explicit and stable;
 - keyboard, touch, reduced-motion, and focus behavior pass;
