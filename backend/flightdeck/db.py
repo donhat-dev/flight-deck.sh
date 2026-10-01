@@ -309,13 +309,16 @@ CREATE TABLE IF NOT EXISTS quota_readings (
 );
 """
 
-# PostgreSQL schema. messages/tool_calls/files are DERIVED from the JSONL and
-# fully rebuildable, so they are UNLOGGED (skip WAL, faster ingest, emptied only
-# on an unclean crash -> re-ingested on next start). session_meta holds user
-# input (custom titles) so it stays LOGGED (durable). hub_credentials is created
-# LOGGED by hub/credentials.py.
+# PostgreSQL schema. tool_calls/files are DERIVED from the JSONL and
+# rebuildable while the transcript exists, so they are UNLOGGED (skip WAL,
+# emptied on an unclean crash; the backfill checks re-read them). messages and
+# response_timing are LOGGED: Claude Code deletes old transcripts, so for those
+# sessions the row is the only copy, and crash recovery on 2026-08-25 and
+# 2026-09-29 emptied them when they were UNLOGGED. session_meta holds user input
+# (custom titles) so it stays LOGGED. hub_credentials is created LOGGED by
+# hub/credentials.py.
 _SCHEMA_PG = """
-CREATE UNLOGGED TABLE IF NOT EXISTS messages (
+CREATE TABLE IF NOT EXISTS messages (
   uuid text PRIMARY KEY,
   session_id text,
   project text,
@@ -347,6 +350,9 @@ ALTER TABLE messages ADD COLUMN IF NOT EXISTS prompt_id text;
 ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id text;
 CREATE INDEX IF NOT EXISTS idx_messages_msgid ON messages(message_id, request_id);
 CREATE INDEX IF NOT EXISTS idx_messages_prompt ON messages(prompt_id);
+-- A ledger created UNLOGGED before 2026-10-01 is converted in place; on a
+-- table that is already LOGGED this is a no-op.
+ALTER TABLE messages SET LOGGED;
 
 CREATE UNLOGGED TABLE IF NOT EXISTS files (
   path text PRIMARY KEY,
@@ -419,8 +425,9 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_tool ON tool_calls(tool);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_server ON tool_calls(server);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
 
--- Derived from the JSONL like messages, so UNLOGGED (flightdeck.thinking).
-CREATE UNLOGGED TABLE IF NOT EXISTS response_timing (
+-- One row per response (flightdeck.thinking); LOGGED like messages, since a
+-- deleted transcript cannot rebuild it.
+CREATE TABLE IF NOT EXISTS response_timing (
   message_id text NOT NULL,
   request_id text NOT NULL,
   session_id text,
@@ -435,6 +442,7 @@ CREATE UNLOGGED TABLE IF NOT EXISTS response_timing (
   PRIMARY KEY (message_id, request_id)
 );
 CREATE INDEX IF NOT EXISTS idx_response_timing_started ON response_timing(started_at);
+ALTER TABLE response_timing SET LOGGED;
 
 -- Poll history is not rebuildable from the JSONL, so this one is LOGGED.
 CREATE TABLE IF NOT EXISTS quota_readings (
