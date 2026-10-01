@@ -2,8 +2,9 @@
 import glob
 import json
 import os
+from datetime import datetime
 
-from flightdeck import activity
+from flightdeck import activity, thinking
 
 _COLS = ("uuid", "session_id", "project", "model", "ts", "input_tokens",
          "cache_read", "cache_create_5m", "cache_create_1h",
@@ -216,6 +217,10 @@ def ingest_file(conn, path: str) -> int:
         start = rec["bytes_ingested"]
     # else: new file or truncated/rotated -> re-ingest from 0
     tracker = activity.FileTracker(conn, path, rec, start, _IDLE_CAP_SECONDS)
+    # Timestamp of the record before the current line: a response's start.
+    prev_ts = None
+    if start > 0 and rec and rec.get("act_last_ts"):
+        prev_ts = thinking.zulu(datetime.fromisoformat(rec["act_last_ts"]))
     new_rows = 0
     lines = 0
     committed = 0  # bytes past the last newline-terminated line consumed
@@ -239,11 +244,15 @@ def ingest_file(conn, path: str) -> int:
                 row.update({"prompt_id": None, "agent_id": None} if tracker.is_replay(obj)
                            else tracker.stamp())
                 status = _upsert(conn, row)
+                thinking.record(conn, row, obj, prev_ts, tracker.agent_id)
             if status is True:
                 new_rows += 1
             else:
                 _title_upsert(conn, obj)
             tracker.feed(obj, copied=status == "copy")
+            ts = obj.get("timestamp")
+            if ts and (prev_ts is None or ts > prev_ts):
+                prev_ts = ts
             # tool_use extraction is independent of usage/message dedup: an
             # assistant line carries BOTH a usage row and its tool_use block,
             # so run it for every line (INSERT OR IGNORE keeps it idempotent).
@@ -290,8 +299,24 @@ def _maybe_backfill_tool_calls(conn) -> bool:
     return True
 
 
+def _maybe_backfill_response_timing(conn) -> bool:
+    """One-time migration, same shape as _maybe_backfill_tool_calls, for the
+    response_timing table (flightdeck.thinking)."""
+    if conn.execute("SELECT EXISTS(SELECT 1 FROM response_timing)").fetchone()[0]:
+        return False
+    if not conn.execute("SELECT EXISTS(SELECT 1 FROM messages)").fetchone()[0]:
+        return False
+    conn.execute("DELETE FROM files")
+    conn.commit()
+    _stat_cache.clear()
+    print("[ingest] response_timing backfill: cleared files table to re-scan for "
+          "response timing (all writers on this path are idempotent)")
+    return True
+
+
 def ingest_all(conn, projects_dir: str) -> int:
     _maybe_backfill_tool_calls(conn)
+    _maybe_backfill_response_timing(conn)
     projects_dir = os.path.expanduser(projects_dir)
     total = 0
     for path in glob.glob(os.path.join(projects_dir, "**", "*.jsonl"),
@@ -304,6 +329,7 @@ def ingest_paths(conn, paths) -> int:
     """Ingest a specific set of changed files (watcher delta) instead of
     re-globbing the whole tree. Non-jsonl / missing paths are skipped."""
     _maybe_backfill_tool_calls(conn)
+    _maybe_backfill_response_timing(conn)
     total = 0
     for path in paths:
         if str(path).endswith(".jsonl"):

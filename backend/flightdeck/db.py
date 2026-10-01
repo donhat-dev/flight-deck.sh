@@ -278,6 +278,24 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_tool ON tool_calls(tool);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_server ON tool_calls(server);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
 
+-- One row per API response (flightdeck.thinking): when the request went out, when
+-- thinking and the response ended, thinking tokens. Derived from the JSONL.
+CREATE TABLE IF NOT EXISTS response_timing (
+  message_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  session_id TEXT,
+  agent_id TEXT,
+  model TEXT,
+  effort TEXT,
+  started_at TEXT,
+  think_end_at TEXT,
+  ended_at TEXT,
+  thinking_tokens INTEGER,
+  output_tokens INTEGER,
+  PRIMARY KEY (message_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_response_timing_started ON response_timing(started_at);
+
 -- One row per /usage poll (flightdeck.burn). Not derived from the JSONL, so it is
 -- never rebuilt. `models` is JSON: [{label, pct, reset_at}] for per-model buckets.
 CREATE TABLE IF NOT EXISTS quota_readings (
@@ -400,6 +418,23 @@ CREATE INDEX IF NOT EXISTS idx_tool_calls_session ON tool_calls(session_id);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_tool ON tool_calls(tool);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_server ON tool_calls(server);
 CREATE INDEX IF NOT EXISTS idx_tool_calls_ts ON tool_calls(ts);
+
+-- Derived from the JSONL like messages, so UNLOGGED (flightdeck.thinking).
+CREATE UNLOGGED TABLE IF NOT EXISTS response_timing (
+  message_id text NOT NULL,
+  request_id text NOT NULL,
+  session_id text,
+  agent_id text,
+  model text,
+  effort text,
+  started_at text,
+  think_end_at text,
+  ended_at text,
+  thinking_tokens bigint,
+  output_tokens bigint,
+  PRIMARY KEY (message_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_response_timing_started ON response_timing(started_at);
 
 -- Poll history is not rebuildable from the JSONL, so this one is LOGGED.
 CREATE TABLE IF NOT EXISTS quota_readings (

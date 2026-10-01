@@ -19,7 +19,7 @@ from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
 from flightdeck.routers import (burn, charts, core, diff, hub, missions, radar, sessions,
-                               stream, treasures, treasure_config, appearance)
+                               stream, thinking, treasures, treasure_config, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -70,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(missions.router)
     app.include_router(burn.router)
+    app.include_router(thinking.router)
     app.include_router(charts.router)
     app.include_router(diff.router)
     app.include_router(hub.router)
