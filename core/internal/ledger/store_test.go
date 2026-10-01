@@ -2,8 +2,56 @@ package ledger
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 )
+
+// A read-only command must open the ledger while another process holds a long
+// write transaction (fd import, a cold read): WAL lets readers through.
+func TestOpenDoesNotWaitForAWriter(t *testing.T) {
+	s, path := open(t)
+	tx, err := s.DB.Begin()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`INSERT INTO meta (key, value) VALUES ('probe', 'x')`); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		s2, err := Open(path)
+		if err == nil {
+			_, err = Prices(s2.DB)
+			s2.Close()
+		}
+		done <- err
+	}()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("Open waited for the writer")
+	}
+}
+
+// An older fd must not write into a ledger whose layout a newer fd changed.
+func TestALedgerFromANewerFdIsRefused(t *testing.T) {
+	s, path := open(t)
+	if _, err := s.DB.Exec(`UPDATE meta SET value='99' WHERE key='schema_version'`); err != nil {
+		t.Fatal(err)
+	}
+	s.Close()
+	if s2, err := Open(path); err == nil || !strings.Contains(err.Error(), "newer") {
+		if s2 != nil {
+			s2.Close()
+		}
+		t.Fatalf("opened a schema 99 ledger: %v", err)
+	}
+}
 
 func open(t *testing.T) (*Store, string) {
 	t.Helper()

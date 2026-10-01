@@ -111,7 +111,7 @@ func (s *Server) IngestPaths(paths []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	in := ingest.Ingester{Store: s.Store}
-	for _, p := range paths {
+	for _, p := range ingest.Order(paths) {
 		if _, err := in.File(p); err != nil {
 			log.Printf("ingest %s: %v", p, err)
 		}

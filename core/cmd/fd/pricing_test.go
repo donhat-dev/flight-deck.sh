@@ -50,6 +50,26 @@ func TestPricingSetChangesTheCostOfTokensAlreadyRead(t *testing.T) {
 	}
 }
 
+// Changing Opus 5.5's input price must not quietly reset its 0.05 cache-read
+// multiplier or drop its fast-mode pair: cache reads are most of its bill.
+func TestPricingSetKeepsWhatItWasNotTold(t *testing.T) {
+	db := filepath.Join(t.TempDir(), "l.db")
+	if code, _, errOut := runFd("pricing", "set", "claude-opus-5-5", "--input", "5", "--output", "25",
+		"--json", "--db", db); code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	for _, r := range listPrices(t, db).Models {
+		if r.Prefix != "claude-opus-5-5" {
+			continue
+		}
+		if r.Input != 5 || r.CacheReadMult != 0.05 || r.FastInput == nil || *r.FastInput != 8 {
+			t.Fatalf("%+v", r)
+		}
+		return
+	}
+	t.Fatal("no claude-opus-5-5 row")
+}
+
 func TestPricingSetRefusesWhatWouldPriceWrongly(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "l.db")
 	for name, args := range map[string][]string{
