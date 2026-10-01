@@ -263,6 +263,27 @@ func TestSweepReadsTheOldestFileFirst(t *testing.T) {
 	}
 }
 
+// A resumed or forked session gets a new file while its parent may keep
+// running, so the parent can have the newer mtime. Creation order decides: on
+// 2026-10-01 mtime order billed 360 of an active session's responses to the
+// fork started from it.
+func TestAParentStillWritingKeepsItsResponsesFromALaterFork(t *testing.T) {
+	s, in, root := setup(t)
+	parent := filepath.Join(root, "-p", "parent.jsonl")
+	child := filepath.Join(root, "-p", "child.jsonl")
+	write(t, parent, asst("u1", "parent", "M1", 5))
+	time.Sleep(20 * time.Millisecond)
+	write(t, child, asst("u9", "child", "M1", 5))
+	time.Sleep(20 * time.Millisecond)
+	write(t, parent, asst("u2", "parent", "M2", 5))
+	mustSweep(t, in, root)
+	var sid string
+	s.DB.QueryRow(`SELECT session_id FROM responses WHERE message_id='M1'`).Scan(&sid)
+	if sid != "parent" {
+		t.Fatalf("billed to %s", sid)
+	}
+}
+
 func TestSweepReadsSubagentsAndSkipsDotDirectories(t *testing.T) {
 	s, in, root := setup(t)
 	write(t, filepath.Join(root, "-p", "s1", "subagents", "agent-a.jsonl"), asst("u1", "s1", "M1", 5))
