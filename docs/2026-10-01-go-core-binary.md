@@ -106,6 +106,12 @@ query parameters and JSON keys as FastAPI. Gaps:
 - `rtk_savings` is 0, and `daily[].agent_hours*` are 0 until the activity slice.
 - `sessions[].subagents` is not returned.
 - Every other `/api/*` path answers 404 with `{"error": …}`.
+- Found on 2026-10-01: the current UI loads summary, daily, sessions and
+  by-model in one `Promise.all` with `/api/usage-windows` and `/api/quota`
+  (`App.jsx` `load`), so one 404 leaves the whole Spend view on skeletons.
+  `fd serve --ui` shows the Spend view only after the quota slice serves those
+  two, or after the UI loads them separately. The four spend endpoints answer 200
+  (screenshot and request list: `devtools_mcp_trace/fd-serve-2026-10-01/`).
 
 ## Acceptance
 
@@ -153,3 +159,18 @@ Each of these gets its own plan, built on the same ledger and ingest contract.
 
 Resolved 2026-10-01: Sonnet 5.5's published rate is $2/$10, the same as Sonnet 5,
 so the prefix match had priced it correctly; both tables now list it explicitly.
+
+## Measured (parity run, 2026-10-01)
+
+| Check | Result |
+|---|---|
+| Corpus snapshot | 673 files, 1.9 GB (`rsync` of `~/.claude/projects`, mtimes kept) |
+| Python cold ingest (oracle, SQLite) | 14.5 s |
+| `fd` cold ingest | 17.6 s, 45,474 responses |
+| `fd` second ingest (nothing new) | 0.009 s |
+| Parity, 4 ranges × 4 answers | 0 differences (`scripts/go-parity/compare.py`); all-time $8,761.23, 141 sessions on both sides |
+| `GET /api/summary?range=all` p50 | 71 ms (10 requests) |
+
+`fd`'s cold read is slower than Python's: each billed line runs a SELECT and an
+INSERT without prepared statements. It only matters on the first read of a
+ledger; preparing the two statements per file is the obvious first fix.
