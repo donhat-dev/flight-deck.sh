@@ -50,8 +50,11 @@ So, for `fd`:
 
 ## Ingest contract (the one every reader follows)
 
-- Files: `<projects>/**/*.jsonl`, skipping names that start with `.`, read oldest
-  mtime first (then by path). Subagent files carry the parent `sessionId`.
+- Files: `<projects>/**/*.jsonl`, skipping names that start with `.`, read in
+  creation order: birth time (statx), then mtime, then path. Subagent files carry
+  the parent `sessionId`. Creation order, not mtime: a fork or resume starts a
+  new file while its parent may keep running, and on 2026-10-01 mtime order billed
+  360 of an active session's responses to a fork made from it.
 - Read by byte offset. A trailing line without `\n` is left for the next pass. A
   line that does not parse (one real file has a run of NUL bytes) is skipped.
 - A file shorter than the bytes already read was rewritten: read it from the top.

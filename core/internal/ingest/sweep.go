@@ -12,12 +12,14 @@ type Stats struct{ Files, NewRows int }
 
 type Transcript struct {
 	Path    string
+	BornNS  int64 // birth time, or MtimeNS where the filesystem has none
 	MtimeNS int64
 }
 
-// Sweep reads every transcript under root, oldest first. On a cold read the
-// order decides attribution: a resumed session copies its parent's responses,
-// and the first session to bring a response keeps it.
+// Sweep reads every transcript under root in creation order. On a cold read the
+// order decides attribution: a resumed or forked session copies its parent's
+// responses into a new file, and the first session to bring a response keeps
+// it. Modification order is not enough, because the parent may still be running.
 func (in *Ingester) Sweep(root string) (Stats, error) {
 	var st Stats
 	files, err := List(root)
@@ -36,7 +38,7 @@ func (in *Ingester) Sweep(root string) (Stats, error) {
 }
 
 // List finds *.jsonl under root, skipping names that start with "." as
-// Python's glob("**/*.jsonl") does, ordered by mtime and then path.
+// Python's glob("**/*.jsonl") does, ordered by birth time, then mtime, then path.
 func List(root string) ([]Transcript, error) {
 	var out []Transcript
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
@@ -59,10 +61,14 @@ func List(root string) ([]Transcript, error) {
 		if err != nil {
 			return nil
 		}
-		out = append(out, Transcript{p, info.ModTime().UnixNano()})
+		mtime := info.ModTime().UnixNano()
+		out = append(out, Transcript{Path: p, BornNS: bornNS(p, mtime), MtimeNS: mtime})
 		return nil
 	})
 	sort.Slice(out, func(i, j int) bool {
+		if out[i].BornNS != out[j].BornNS {
+			return out[i].BornNS < out[j].BornNS
+		}
 		if out[i].MtimeNS != out[j].MtimeNS {
 			return out[i].MtimeNS < out[j].MtimeNS
 		}

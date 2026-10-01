@@ -1,8 +1,8 @@
 """Spend metrics from the Python backend over a fresh SQLite ledger, as JSON.
 
-The oracle for the Go core: the same transcripts, read in the same order (oldest
-file first, as `fd` does), into a throwaway SQLite file, then the four spend
-answers for every range. Never touches the live Postgres ledger.
+The oracle for the Go core: the same transcripts, read in the same order (birth
+time, then mtime, then path, as `fd` does), into a throwaway SQLite file, then
+the four spend answers for every range. Never touches the live Postgres ledger.
 
     PYTHONPATH=backend .venv/bin/python scripts/go-parity/python_metrics.py \
         --projects ~/.cache/fd-parity/projects --db "$SCRATCH/py.db" \
@@ -12,6 +12,7 @@ import argparse
 import glob
 import json
 import os
+import subprocess
 import sys
 import time
 from datetime import date, timedelta
@@ -33,6 +34,19 @@ def since(range_key):
     return None
 
 
+def birth_ns(paths):
+    """Birth time per path from GNU stat (Python has no statx); 0 = not recorded."""
+    born = {}
+    for i in range(0, len(paths), 200):
+        out = subprocess.run(["stat", "-c", "%.9W\t%n", *paths[i:i + 200]],
+                             capture_output=True, text=True, check=True).stdout
+        for line in out.splitlines():
+            w, _, p = line.partition("\t")
+            sec, _, frac = w.partition(".")
+            born[p] = int(sec) * 10**9 + int((frac + "0" * 9)[:9])
+    return born
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--projects", required=True)
@@ -45,7 +59,13 @@ def main():
     conn = db.connect(a.db)
     root = os.path.expanduser(a.projects)
     paths = glob.glob(os.path.join(root, "**", "*.jsonl"), recursive=True)
-    paths.sort(key=lambda p: (os.stat(p).st_mtime_ns, p))
+    born = birth_ns(paths)
+
+    def order(p):
+        mtime = os.stat(p).st_mtime_ns
+        return (born.get(p) or mtime, mtime, p)
+
+    paths.sort(key=order)
     t0 = time.time()
     for p in paths:
         ingest.ingest_file(conn, p)
