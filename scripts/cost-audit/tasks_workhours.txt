@@ -1,0 +1,29 @@
+CAP=900s since=2026-08-24 tasks=1765 api_calls=21,557
+cost attributed to tasks $4,489, unattributed $2
+cost per task: median $0.63 p90 $7.32 max $79.74
+agent-hours per task: median 0.02 p90 0.25 max 4.19
+day        agent-h  of which subagent-h
+2026-08-24     5.54     1.37
+2026-08-25    11.45     1.37
+2026-08-26     9.15     2.76
+2026-08-27     6.99     1.36
+2026-08-28     7.58     3.21
+2026-09-07     9.47     4.90
+2026-09-08     9.90     1.36
+2026-09-09    11.06     3.32
+2026-09-10     8.92     2.68
+2026-09-11    15.71     7.34
+2026-09-14    15.89     8.33
+2026-09-15     9.35     0.44
+2026-09-16    10.29     5.30
+2026-09-17     4.40     0.67
+2026-09-18     7.78     2.00
+2026-09-21     4.95     0.85
+2026-09-22     9.28     2.97
+2026-09-23     1.46     0.01
+mean agent-h/day over days with activity: 8.84
+  $  79.74   3.83h  2026-09-16T04:30  'Đảm bảo chạy đồng nhất trên odoo_12_ce và odoo_19_ce. Chuyển qua trạng'
+  $  66.46   3.52h  2026-09-11T05:14  'Sau khi xong workflow, giữ nguyên bảng giá mà currency của order đã ch'
+  $  50.13   1.94h  2026-08-26T02:50  'xác nhận, ưu tiên test stack mới'
+  $  48.68   2.86h  2026-09-11T04:09  'Spawn agents team hoặc tự phân chia phù hợp cho việc làm song so'
+  $  41.59   0.56h  2026-08-26T05:42  'gỡ các module liên quan tới helpdesk ở phía 12 + subscription (expecte'
