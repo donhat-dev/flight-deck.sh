@@ -3,6 +3,7 @@ package ingest
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -65,14 +66,40 @@ func List(root string) ([]Transcript, error) {
 		out = append(out, Transcript{Path: p, BornNS: bornNS(p, mtime), MtimeNS: mtime})
 		return nil
 	})
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].BornNS != out[j].BornNS {
-			return out[i].BornNS < out[j].BornNS
-		}
-		if out[i].MtimeNS != out[j].MtimeNS {
-			return out[i].MtimeNS < out[j].MtimeNS
-		}
-		return out[i].Path < out[j].Path
-	})
+	sortByCreation(out)
 	return out, err
+}
+
+// Order puts a batch of paths (the watcher's) in the same creation order as
+// List. A path that cannot be stat'ed goes last; File skips it.
+func Order(paths []string) []string {
+	ts := make([]Transcript, 0, len(paths))
+	var gone []string
+	for _, p := range paths {
+		info, err := os.Stat(p)
+		if err != nil {
+			gone = append(gone, p)
+			continue
+		}
+		mtime := info.ModTime().UnixNano()
+		ts = append(ts, Transcript{Path: p, BornNS: bornNS(p, mtime), MtimeNS: mtime})
+	}
+	sortByCreation(ts)
+	out := make([]string, 0, len(paths))
+	for _, t := range ts {
+		out = append(out, t.Path)
+	}
+	return append(out, gone...)
+}
+
+func sortByCreation(ts []Transcript) {
+	sort.Slice(ts, func(i, j int) bool {
+		if ts[i].BornNS != ts[j].BornNS {
+			return ts[i].BornNS < ts[j].BornNS
+		}
+		if ts[i].MtimeNS != ts[j].MtimeNS {
+			return ts[i].MtimeNS < ts[j].MtimeNS
+		}
+		return ts[i].Path < ts[j].Path
+	})
 }

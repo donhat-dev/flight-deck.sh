@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -62,11 +63,14 @@ func pricingSet(args []string) (output, error) {
 	in := fs.Float64("input", -1, "USD per million input tokens")
 	out := fs.Float64("output", -1, "USD per million output tokens")
 	from := fs.String("valid-from", "", "first UTC date (YYYY-MM-DD) the price applies to; empty = always")
-	read := fs.Float64("cache-read-mult", pricing.DefaultCacheReadMult, "cache read price as a share of input")
-	w5 := fs.Float64("write-5m-mult", pricing.DefaultWrite5mMult, "5-minute cache write price as a share of input")
-	w1 := fs.Float64("write-1h-mult", pricing.DefaultWrite1hMult, "1-hour cache write price as a share of input")
-	fastIn := fs.Float64("fast-input", -1, "fast-mode input price; leave out when the model has none")
-	fastOut := fs.Float64("fast-output", -1, "fast-mode output price; leave out when the model has none")
+	read := fs.Float64("cache-read-mult", pricing.DefaultCacheReadMult,
+		"cache read price as a share of input; left out = the prefix's current row, else the default")
+	w5 := fs.Float64("write-5m-mult", pricing.DefaultWrite5mMult,
+		"5-minute cache write price as a share of input; left out = as for --cache-read-mult")
+	w1 := fs.Float64("write-1h-mult", pricing.DefaultWrite1hMult,
+		"1-hour cache write price as a share of input; left out = as for --cache-read-mult")
+	fastIn := fs.Float64("fast-input", -1, "fast-mode input price; left out = the prefix's current row, else none")
+	fastOut := fs.Float64("fast-output", -1, "fast-mode output price; given together with --fast-input")
 	note := fs.String("note", "", "where the price came from")
 	if err := parse(fs, args[1:]); err != nil {
 		return output{}, err
@@ -77,14 +81,8 @@ func pricingSet(args []string) (output, error) {
 	if (*fastIn >= 0) != (*fastOut >= 0) {
 		return output{}, refuse("--fast-input and --fast-output go together")
 	}
-	row := pricing.Row{Prefix: args[0], ValidFrom: *from, Input: *in, Output: *out, CacheReadMult: *read,
-		Write5mMult: *w5, Write1hMult: *w1, Note: *note}
-	if *fastIn >= 0 {
-		row.FastInput, row.FastOutput = fastIn, fastOut
-	}
-	if _, err := (pricing.Config{Models: []pricing.Row{row}}).Normalize(); err != nil {
-		return output{}, refuse("%v", err)
-	}
+	given := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { given[f.Name] = true })
 	s, err := ledger.Open(p.db)
 	if err != nil {
 		return output{}, err
@@ -95,6 +93,37 @@ func pricingSet(args []string) (output, error) {
 		return output{}, err
 	}
 	defer tx.Rollback()
+	current, err := ledger.Prices(tx)
+	if err != nil {
+		return output{}, err
+	}
+	row := pricing.Row{Prefix: args[0], ValidFrom: *from, Input: *in, Output: *out, CacheReadMult: *read,
+		Write5mMult: *w5, Write1hMult: *w1, Note: *note}
+	if *fastIn >= 0 {
+		row.FastInput, row.FastOutput = fastIn, fastOut
+	}
+	// What the command does not mention stays as the prefix's latest row has it:
+	// a new input price must not reset Opus 5.5's 0.05 cache reads to 0.1.
+	for _, r := range current.Models {
+		if r.Prefix != row.Prefix {
+			continue // rows are ordered by valid_from, so the last match is the latest
+		}
+		if !given["cache-read-mult"] {
+			row.CacheReadMult = r.CacheReadMult
+		}
+		if !given["write-5m-mult"] {
+			row.Write5mMult = r.Write5mMult
+		}
+		if !given["write-1h-mult"] {
+			row.Write1hMult = r.Write1hMult
+		}
+		if !given["fast-input"] {
+			row.FastInput, row.FastOutput = r.FastInput, r.FastOutput
+		}
+	}
+	if _, err := (pricing.Config{Models: []pricing.Row{row}}).Normalize(); err != nil {
+		return output{}, refuse("%v", err)
+	}
 	if err := ledger.SetPrice(tx, row); err != nil {
 		return output{}, err
 	}

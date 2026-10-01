@@ -132,8 +132,12 @@ without `message.id`.
 
 - A row with `message.id` is skipped when the key is already in the ledger.
 - A row without one is imported only when its session has no transcript row.
-- Imported rows carry `source = 'import'`, so `DELETE FROM responses WHERE
-  source = 'import'` reverses an import.
+- Imported rows carry `source = 'import'`. To reverse an import, run `DELETE FROM
+  responses WHERE source = 'import'; DELETE FROM files;` and then `fd ingest`.
+  The first statement alone is not enough: a later transcript line may carry a key
+  that was already imported (a resume of a session whose transcript is gone). That
+  line counts as a repeat, and its cursor moves past it. The full re-read brings it
+  back; it is safe because cursors are the only skip state.
 - The command reports how many imported rows match a transcript row on the
   input-side token tuple, the double-count risk, and does not remove them.
 

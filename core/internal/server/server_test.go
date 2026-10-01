@@ -20,6 +20,10 @@ func line(uuid, msg string) string {
 		`"model":"claude-opus-5-5","usage":{"input_tokens":1,"output_tokens":2}}}`+"\n", uuid, msg)
 }
 
+func lineIn(uuid, msg, session string) string {
+	return strings.Replace(line(uuid, msg), `"sessionId":"s1"`, fmt.Sprintf(`"sessionId":%q`, session), 1)
+}
+
 func newServer(t *testing.T) (*Server, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -139,4 +143,21 @@ func TestANewDirectoryIsWatched(t *testing.T) {
 	waitRows(t, s, 1)
 	appendTo(t, filepath.Join(projects, "-p", "s1", "subagents", "agent-a.jsonl"), line("u2", "m2"))
 	waitRows(t, s, 2)
+}
+
+// A fork and its still-running parent can land in one watcher batch; the batch
+// must keep creation order too, or the fork takes the parent's response.
+func TestABatchIsReadInCreationOrder(t *testing.T) {
+	s, projects := newServer(t)
+	parent := filepath.Join(projects, "-p", "parent.jsonl")
+	child := filepath.Join(projects, "-p", "child.jsonl")
+	appendTo(t, parent, lineIn("u1", "m1", "parent"))
+	time.Sleep(20 * time.Millisecond)
+	appendTo(t, child, lineIn("u9", "m1", "child"))
+	s.IngestPaths([]string{child, parent})
+	var sid string
+	s.Store.DB.QueryRow(`SELECT session_id FROM responses WHERE message_id='m1'`).Scan(&sid)
+	if sid != "parent" {
+		t.Fatalf("billed to %s", sid)
+	}
 }

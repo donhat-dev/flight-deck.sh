@@ -34,7 +34,9 @@ type Stats struct {
 // A transcript row always wins: a keyed row is skipped when the key is present,
 // and a row without message.id, vouched for only by the heuristic dedupe, is
 // imported only for a session with no transcript rows. Imported rows carry
-// source='import', so `DELETE FROM responses WHERE source='import'` reverses it.
+// source='import'. Reversing it takes `DELETE FROM responses WHERE source='import';
+// DELETE FROM files;` and a fresh `fd ingest`, since a transcript line read after
+// the import may have matched an imported key and moved its cursor past.
 func PGCopy(s *ledger.Store, r io.Reader, dryRun bool) (Stats, error) {
 	var st Stats
 	tx, err := s.DB.Begin()

@@ -13,11 +13,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = "1"
+const schemaVersion = 1
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
@@ -72,20 +74,42 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	if _, err := db.Exec(schema + pricesSchema); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("ledger schema: %w", err)
-	}
-	if _, err := db.Exec(`INSERT INTO meta (key, value) VALUES ('schema_version', ?)
-		ON CONFLICT(key) DO NOTHING`, schemaVersion); err != nil {
+	if err := prepare(db); err != nil {
 		db.Close()
 		return nil, err
 	}
-	if err := seedPrices(db); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("seed prices: %w", err)
-	}
 	return &Store{DB: db}, nil
+}
+
+// prepare creates a new ledger, or checks an existing one with reads only, so
+// a read-only command opens it while another process holds the write lock.
+// A ledger written by a newer fd is refused: this binary would write rows its
+// layout does not expect.
+func prepare(db *sql.DB) error {
+	var v string
+	err := db.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&v)
+	if err == nil {
+		n, perr := strconv.Atoi(v)
+		if perr != nil || n > schemaVersion {
+			return fmt.Errorf("ledger schema version %q is newer than this fd understands (%d); use a newer fd",
+				v, schemaVersion)
+		}
+		return nil // steps from version n up to schemaVersion go here once a second version exists
+	}
+	if !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
+		return err
+	}
+	if _, err := db.Exec(schema + pricesSchema); err != nil {
+		return fmt.Errorf("ledger schema: %w", err)
+	}
+	if _, err := db.Exec(`INSERT INTO meta (key, value) VALUES ('schema_version', ?)
+		ON CONFLICT(key) DO NOTHING`, strconv.Itoa(schemaVersion)); err != nil {
+		return err
+	}
+	if err := seedPrices(db); err != nil {
+		return fmt.Errorf("seed prices: %w", err)
+	}
+	return nil
 }
 
 func (s *Store) Close() error { return s.DB.Close() }
