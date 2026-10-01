@@ -13,7 +13,7 @@ def test_messages_upsert_is_idempotent(tmp_path):
     conn = db.connect(str(tmp_path / "t.db"))
     row = ("u1", "s1", "/p", "claude-opus-4-8", "2026-07-02T00:00:00Z",
            10, 20, 30, 0, 5, "standard")
-    sql = ("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?) "
+    sql = ("INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?) "
            "ON CONFLICT(uuid) DO NOTHING")
     conn.execute(sql, row)
     conn.execute(sql, row)  # duplicate

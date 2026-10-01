@@ -327,9 +327,9 @@ def _read_subagent_file(path: str) -> dict | None:
     """Parse one subagent transcript. None when it cannot be opened."""
     agent_id = os.path.basename(path)[len("agent-"):-len(".jsonl")]
     agent_type = model = first_ts = last_ts = dispatch = None
-    turns = 0
-    comp = {"input_tokens": 0, "cache_read_input_tokens": 0,
-            "cache_creation_input_tokens": 0, "output_tokens": 0}
+    # One API response is written as one line per content block, each repeating
+    # its usage; keep one entry per (message id, request id), largest output.
+    responses: dict = {}
     try:
         fh = open(path, "r", encoding="utf-8", errors="replace")
     except OSError:
@@ -365,22 +365,31 @@ def _read_subagent_file(path: str) -> dict | None:
                     if txt and not _is_meta_text(txt):
                         dispatch = txt[:300]
                 continue
-            turns += 1
             msg = obj.get("message") or {}
             model = msg.get("model") or model
             u = msg.get("usage") or {}
-            for k in comp:
-                comp[k] += u.get(k, 0)
+            cc = u.get("cache_creation") or {}
+            write_1h = cc.get("ephemeral_1h_input_tokens", 0) or 0
+            write_5m = cc.get("ephemeral_5m_input_tokens")
+            if write_5m is None:   # older lines carry only the combined figure
+                write_5m = (u.get("cache_creation_input_tokens", 0) or 0) - write_1h
+            key = (msg.get("id") or obj.get("uuid"), obj.get("requestId"))
+            entry = (u.get("input_tokens", 0) or 0, u.get("cache_read_input_tokens", 0) or 0,
+                     write_5m, write_1h, u.get("output_tokens", 0) or 0)
+            prev = responses.get(key)
+            if prev is None or entry[4] > prev[4]:
+                responses[key] = entry
+    comp = [sum(e[i] for e in responses.values()) for i in range(5)]
     return {
         "agent_id": agent_id,
         "agent_type": agent_type,
         "model": model,
-        "turns": turns,
-        "input_tokens": comp["input_tokens"],
-        "cache_read": comp["cache_read_input_tokens"],
-        "cache_create_5m": comp["cache_creation_input_tokens"],
-        "cache_create_1h": 0,
-        "output": comp["output_tokens"],
+        "turns": len(responses),
+        "input_tokens": comp[0],
+        "cache_read": comp[1],
+        "cache_create_5m": comp[2],
+        "cache_create_1h": comp[3],
+        "output": comp[4],
         "first_ts": first_ts,
         "last_ts": last_ts,
         "dispatch": dispatch or "",

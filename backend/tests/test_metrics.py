@@ -11,7 +11,7 @@ def _seed(conn):
          500, 0, 0, 0, 500, "standard"),
     ]
     conn.executemany(
-        "INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        "INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.commit()
 
 
@@ -42,7 +42,7 @@ def test_session_context_metrics(tmp_path):
         ("u2", "s1", "/p", "claude-opus-4-8", "2026-07-01T01:00:00Z",
          500, 5000, 250, 0, 100, "standard"),
     ]
-    conn.executemany("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+    conn.executemany("INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.commit()
     (s,) = metrics.sessions(conn)
     assert s["turns"] == 2
@@ -83,7 +83,7 @@ def test_saved_vs_subscription_prorated(tmp_path):
          1000, 0, 0, 0, 1000, "standard"),
     ]
     conn.executemany(
-        "INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+        "INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
     conn.commit()
     s = metrics.summary(conn, subscription_monthly_usd=300.0)
     expected_subscription_cost = 300.0 * (2 / 30.4375)

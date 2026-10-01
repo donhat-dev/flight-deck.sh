@@ -40,7 +40,7 @@ def test_daily_endpoint_uses_per_request_connection(tmp_path, monkeypatch):
     from flightdeck import db
     conn = db.connect(str(db_path))
     conn.execute(
-        "INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         ("u1", "s1", "/p", "claude-opus-4-8", "2026-07-02T00:00:00Z",
          10, 20, 30, 0, 5, "standard"))
     conn.commit()

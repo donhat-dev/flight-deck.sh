@@ -173,6 +173,7 @@ class Runtime:
             # scans become one GROUP BY. See metrics.rollup for why filtering a
             # whole (day, model, session) cell is exact rather than approximate.
             grain = metrics.rollup(c)
+            activity = metrics.activity_rollup(c)
             snap = {}
             for rng in _RANGES:
                 s = since(rng)
@@ -180,7 +181,7 @@ class Runtime:
                     "summary": metrics.summary(
                         c, self.cfg["subscription_monthly_usd"],
                         self.app.state.rtk_savings, since=s, grain=grain),
-                    "daily": metrics.daily(c, since=s, grain=grain),
+                    "daily": metrics.daily(c, since=s, grain=grain, activity=activity),
                     "sessions": metrics.sessions(
                         c, 100, 0, since=s, projects_dir=self.cfg["projects_dir"],
                         grain=grain),

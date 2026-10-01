@@ -51,7 +51,7 @@ def conn(monkeypatch):
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(db._SCHEMA)
-    c.executemany("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)", ROWS)
+    c.executemany("INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)", ROWS)
     c.execute("INSERT INTO session_meta VALUES ('s2','Named session','custom')")
     c.commit()
     try:
@@ -95,10 +95,14 @@ def test_daily_matches_the_pre_refactor_numbers(conn):
     assert got == [
         # The empty ts lands in a "" bucket, kept for parity: dropping it would
         # silently lose the row's cost from the daily chart's total.
-        {"date": "",           "cost": pytest.approx(0.002335), "input": 60,   "output": 80,   "cache_read": 70},
-        {"date": "2026-08-31", "cost": pytest.approx(0.00965),  "input": 1500, "output": 450,  "cache_read": 7000},
-        {"date": "2026-09-01", "cost": pytest.approx(0.04569),  "input": 2800, "output": 1150, "cache_read": 11400},
-        {"date": "2026-09-02", "cost": pytest.approx(0.0),      "input": 121,  "output": 49,   "cache_read": 242},
+        {"date": "",           "cost": pytest.approx(0.002335), "input": 60,   "output": 80,   "cache_read": 70,
+         "cache_write": 0,   "tokens": 210, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
+        {"date": "2026-08-31", "cost": pytest.approx(0.00965),  "input": 1500, "output": 450,  "cache_read": 7000,
+         "cache_write": 300, "tokens": 9250, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
+        {"date": "2026-09-01", "cost": pytest.approx(0.04569),  "input": 2800, "output": 1150, "cache_read": 11400,
+         "cache_write": 450, "tokens": 15800, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
+        {"date": "2026-09-02", "cost": pytest.approx(0.0),      "input": 121,  "output": 49,   "cache_read": 242,
+         "cache_write": 33,  "tokens": 445, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
     ]
 
 
@@ -112,8 +116,10 @@ def test_daily_prices_the_two_sides_of_the_boundary_differently(conn):
 
 def test_daily_since_filters_without_changing_the_kept_rows(conn):
     assert metrics.daily(conn, since="2026-09-01") == [
-        {"date": "2026-09-01", "cost": pytest.approx(0.04569), "input": 2800, "output": 1150, "cache_read": 11400},
-        {"date": "2026-09-02", "cost": pytest.approx(0.0),     "input": 121,  "output": 49,   "cache_read": 242},
+        {"date": "2026-09-01", "cost": pytest.approx(0.04569), "input": 2800, "output": 1150, "cache_read": 11400,
+         "cache_write": 450, "tokens": 15800, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
+        {"date": "2026-09-02", "cost": pytest.approx(0.0),     "input": 121,  "output": 49,   "cache_read": 242,
+         "cache_write": 33,  "tokens": 445, "agent_hours": 0.0, "agent_hours_sub": 0.0, "agent_hours_est": 0.0},
     ]
 
 
@@ -278,3 +284,22 @@ def test_the_metrics_agree_with_each_other(conn):
     assert sum(m["cost"] for m in metrics.by_model(conn)) == pytest.approx(
         s["total_cost"] - synth_cost)
     assert sum(x["turns"] for x in metrics.sessions(conn, 100, 0)) == s["message_count"]
+
+
+def test_daily_carries_agent_hours_split_by_source(conn):
+    conn.executemany(
+        "INSERT INTO agent_activity (session_id, agent_id, prompt_id, day, method, busy_seconds) "
+        "VALUES (?,?,?,?,?,?)", [
+            ("s1", "", "p1", "2026-09-01", "transcript", 3600),
+            ("s1", "sub1", "p1", "2026-09-01", "transcript", 1800),
+            ("old", "", "", "2026-09-01", "ledger", 900),
+            # A day with work but no billed row still gets a point.
+            ("s9", "", "p9", "2026-09-03", "transcript", 7200),
+        ])
+    by_day = {d["date"]: d for d in metrics.daily(conn)}
+    d = by_day["2026-09-01"]
+    assert (d["agent_hours"], d["agent_hours_sub"], d["agent_hours_est"]) == (
+        pytest.approx(1.75), pytest.approx(0.5), pytest.approx(0.25))
+    assert by_day["2026-09-03"]["agent_hours"] == pytest.approx(2.0)
+    assert by_day["2026-09-03"]["cost"] == 0.0
+    assert "2026-09-03" not in {d["date"] for d in metrics.daily(conn, since="2026-09-04")}
