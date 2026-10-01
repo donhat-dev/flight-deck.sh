@@ -136,3 +136,27 @@ cli:
 	mkdir -p $(HOME)/.local/bin
 	ln -sf $(CURDIR)/bin/flightdeck $(HOME)/.local/bin/flightdeck
 	@$(HOME)/.local/bin/flightdeck --version
+
+# --- Go core (`fd`) ----------------------------------------------------------
+# No Go on the host: build and test in the official image, as the calling user so
+# files written into the tree stay theirs. Module and build caches persist under
+# ~/.cache/fd-go. The image has no git, so VCS stamping is off.
+GO_CACHE    := $(HOME)/.cache/fd-go
+GO          := docker run --rm -u $(shell id -u):$(shell id -g) \
+               -v $(PROJ):/src -v $(GO_CACHE):/cache -w /src/core \
+               -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false -e HOME=/cache \
+               -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod \
+               golang:1.26-alpine go
+GOTEST_ARGS ?= ./...
+FD_VERSION  := $(shell git describe --always --dirty 2>/dev/null || echo dev)
+
+.PHONY: go-tidy go-test go-build
+go-tidy:                    ## resolve the Go core's module requirements
+	mkdir -p $(GO_CACHE)
+	$(GO) mod tidy
+go-test:                    ## run the Go core tests (GOTEST_ARGS narrows them)
+	mkdir -p $(GO_CACHE)
+	$(GO) test $(GOTEST_ARGS)
+go-build:                   ## build core/bin/fd (static, linux/amd64)
+	mkdir -p $(GO_CACHE)
+	$(GO) build -trimpath -ldflags "-s -w -X main.version=$(FD_VERSION)" -o bin/fd ./cmd/fd
