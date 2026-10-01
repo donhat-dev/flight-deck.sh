@@ -13,13 +13,14 @@ state via `request.app.state.*` and the `cached()` helper below.
 import asyncio
 import os
 import threading
+import time
 import traceback
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
 
-from flightdeck import db, ingest, metrics, rtk, usage_poll
+from flightdeck import burn, db, ingest, metrics, rtk, usage_poll
 from flightdeck.treasures import filestore
 
 # Module-level SSE fan-out event: set by the ingest paths / poll loops, awaited
@@ -33,6 +34,9 @@ DEBOUNCE_SECONDS = 2.0
 # meta.json, ...) and this only needs to coalesce that into ~one SSE ping, not
 # drive a re-ingest.
 TREASURES_DEBOUNCE_SECONDS = 1.0
+# How long after the last transcript change or meter move the usage poll keeps
+# its active interval.
+POLL_ACTIVE_WINDOW_S = 600
 
 # Watchdog event types that mean the bytes on disk changed.
 #
@@ -154,6 +158,15 @@ class Runtime:
         # not one per filesystem event — see Debouncer.
         self.reingest_debounce: Debouncer | None = None
         self.treasures_debounce: Debouncer | None = None
+        # When transcripts last changed and when a quota meter last moved; the
+        # /usage poll runs at its active interval while either is recent.
+        self.last_activity = 0.0
+        self.meter_moved_at = 0.0
+        self._last_meters = None
+
+    def is_active(self, now=None):
+        now = time.time() if now is None else now
+        return now - max(self.last_activity, self.meter_moved_at) < POLL_ACTIVE_WINDOW_S
 
     def read_conn(self):
         # Fresh short-lived connection, owned by exactly one thread; caller
@@ -201,6 +214,8 @@ class Runtime:
         # Delta reingest: only the files the watcher saw change, then rebuild the
         # snapshot. Avoids the full-tree glob + per-file stat storm on every
         # jsonl append (the main load amplifier over the slow mount).
+        if paths:
+            self.last_activity = time.time()
         with self.lock:
             ingest.ingest_paths(self.write_conn, paths)
         self.app.state.rtk_savings = rtk.rtk_savings_usd()
@@ -217,12 +232,24 @@ class Runtime:
         except Exception:
             rep = None
         if not rep:
+            # Logged so a throttled or logged-out CLI shows up as a gap with a cause.
+            print("[usage-poll] no report (claude CLI missing, logged out or refused)", flush=True)
             return False
         try:
             usage_poll.write_report(
                 rep, path=os.environ.get("TOKEN_AUDIT_LOCAL_REPORT_FILE"))
         except Exception:
             return False
+        meters = tuple((w or {}).get("used_percentage") for w in
+                       [rep.get("five_hour"), rep.get("seven_day"), *rep.get("weekly_models", [])])
+        if self._last_meters is not None and meters != self._last_meters:
+            self.meter_moved_at = time.time()
+        self._last_meters = meters
+        try:
+            with self.lock:
+                burn.record_reading(self.write_conn, rep)
+        except Exception:
+            traceback.print_exc()
         if notify and getattr(self.app.state, "loop", None) is not None:
             self.app.state.loop.call_soon_threadsafe(_updated.set)
         return True
@@ -415,17 +442,28 @@ async def lifespan(app: FastAPI):
     # the host-cron-written files. Daemon thread; stopped via poll_stop.
     poll_stop = threading.Event()
     app.state.poll_stop = poll_stop
+    # TOKEN_AUDIT_POLL_ACTIVE_INTERVAL (optional) is the faster rate used while
+    # transcripts change or a meter moves: flightdeck.burn needs a poll between
+    # meter ticks to time them, and a tick can come every two minutes.
     try:
         interval = int(os.environ.get("TOKEN_AUDIT_POLL_INTERVAL", "0") or 0)
+        active_interval = int(os.environ.get("TOKEN_AUDIT_POLL_ACTIVE_INTERVAL", "0") or 0)
     except ValueError:
-        interval = 0
+        interval, active_interval = 0, 0
     if interval > 0:
+        step = min(interval, active_interval) if active_interval > 0 else interval
+
         def _poll_loop():
+            last = 0.0
             while True:
-                rt.poll_once(notify=True)
-                if poll_stop.wait(interval):
+                now = time.time()
+                due = active_interval if active_interval > 0 and rt.is_active(now) else interval
+                if now - last >= due:
+                    rt.poll_once(notify=True)
+                    last = time.time()
+                if poll_stop.wait(step):
                     return
-        threading.Thread(target=_poll_loop, daemon=True).start()
+        threading.Thread(target=_poll_loop, name="fd-usage-poll", daemon=True).start()
 
     # Periodic reingest safety net. The filesystem watcher can silently stop
     # delivering events (inotify not propagating across the bind mount for a

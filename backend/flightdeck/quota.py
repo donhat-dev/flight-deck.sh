@@ -34,6 +34,42 @@ def _cap(d):
     return v if isinstance(v, (int, float)) else 0
 
 
+def pace(window: dict | None, now: float, length_s: float = 7 * 86400) -> dict | None:
+    """Project a weekly window's burn rate against its own elapsed share.
+
+    `window` is a quota window dict (`used_percentage` + `resets_at`); the
+    window is assumed to start `length_s` seconds before `resets_at`. Returns
+    None when either field is missing, the window has already reset (stale
+    data), or we're inside the first hour (too little signal to project).
+    """
+    if not window:
+        return None
+    resets_at = window.get("resets_at")
+    used = window.get("used_percentage")
+    if resets_at is None or used is None:
+        return None
+
+    start = resets_at - length_s
+    elapsed = now - start
+    remaining = resets_at - now
+    if elapsed <= 3600 or remaining <= 0:
+        return None
+
+    elapsed_pct = elapsed / length_s * 100
+    ratio = used / elapsed_pct
+    runs_out_at = start + elapsed * 100 / used if used > 0 else None
+    runs_out_before_reset = bool(runs_out_at is not None and runs_out_at < resets_at)
+    per_day_left = (100 - used) / (remaining / 86400)
+
+    return {
+        "elapsed_pct": elapsed_pct,
+        "ratio": ratio,
+        "runs_out_at": runs_out_at,
+        "runs_out_before_reset": runs_out_before_reset,
+        "per_day_left": per_day_left,
+    }
+
+
 def read() -> dict:
     now = time.time()
     statusline = _load(os.environ.get("TOKEN_AUDIT_QUOTA_FILE", _QUOTA_DEFAULT))
@@ -57,6 +93,10 @@ def read() -> dict:
     seven = pick("seven_day")
     weekly_models = (best_report or {}).get("weekly_models") or []
     insights = (best_report or {}).get("insights") or None
+
+    if seven is not None:
+        seven = {**seven, "pace": pace(seven, now)}
+    weekly_models = [{**m, "pace": pace(m, now)} for m in weekly_models]
 
     def age(d):
         return int(now - _cap(d)) if d and _cap(d) else None
