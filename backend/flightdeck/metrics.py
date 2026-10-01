@@ -115,9 +115,13 @@ def slice_grain(grain: list[dict], since=None) -> list[dict]:
 
 def _cell_cost(c: dict) -> float | None:
     """Cost of one grain cell, exact because the cell shares one rate."""
-    return pricing.message_cost(
-        c["model"], c["input_tokens"], c["cache_read"], c["cache_create_5m"],
-        c["cache_create_1h"], c["output_tokens"], c["first_ts"])
+    return pricing.message_cost(*_cell_args(c))
+
+
+def _cell_args(c: dict) -> tuple:
+    return (c["model"], c["input_tokens"], c["cache_read"], c["cache_create_5m"],
+            c["cache_create_1h"], c["output_tokens"], c["first_ts"],
+            c.get("speed"), c.get("geo"))
 
 
 def _cell_context(c: dict) -> int:
@@ -162,8 +166,7 @@ def summary(conn, subscription_monthly_usd: float, rtk_savings_usd: float = 0.0,
             unknown_tokens += _cell_context(c_) + c_["output_tokens"]
         else:
             total_cost += cost
-            cache_sav += pricing.cache_savings(
-                c_["model"], c_["cache_read"], c_["first_ts"])
+            cache_sav += pricing.cache_savings(*_cell_args(c_))
     denom = tot_read + tot_create + tot_input
 
     subscription_cost = 0.0

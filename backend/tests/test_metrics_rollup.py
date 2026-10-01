@@ -41,6 +41,13 @@ ROWS = [
 @pytest.fixture()
 def conn(monkeypatch):
     monkeypatch.setattr(db, "_URL", None)
+    # The expected values were captured under Sonnet 5's old dated table ($2/$10
+    # before 2026-09-01, $3/$15 on and after). That boundary is what exercises
+    # the grain across a rate change, so the fixture keeps it even though the
+    # live table no longer has one.
+    monkeypatch.setattr(pricing, "PROMOTIONS",
+                        (("claude-sonnet-5", "2026-09-01", (2.0, 10.0)),))
+    monkeypatch.setitem(pricing.RATES, "claude-sonnet-5", (3.0, 15.0))
     c = sqlite3.connect(":memory:")
     c.row_factory = sqlite3.Row
     c.executescript(db._SCHEMA)
@@ -150,7 +157,10 @@ def test_summary_matches_the_pre_refactor_numbers(conn):
     got = metrics.summary(conn, 200.0, 1.5)
     assert got == approx({
         "total_cost": 0.057675,
-        "cache_savings": 0.057375,
+        # Net of the write premium: the gross read discount (0.057375) minus
+        # 0.0008 of writes priced above base input (u1 100, u2 50, u3 150, u4 500
+        # in micro-dollars).
+        "cache_savings": 0.056575,
         "saved_vs_subscription": -13.084008778234088,
         "rtk_savings": 1.5,
         "cache_hit_rate": 0.7804471137804471,

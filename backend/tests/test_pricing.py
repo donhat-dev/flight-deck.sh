@@ -33,7 +33,9 @@ def test_message_cost_unknown_model_none():
     assert pricing.message_cost("gpt-4o", 1000, 0, 0, 0, 1000) is None
 
 
-def test_cache_savings():
-    # 1M cache_read on opus: 1M * 0.9 * 5/1e6 = 4.5
-    assert round(pricing.cache_savings("claude-opus-4-8", 1_000_000), 4) == 4.5
-    assert pricing.cache_savings("gpt-4o", 1_000_000) == 0.0
+def test_cache_savings_is_net_of_the_write_premium():
+    # 1M cache_read on opus (5/25): uncached 5.00, cached 0.50 -> 4.50 saved.
+    assert round(pricing.cache_savings("claude-opus-4-8", 0, 1_000_000, 0, 0, 0), 4) == 4.5
+    # 1M 1h cache writes cost 2x input: uncached 5.00, cached 10.00 -> -5.00.
+    assert round(pricing.cache_savings("claude-opus-4-8", 0, 0, 0, 1_000_000, 0), 4) == -5.0
+    assert pricing.cache_savings("gpt-4o", 0, 1_000_000, 0, 0, 0) == 0.0
