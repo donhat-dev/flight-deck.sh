@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 
-from flightdeck import burn, db, ingest, metrics, rtk, usage_poll
+from flightdeck import burn, db, ingest, metrics, rtk, tasks, usage_poll
 from flightdeck.treasures import filestore
 
 # Module-level SSE fan-out event: set by the ingest paths / poll loops, awaited
@@ -485,6 +485,29 @@ async def lifespan(app: FastAPI):
                 except Exception:
                     traceback.print_exc()
         threading.Thread(target=_reingest_loop, daemon=True).start()
+
+    # Task labeling (flightdeck.tasks): sends redacted prompt text to Jev and to
+    # GPT-6 Luna, so it is off unless TOKEN_AUDIT_TASK_LABEL_INTERVAL > 0. It uses
+    # its own connection and never takes the ingest lock: the remote calls take
+    # minutes, and the writes are one short transaction at the end.
+    try:
+        label_interval = int(os.environ.get("TOKEN_AUDIT_TASK_LABEL_INTERVAL", "0") or 0)
+    except ValueError:
+        label_interval = 0
+    if label_interval > 0:
+        def _label_loop():
+            while not poll_stop.wait(label_interval):
+                conn = None
+                try:
+                    conn = db.open_write(rt.cfg["db_path"])
+                    stats = tasks.label_pending(conn, log=lambda m: print(f"[tasks] {m}"))
+                    print(f"[tasks] {stats}", flush=True)
+                except Exception:
+                    traceback.print_exc()
+                finally:
+                    if conn is not None:
+                        conn.close()
+        threading.Thread(target=_label_loop, name="fd-task-labels", daemon=True).start()
 
     try:
         yield
