@@ -60,7 +60,15 @@ const MODES = [
     ["dontAsk", "Never ask"],
 ];
 const FIELDS = ["role", "ts", "seq", "text", "tool_name", "tool_input", "tool_output",
-                "tool_images", "tool_call_offset"];
+                "tool_images", "tool_call_offset", "peer_name", "peer_mode"];
+// The tool one session messages another with; a line can name several tools.
+const PEER_TOOL = "SendMessage";
+const PEER_DOMAIN = ["|", ["role", "=", "peer"], ["tool_name", "ilike", PEER_TOOL]];
+
+/** A line that is part of a conversation with another session. */
+function isPeerLine(line) {
+    return line.role === "peer" || (line.tool_name || "").includes(PEER_TOOL);
+}
 
 // How many boxes are on each channel. The bus worker keeps no count, so the
 // second box to leave a session would take the channel away from the first —
@@ -161,6 +169,10 @@ export class TranscriptBox extends Component {
             view: "transcript",
             steps: [],
             stepsLoading: false,
+            // Only the messages this session sent other sessions and received
+            // from them. A conversation runs across turns, so the turn range is
+            // set aside while this is on.
+            peersOnly: false,
         });
         onWillStart(() => this.load());
         onWillUpdateProps((next) => {
@@ -215,7 +227,7 @@ export class TranscriptBox extends Component {
             lines: [], total: 0, open: {}, asks: [], draft: "", error: "",
             runtime: "", runtimeError: "", mode: "", model: "", effort: "",
             picking: false, turns: [], turnIndex: 0, view: "transcript", steps: [],
-            streamDraft: "",
+            streamDraft: "", peersOnly: false,
         });
         this.listen(next.resId ? `flightdeck.session_${next.resId}` : null);
         await this.load(next);
@@ -269,6 +281,10 @@ export class TranscriptBox extends Component {
             return;
         }
         if (this.state.lines.some((line) => line.id === payload.id)) {
+            return;
+        }
+        if (this.state.peersOnly && !isPeerLine(payload)) {
+            this.state.streamDraft = "";
             return;
         }
         this.state.lines = [payload, ...this.state.lines];
@@ -476,6 +492,9 @@ export class TranscriptBox extends Component {
         const scope = props.agentId
             ? [["agent_ref_id", "=", props.agentId]]
             : [["session_ref_id", "=", props.resId], ["agent_ref_id", "=", false]];
+        if (this.state.peersOnly) {
+            return [...scope, ...PEER_DOMAIN];
+        }
         const turn = this.turn;
         if (!turn) {
             return scope;
@@ -728,7 +747,20 @@ export class TranscriptBox extends Component {
     }
 
     get shown() {
-        return this.state.lines.filter((line) => this.roles[line.role] !== false);
+        // A line arriving over the bus is not filtered by the server.
+        return this.state.lines.filter((line) => this.roles[line.role] !== false
+            && (!this.state.peersOnly || isPeerLine(line)));
+    }
+
+    async togglePeers() {
+        this.state.peersOnly = !this.state.peersOnly;
+        this.state.open = {};
+        await this.load();
+    }
+
+    peerLabel(line) {
+        const mode = line.peer_mode === "queued" ? " · mid-turn" : "";
+        return `from ${line.peer_name || "another session"}${mode}`;
     }
 
     get hasOlder() {

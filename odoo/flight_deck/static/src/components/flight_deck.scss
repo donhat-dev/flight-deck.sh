@@ -147,6 +147,10 @@
     }
     .fd_bubble_user { border-left-color: #1668e3; margin-left: 2.5rem; background: rgba(22, 104, 227, .05); }
     .fd_bubble_assistant { border-left-color: #10b981; }
+    // A message from another session: on the reader's side like a prompt, in
+    // its own colour so it is not read as something a person typed.
+    .fd_bubble_peer { border-left-color: #8b5cf6; margin-left: 2.5rem; background: rgba(139, 92, 246, .06); }
+    .fd_bubble_from { color: #6d28d9; font-weight: 600; }
     // Not a row yet: the runner's own coalesced snapshot of a reply still
     // being written. The durable row replaces this one the moment it lands.
     .fd_bubble_draft { border-left-style: dashed; opacity: .7; }

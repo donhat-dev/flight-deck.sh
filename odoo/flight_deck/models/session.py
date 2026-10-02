@@ -481,6 +481,10 @@ class FlightdeckSession(models.Model):
             "tool_input": row["tool_input"],
             "tool_use_id": row["tool_use_id"],
             "tool_call_offset": row.get("offset") or 0,
+            "peer_name": row.get("peer_name") or False,
+            "peer_from": row.get("peer_from") or False,
+            "peer_mode": row.get("peer_mode") or False,
+            "peer_msg_id": row.get("peer_msg_id") or False,
         }
 
     # --- the session list, and what it spent ---------------------------------

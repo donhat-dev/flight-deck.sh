@@ -43,3 +43,8 @@ access_turn_step_user,turn.step.user,model_flightdeck_turn_step,group_user,1,0,0
 access_turn_step_manager,turn.step.manager,model_flightdeck_turn_step,group_manager,1,1,1,1
 access_feedback_kind_user,feedback.kind.user,model_flightdeck_feedback_kind,group_user,1,0,0,0
 access_feedback_kind_manager,feedback.kind.manager,model_flightdeck_feedback_kind,group_manager,1,1,1,1
+access_session_message_user,session.message.user,model_flightdeck_session_message,group_user,1,0,0,0
+access_session_message_manager,session.message.manager,model_flightdeck_session_message,group_manager,1,1,1,1
+access_session_thread_user,session.thread.user,model_flightdeck_session_thread,group_user,1,0,0,0
+access_session_thread_manager,session.thread.manager,model_flightdeck_session_thread,group_manager,1,1,1,1
+access_session_message_scan_manager,session.message.scan.manager,model_flightdeck_session_message_scan,group_manager,1,1,1,1

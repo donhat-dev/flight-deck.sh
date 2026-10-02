@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Messages -->
+    <record id="view_session_message_list" model="ir.ui.view">
+        <field name="name">flightdeck.session.message.list</field>
+        <field name="model">flightdeck.session.message</field>
+        <field name="arch" type="xml">
+            <list string="Session messages" create="0" default_order="sent_at desc">
+                <field name="sent_at"/>
+                <field name="sender_session_id"/>
+                <field name="sender_name" optional="hide"/>
+                <field name="recipient_session_id"/>
+                <field name="recipient_label" optional="hide"/>
+                <field name="name" string="Message"/>
+                <field name="delivery" optional="show"/>
+                <field name="reply_to_id" optional="hide"/>
+                <field name="reply_minutes" optional="show" avg="Average reply"/>
+                <field name="delivery_seconds" optional="hide"/>
+                <field name="thread_id" optional="hide"/>
+                <field name="state" widget="badge"
+                       decoration-success="state == 'delivered'" decoration-warning="state == 'pending'"
+                       decoration-info="state in ('sent', 'received')"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_session_message_form" model="ir.ui.view">
+        <field name="name">flightdeck.session.message.form</field>
+        <field name="model">flightdeck.session.message</field>
+        <field name="arch" type="xml">
+            <form string="Session message" create="0" edit="0">
+                <header>
+                    <field name="state" widget="statusbar"/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group string="From">
+                            <field name="sender_session_id"/>
+                            <field name="sender_name"/>
+                            <field name="sent_at"/>
+                        </group>
+                        <group string="To">
+                            <field name="recipient_session_id"/>
+                            <field name="recipient_label"/>
+                            <field name="received_at"/>
+                            <field name="delivery"/>
+                        </group>
+                        <group string="Conversation">
+                            <field name="thread_id"/>
+                            <field name="sequence"/>
+                            <field name="reply_to_id"/>
+                            <field name="reply_minutes"/>
+                            <field name="delivery_seconds"/>
+                        </group>
+                        <group string="Ids">
+                            <field name="msg_id"/>
+                            <field name="sender_socket"/>
+                            <field name="send_tool_use_id"/>
+                        </group>
+                    </group>
+                    <field name="body" widget="text" nolabel="1"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_session_message_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.session.message.pivot</field>
+        <field name="model">flightdeck.session.message</field>
+        <field name="arch" type="xml">
+            <pivot string="Session messages" sample="1">
+                <field name="sent_at" interval="day" type="row"/>
+                <field name="delivery" type="col"/>
+                <field name="reply_minutes" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_session_message_search" model="ir.ui.view">
+        <field name="name">flightdeck.session.message.search</field>
+        <field name="model">flightdeck.session.message</field>
+        <field name="arch" type="xml">
+            <search string="Session messages">
+                <field name="body" string="Text" filter_domain="['|', ('summary', 'ilike', self), ('body', 'ilike', self)]"/>
+                <field name="sender_session_id"/>
+                <field name="recipient_session_id"/>
+                <field name="thread_id"/>
+                <field name="msg_id"/>
+                <filter name="replies" string="Replies" domain="[('reply_to_id', '!=', False)]"/>
+                <filter name="unmatched" string="One end only" domain="[('state', '!=', 'delivered')]"/>
+                <separator/>
+                <filter name="this_week" string="Sent" date="sent_at"/>
+                <group>
+                    <filter name="g_thread" string="Conversation" domain="[]" context="{'group_by': 'thread_id'}"/>
+                    <filter name="g_sender" string="From" domain="[]" context="{'group_by': 'sender_session_id'}"/>
+                    <filter name="g_recipient" string="To" domain="[]" context="{'group_by': 'recipient_session_id'}"/>
+                    <filter name="g_delivery" string="Arrived" domain="[]" context="{'group_by': 'delivery'}"/>
+                    <filter name="g_day" string="Day" domain="[]" context="{'group_by': 'sent_at:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_session_message" model="ir.actions.act_window">
+        <field name="name">Session messages</field>
+        <field name="res_model">flightdeck.session.message</field>
+        <field name="view_mode">list,form,pivot</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No messages between sessions yet</p>
+            <p>A message one Claude session sends another with SendMessage appears here once
+               either transcript is read.</p>
+        </field>
+    </record>
+
+    <!-- Conversations -->
+    <record id="view_session_thread_list" model="ir.ui.view">
+        <field name="name">flightdeck.session.thread.list</field>
+        <field name="model">flightdeck.session.thread</field>
+        <field name="arch" type="xml">
+            <list string="Conversations" create="0" default_order="last_at desc">
+                <field name="last_at"/>
+                <field name="session_a_id"/>
+                <field name="session_b_id"/>
+                <field name="message_count" sum="Messages"/>
+                <field name="exchange_count" sum="Exchanges"/>
+                <field name="reply_count" sum="Replies"/>
+                <field name="avg_reply_minutes"/>
+                <field name="duration_hours" optional="show"/>
+                <field name="first_at" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_session_thread_form" model="ir.ui.view">
+        <field name="name">flightdeck.session.thread.form</field>
+        <field name="model">flightdeck.session.thread</field>
+        <field name="arch" type="xml">
+            <form string="Conversation" create="0" edit="0">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_messages" type="object"
+                                class="oe_stat_button" icon="fa-exchange">
+                            <field name="message_count" widget="statinfo" string="Messages"/>
+                        </button>
+                    </div>
+                    <div class="oe_title">
+                        <h1><field name="name"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="session_a_id"/>
+                            <field name="session_b_id"/>
+                            <field name="first_at"/>
+                            <field name="last_at"/>
+                        </group>
+                        <group>
+                            <field name="exchange_count"/>
+                            <field name="reply_count"/>
+                            <field name="avg_reply_minutes"/>
+                            <field name="duration_hours"/>
+                        </group>
+                    </group>
+                    <field name="message_ids" nolabel="1">
+                        <list default_order="sequence" create="0">
+                            <field name="sequence" string="#"/>
+                            <field name="sent_at"/>
+                            <field name="sender_session_id"/>
+                            <field name="name" string="Message"/>
+                            <field name="delivery"/>
+                            <field name="reply_minutes"/>
+                            <field name="state" widget="badge"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_session_thread_search" model="ir.ui.view">
+        <field name="name">flightdeck.session.thread.search</field>
+        <field name="model">flightdeck.session.thread</field>
+        <field name="arch" type="xml">
+            <search string="Conversations">
+                <field name="session_a_id" string="Session"
+                       filter_domain="['|', ('session_a_id', 'ilike', self), ('session_b_id', 'ilike', self)]"/>
+                <filter name="this_week" string="Last message" date="last_at"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_session_thread" model="ir.actions.act_window">
+        <field name="name">Conversations</field>
+        <field name="res_model">flightdeck.session.thread</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No conversations between sessions yet</p>
+            <p>Two sessions form a conversation once a message between them is read at both ends.</p>
+        </field>
+    </record>
+
+    <!-- On the session form, beside the token rows. -->
+    <record id="view_session_form_peer_messages" model="ir.ui.view">
+        <field name="name">flightdeck.session.form.peer.messages</field>
+        <field name="model">flightdeck.session</field>
+        <field name="inherit_id" ref="flight_deck.view_session_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//button[@name='action_open_messages']" position="after">
+                <button name="action_open_session_messages" type="object"
+                        class="oe_stat_button" icon="fa-paper-plane"
+                        invisible="not peer_message_count">
+                    <field name="peer_message_count" widget="statinfo" string="Session msgs"/>
+                </button>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_session_messages" name="Session messages" parent="menu_root" sequence="15"/>
+    <menuitem id="menu_session_thread" name="Conversations" parent="menu_session_messages"
+              action="action_session_thread" sequence="10"/>
+    <menuitem id="menu_session_message" name="Messages" parent="menu_session_messages"
+              action="action_session_message" sequence="20"/>
+
+    <record id="cron_session_messages" model="ir.cron">
+        <field name="name">FlightDeck: read session messages</field>
+        <field name="model_id" ref="model_flightdeck_session_message_scan"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_read()</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+    </record>
+</odoo>

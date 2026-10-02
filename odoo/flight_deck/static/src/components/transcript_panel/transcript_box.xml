@@ -9,7 +9,7 @@
                 </span>
                 <span t-if="state.runtime and !watching" t-attf-class="fd_box_state fd_box_state_{{state.runtime}}"
                       t-att-title="state.runtimeError" t-esc="state.runtime"/>
-                <select class="fd_box_turn" t-if="state.turns.length"
+                <select class="fd_box_turn" t-if="state.turns.length and !state.peersOnly"
                         t-on-focus="() => this.loadTurns()"
                         t-on-change="(ev) => this.pickTurn(ev.target.value)">
                     <option value="0">All turns</option>
@@ -33,6 +33,10 @@
                 <button class="fd_box_chip" t-if="state.view === 'transcript'"
                         t-att-class="{ 'fd_off': !roles.assistant }"
                         t-on-click="() => this.toggleRole('assistant')">Claude</button>
+                <button class="fd_box_chip" t-if="state.view === 'transcript'"
+                        t-att-class="{ 'fd_off': !state.peersOnly }"
+                        title="Only the messages exchanged with other sessions, across every turn"
+                        t-on-click="() => this.togglePeers()">Sessions</button>
             </div>
 
             <!-- Where the turn spent its time. Laid out on the gap between one
@@ -99,6 +103,7 @@
                          t-attf-class="fd_bubble fd_bubble_{{line.role}}">
                         <div class="fd_bubble_head">
                             <span class="fd_bubble_role" t-esc="line.role"/>
+                            <span t-if="line.role === 'peer'" class="fd_bubble_from" t-esc="peerLabel(line)"/>
                             <span class="fd_bubble_seq" t-esc="line.seq"/>
                             <span class="fd_bubble_ts" t-esc="stamp(line.ts)"/>
                         </div>

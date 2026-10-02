@@ -68,6 +68,13 @@ class FlightdeckMessageText(models.Model):
     # thousand characters, which is most of a written file missing, so a preview
     # reads the call back from the transcript instead of from the column.
     tool_call_offset = fields.Integer()
+    # A message another Claude session sent, on a line of role `peer`.
+    peer_name = fields.Char("From session", help="The name the sending session had when it sent.")
+    peer_from = fields.Char("From socket")
+    peer_mode = fields.Selection(
+        [("turn", "Started a turn"), ("queued", "Queued into a turn")], "Arrived",
+        help="Started a turn: the session was idle. Queued: it was working, and read it mid-turn.")
+    peer_msg_id = fields.Char("Message id", index=True)
 
     _uuid_uniq = models.Constraint("unique(uuid)", "Transcript line already imported.")
 
@@ -105,6 +112,8 @@ class FlightdeckMessageText(models.Model):
             "tool_images": self.tool_images,
             "tool_call_offset": self.tool_call_offset,
             "agent_id": self.agent_ref_id.id or False,
+            "peer_name": self.peer_name or False,
+            "peer_mode": self.peer_mode or False,
         }
 
     def _image_block(self, index):

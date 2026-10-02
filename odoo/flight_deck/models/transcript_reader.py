@@ -35,6 +35,9 @@ AGENT_TOOLS = (AGENT_TOOL, WORKFLOW_TOOL)
 WORKFLOW_RE = re.compile(r"Transcript dir: \S*/workflows/(wf_[A-Za-z0-9_-]+)")
 # `export const meta = { name: '...' }` opens every workflow script.
 WORKFLOW_NAME_RE = re.compile(r"""\bname:\s*['"]([^'"\n]{1,200})['"]""")
+# The tool one session messages another with. Its answer carries the id the
+# receiving session sees the message under.
+PEER_TOOL = "SendMessage"
 NOTIFY_FIELDS = ("task-id", "tool-use-id", "status", "output-file", "summary")
 # What the notification reports about the run itself.
 USAGE_FIELDS = ("subagent_tokens", "tool_uses", "duration_ms")
@@ -84,17 +87,73 @@ def _images(content):
     return found
 
 
+def peer_origin(obj):
+    """The message another Claude session sent, if this line carries one.
+
+    It arrives two ways: as an attachment when the session was working (the
+    CLI queues it into the running turn), or as a user line of its own when
+    the session was idle. Both name the sender in an `origin` block. A
+    `kind: peer` origin without a message id is a subagent handing its result
+    back to its parent, which is not a message between sessions.
+    """
+    kind = obj.get("type")
+    if kind == "user":
+        origin, mode = obj.get("origin"), "turn"
+    elif kind == "attachment" and (obj.get("attachment") or {}).get("type") == "queued_command":
+        origin, mode = obj["attachment"].get("origin"), "queued"
+    else:
+        return None
+    if not isinstance(origin, dict) or origin.get("kind") != "peer" or not origin.get("msg_id"):
+        return None
+    return {
+        "msg_id": origin["msg_id"],
+        "from": origin.get("from") or "",
+        "name": origin.get("name") or "",
+        "body": _no_nul((origin.get("body") or "")[:MAX_TEXT_CHARS]),
+        "mode": mode,
+    }
+
+
+def _ts(obj):
+    return (obj.get("timestamp") or "").replace("Z", "+00:00") or None
+
+
+def _peer_row(obj, peer, seq):
+    return {
+        "uuid": obj.get("uuid"),
+        "session_id": obj.get("sessionId"),
+        "project": obj.get("cwd"),
+        "role": "peer",
+        "ts": _ts(obj),
+        "seq": seq,
+        "text": peer["body"] or False,
+        "tool_name": False,
+        "tool_input": False,
+        "tool_use_id": False,
+        "peer_name": peer["name"] or False,
+        "peer_from": peer["from"] or False,
+        "peer_mode": peer["mode"],
+        "peer_msg_id": peer["msg_id"],
+    }
+
+
 def parse_line(raw, seq):
     """One JSONL line to a row, plus any tool results it carries.
 
     Returns `(row_or_None, results)` where `results` maps a tool_use id to
     `{"text": ..., "images": [...]}` for its call. A line that only carries
     results yields no row: the output belongs on the turn that made the call.
+    A message from another session is a row of role `peer`.
     """
     try:
         obj = json.loads(raw.decode("utf-8", "replace"))
     except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
         return None, {}
+    if not isinstance(obj, dict):
+        return None, {}
+    peer = peer_origin(obj)
+    if peer:
+        return _peer_row(obj, peer, seq), {}
     if obj.get("type") not in CHAT_TYPES:
         return None, {}
 
@@ -203,6 +262,94 @@ def read_range(path, start, end):
             "tool_output": (result or {}).get("text") or "",
         })
     return out
+
+
+def _sent(block, obj):
+    args = block.get("input") or {}
+    body = args.get("message")
+    return {
+        "kind": "send",
+        "tool_use_id": block.get("id"),
+        "uuid": obj.get("uuid"),
+        "ts": _ts(obj),
+        "to": str(args.get("to") or "")[:500],
+        "summary": str(args.get("summary") or "")[:500],
+        "body": _no_nul((body if isinstance(body, str) else json.dumps(body, ensure_ascii=False))
+                        [:MAX_TEXT_CHARS]),
+    }
+
+
+def scan_peer_messages(path, offset, limit=None, pending=()):
+    """The cross-session messages written after `offset`.
+
+    Returns `(events, consumed, first_ts)`. An event is one of:
+
+    - `send`: a SendMessage call, with what was sent and to whom;
+    - `sent`: its answer when it names a message id (a later line);
+    - `answered`: its answer when it does not. SendMessage also writes to the
+      session's own subagents, and such an answer carries no id; nor does a
+      refused send, which is marked `error`;
+    - `received`: a message another session sent here.
+
+    `pending` are calls earlier passes saw without their answer yet.
+
+    Only lines that can hold one are parsed: a long session runs to hundreds
+    of megabytes and very few of its lines are messages. The tool listings
+    carry both marker strings and are the longest lines in a file, so they
+    are skipped before parsing. `first_ts` is the first timestamp in the file
+    when reading from its start, else None.
+    """
+    events, consumed, first_ts = [], 0, None
+    waiting = set(pending)
+    with open(path, "rb") as fh:
+        fh.seek(offset)
+        for raw in fh:
+            if not raw.endswith(b"\n"):
+                break
+            consumed += len(raw)
+            wanted = (b"msg_id" in raw or b'"' + PEER_TOOL.encode() + b'"' in raw
+                      or (waiting and b'"tool_result"' in raw
+                          and any(call.encode() in raw for call in waiting))) \
+                and b'"deferred_tools' not in raw
+            if wanted or (offset == 0 and first_ts is None):
+                obj = _line(raw)
+                if obj is not None:
+                    if offset == 0 and first_ts is None and obj.get("timestamp"):
+                        first_ts = _ts(obj)
+                    if wanted:
+                        found = _peer_events(obj, waiting)
+                        for event in found:
+                            if event["kind"] == "send":
+                                waiting.add(event["tool_use_id"])
+                            elif event["kind"] in ("sent", "answered"):
+                                waiting.discard(event["tool_use_id"])
+                        events.extend(found)
+            if limit is not None and consumed >= limit:
+                break
+    return events, consumed, first_ts
+
+
+def _peer_events(obj, waiting=()):
+    peer = peer_origin(obj)
+    if peer:
+        return [dict(peer, kind="received", uuid=obj.get("uuid"), ts=_ts(obj))]
+    kind = obj.get("type")
+    if kind == "assistant":
+        return [_sent(b, obj) for b in _blocks(obj)
+                if b.get("type") == "tool_use" and b.get("name") == PEER_TOOL and b.get("id")]
+    if kind != "user":
+        return []
+    answer = obj.get("toolUseResult")
+    results = [b for b in _blocks(obj) if b.get("type") == "tool_result" and b.get("tool_use_id")]
+    # `toolUseResult` belongs to the line's result when there is only one, and
+    # only the answer to a SendMessage call seen here is one.
+    if isinstance(answer, dict) and answer.get("msg_id") and len(results) == 1 \
+            and results[0]["tool_use_id"] in waiting:
+        return [{"kind": "sent", "tool_use_id": results[0]["tool_use_id"],
+                 "msg_id": answer["msg_id"], "ts": _ts(obj)}]
+    return [{"kind": "answered", "tool_use_id": b["tool_use_id"], "error": bool(b.get("is_error")),
+             "text": _no_nul(_as_text(b.get("content"))[:500]), "ts": _ts(obj)}
+            for b in results if b["tool_use_id"] in waiting]
 
 
 def count_lines(path, upto=None):
