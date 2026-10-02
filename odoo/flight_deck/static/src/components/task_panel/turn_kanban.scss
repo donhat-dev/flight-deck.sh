@@ -1,0 +1,39 @@
+// The Tasks tab on a session: one full-width row per turn, like the
+// automation rules list, with the turns that continue a task set in.
+.o_fd_turn_kanban {
+    .o_kanban_ungrouped {
+        padding: 0;
+
+        .o_kanban_record {
+            width: 100%;
+            margin: 0;
+            border-top: 0;
+
+            &:first-child {
+                border-top: $border-width solid $border-color;
+            }
+
+            &.o_kanban_ghost {
+                display: none;
+            }
+
+            &:has(.fd_turn_child) {
+                margin-left: 2.5rem;
+                width: calc(100% - 2.5rem);
+            }
+        }
+    }
+
+    .fd_turn_card {
+        min-width: 0;
+    }
+
+    .fd_turn_prompt {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        white-space: pre-line;
+        overflow-wrap: anywhere;
+    }
+}

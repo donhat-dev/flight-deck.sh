@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="cron_activity" model="ir.cron">
+        <field name="name">FlightDeck: read agent work-hours</field>
+        <field name="model_id" ref="model_flightdeck_session"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_activity()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+        <!-- Followed sessions are read every minute by the follow cron; this
+             one catches every other file, and the first pass over the library
+             takes several runs of 256 MB each. -->
+    </record>
+</odoo>

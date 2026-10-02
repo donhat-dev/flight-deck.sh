@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flight_deck.TranscriptWall">
+        <div class="fd_wall">
+            <div class="fd_wall_bar">
+                <button type="button" class="btn btn-sm btn-primary"
+                        t-on-click="() => this.addRow()">
+                    <i class="fa fa-plus me-1"/>Add a row
+                </button>
+                <span class="fd_wall_count">
+                    <t t-esc="state.rows.length"/> rows ·
+                    <t t-esc="paneCount"/> transcripts
+                </span>
+            </div>
+
+            <div class="fd_wall_rows">
+                <t t-foreach="state.rows" t-as="row" t-key="row.key">
+                    <div class="fd_wall_row" t-att-style="rowStyle()">
+                        <div class="fd_wall_row_side">
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    t-if="!inviting(row)" t-att-disabled="full(row)"
+                                    title="Add a column to this row"
+                                    t-on-click="() => this.addPane(row)">
+                                <i class="fa fa-plus"/>
+                            </button>
+                            <button type="button" class="btn btn-link btn-sm p-0"
+                                    title="Give every column in this row an equal share"
+                                    t-on-click="() => this.evenOut(row)">
+                                <i class="fa fa-arrows-h"/>
+                            </button>
+                            <button type="button" class="btn btn-link btn-sm p-0 text-danger"
+                                    t-if="state.rows.length > 1" title="Close this row"
+                                    t-on-click="() => this.closeRow(row)">
+                                <i class="fa fa-times"/>
+                            </button>
+                        </div>
+
+                        <div class="fd_wall_panes">
+                            <t t-foreach="row.panes" t-as="pane" t-key="pane.key">
+                                <div class="fd_wall_pane" t-att-data-pane="pane.key"
+                                     t-att-style="paneStyle(pane, pane_last)">
+                                    <div class="fd_wall_head">
+                                        <span class="fd_wall_title" t-esc="title(pane)"/>
+                                        <span class="fd_wall_tools">
+                                            <button type="button" class="btn btn-link btn-sm p-0"
+                                                    t-if="!full(row)"
+                                                    title="Open the same transcript in a new column"
+                                                    t-on-click="() => this.addPane(row, pane)">
+                                                <i class="fa fa-clone"/>
+                                            </button>
+                                            <button type="button"
+                                                    class="btn btn-link btn-sm p-0 text-danger"
+                                                    title="Close this column"
+                                                    t-on-click="() => this.closePane(row, pane)">
+                                                <i class="fa fa-times"/>
+                                            </button>
+                                        </span>
+                                    </div>
+
+                                    <div class="fd_wall_pick">
+                                        <input type="text" class="form-control form-control-sm"
+                                               placeholder="Search a session…"
+                                               t-att-value="state.query[pane.key] or ''"
+                                               t-on-focus="() => this.search(pane, state.query[pane.key] or '')"
+                                               t-on-input="(ev) => this.search(pane, ev.target.value)"/>
+                                        <div t-if="state.results[pane.key]" class="fd_wall_results">
+                                            <button type="button" class="fd_wall_result"
+                                                    t-foreach="state.results[pane.key]" t-as="found"
+                                                    t-key="found.id"
+                                                    t-on-click="() => this.pick(pane, found)">
+                                                <span class="fd_wall_result_name" t-esc="found.name"/>
+                                                <span class="fd_wall_result_meta">
+                                                    <t t-esc="found.text_count"/> turns
+                                                </span>
+                                            </button>
+                                            <div t-if="!state.results[pane.key].length"
+                                                 class="fd_wall_empty">No session matches.</div>
+                                        </div>
+                                    </div>
+
+                                    <div t-if="pane.sessionId" class="fd_wall_agents">
+                                        <select class="form-select form-select-sm"
+                                                t-on-focus="() => this.loadAgents(pane)"
+                                                t-on-change="(ev) => this.onAgentChange(pane, ev.target.value)">
+                                            <option value="">The session itself</option>
+                                            <!-- A restored column knows which agent it is on
+                                                 before the list it came from is fetched. -->
+                                            <option t-if="pane.agentId and !state.agents[pane.key]"
+                                                    t-att-value="pane.agentId" selected="selected">
+                                                <t t-esc="pane.agentName or 'Agent'"/>
+                                            </option>
+                                            <option t-foreach="state.agents[pane.key] or []"
+                                                    t-as="agent" t-key="agent.id"
+                                                    t-att-value="agent.id"
+                                                    t-att-selected="agent.id === pane.agentId">
+                                                <t t-esc="agent.description or 'Agent'"/>
+                                            </option>
+                                        </select>
+                                    </div>
+
+                                    <div class="fd_wall_body">
+                                        <TranscriptBox t-if="pane.sessionId"
+                                                       resId="pane.sessionId"
+                                                       agentId="pane.agentId"
+                                                       class="'fd_box_aside'"/>
+                                        <div t-else="" class="fd_wall_blank">
+                                            Search above to put a transcript here.
+                                        </div>
+                                    </div>
+                                </div>
+                                <div t-if="!pane_last" class="fd_wall_grip"
+                                     t-on-pointerdown="(ev) => this.startDrag(ev, row, pane)"/>
+                            </t>
+
+                            <!-- Where the next column goes, and only while the
+                                 row is not yet a comparison. -->
+                            <button type="button" class="fd_wall_slot" t-if="inviting(row)"
+                                    title="Add a column to this row"
+                                    t-on-click="() => this.addPane(row)">
+                                <i class="fa fa-plus"/>
+                            </button>
+                        </div>
+                    </div>
+                </t>
+            </div>
+        </div>
+    </t>
+
+</templates>

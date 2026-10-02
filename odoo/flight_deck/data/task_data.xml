@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="cron_label_turns" model="ir.cron">
+        <field name="name">FlightDeck: label turns as tasks</field>
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_label()</field>
+        <field name="interval_number">15</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+    </record>
+
+    <!-- The label jobs commit between their engine calls and their writes:
+         a snapshot held through minutes of calls collides with the readers'
+         updates of live turns. queue_job runs such a job on a cursor of its own. -->
+    <record id="job_function_label_live" model="queue.job.function">
+        <field name="model_id" ref="model_flightdeck_session"/>
+        <field name="method">_label_live</field>
+        <field name="allow_commit" eval="True"/>
+    </record>
+    <record id="job_function_label_luna" model="queue.job.function">
+        <field name="model_id" ref="model_flightdeck_session"/>
+        <field name="method">_label_luna</field>
+        <field name="allow_commit" eval="True"/>
+    </record>
+    <record id="job_function_label_pass" model="queue.job.function">
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="method">_label_pass</field>
+        <field name="allow_commit" eval="True"/>
+    </record>
+
+    <data noupdate="1">
+        <!-- Project keys a ticket tag is made from, comma-separated. Other
+             KEY-123 shapes in prompts are test-case and requirement ids. -->
+        <record id="param_ticket_prefixes" model="ir.config_parameter">
+            <field name="key">flight_deck.ticket_prefixes</field>
+            <field name="value">CRM</field>
+        </record>
+
+        <!-- The descriptions are what Jev and Luna read when they pick one. -->
+        <record id="tag_harness" model="flightdeck.task.tag">
+            <field name="name">Harness</field>
+            <field name="kind">work</field>
+            <field name="color">4</field>
+            <field name="description">Work on the person's own tooling for running and watching coding agents: FlightDeck, fd-runner, Jev, hooks, skills, MCP servers, Claude Code or Codex setup.</field>
+            <field name="path_pattern">flight-deck.sh,nakivo-graph,/.claude</field>
+        </record>
+        <record id="tag_research" model="flightdeck.task.tag">
+            <field name="name">Research</field>
+            <field name="kind">work</field>
+            <field name="color">7</field>
+            <field name="description">Finding things out rather than changing code: reading documentation or source, comparing options, writing up findings or a research note.</field>
+        </record>
+        <record id="tag_infrastructure" model="flightdeck.task.tag">
+            <field name="name">Infrastructure</field>
+            <field name="kind">work</field>
+            <field name="color">2</field>
+            <field name="description">Running and wiring environments: Docker and compose stacks, databases, proxies, restores, deployment, local services.</field>
+        </record>
+        <record id="tag_bug" model="flightdeck.task.tag">
+            <field name="name">Bug</field>
+            <field name="kind">work</field>
+            <field name="color">1</field>
+            <field name="description">Finding and fixing something that behaves wrong: an error, a failing test, a wrong figure, a broken screen.</field>
+        </record>
+        <record id="tag_feature" model="flightdeck.task.tag">
+            <field name="name">Feature</field>
+            <field name="kind">work</field>
+            <field name="color">10</field>
+            <field name="description">Building or changing product behaviour: a new field, screen, flow, report or integration in the product code.</field>
+        </record>
+    </data>
+</odoo>

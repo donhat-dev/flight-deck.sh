@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Reads each ended turn's tool calls, a few minutes after it ends. -->
+    <record id="cron_turn_steps" model="ir.cron">
+        <field name="name">FlightDeck: read tool calls of ended turns</field>
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_read_steps()</field>
+        <field name="interval_number">5</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+    </record>
+
+    <record id="view_turn_step_list" model="ir.ui.view">
+        <field name="name">flightdeck.turn.step.list</field>
+        <field name="model">flightdeck.turn.step</field>
+        <field name="arch" type="xml">
+            <list string="Tool calls" create="0" edit="0"
+                  decoration-danger="family in ('avoidable', 'failed')"
+                  decoration-warning="family == 'guard'" decoration-muted="outcome == 'ok'">
+                <field name="turn_started_at" optional="show"/>
+                <field name="turn_id" optional="hide"/>
+                <field name="model" optional="show"/>
+                <field name="agent_key" optional="hide"/>
+                <field name="name"/>
+                <field name="input_head" optional="show"/>
+                <field name="duration" sum="Seconds"/>
+                <field name="outcome"/>
+                <field name="family"/>
+                <field name="error_class" optional="show"/>
+                <field name="error_head" optional="hide"/>
+                <field name="repeat" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_turn_step_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.turn.step.pivot</field>
+        <field name="model">flightdeck.turn.step</field>
+        <field name="arch" type="xml">
+            <pivot string="Tool calls">
+                <field name="model" type="row"/>
+                <field name="family" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_turn_step_graph" model="ir.ui.view">
+        <field name="name">flightdeck.turn.step.graph</field>
+        <field name="model">flightdeck.turn.step</field>
+        <field name="arch" type="xml">
+            <graph string="Tool calls" type="bar" stacked="1">
+                <field name="turn_started_at" interval="week"/>
+                <field name="family"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_turn_step_search" model="ir.ui.view">
+        <field name="name">flightdeck.turn.step.search</field>
+        <field name="model">flightdeck.turn.step</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="error_class"/>
+                <field name="model"/>
+                <field name="input_head"/>
+                <filter name="errors" string="Errors" domain="[('outcome', '=', 'error')]"/>
+                <filter name="avoidable" string="Avoidable" domain="[('family', '=', 'avoidable')]"/>
+                <filter name="failed" string="Failed commands" domain="[('family', '=', 'failed')]"/>
+                <filter name="guard" string="Blocked" domain="[('family', '=', 'guard')]"/>
+                <filter name="repeats" string="Exact repeats" domain="[('repeat', '=', True)]"/>
+                <separator/>
+                <filter name="main" string="Main agent" domain="[('agent_key', '=', False)]"/>
+                <filter name="sub" string="Subagents" domain="[('agent_key', '!=', False)]"/>
+                <separator/>
+                <filter name="last_30" string="Last 30 days"
+                        domain="[('turn_started_at', '&gt;=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="by_model" string="Model" context="{'group_by': 'model'}"/>
+                    <filter name="by_tool" string="Tool" context="{'group_by': 'name'}"/>
+                    <filter name="by_family" string="Family" context="{'group_by': 'family'}"/>
+                    <filter name="by_class" string="Error kind" context="{'group_by': 'error_class'}"/>
+                    <filter name="by_week" string="Week" context="{'group_by': 'turn_started_at:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_turn_steps" model="ir.actions.act_window">
+        <field name="name">Tool calls</field>
+        <field name="res_model">flightdeck.turn.step</field>
+        <field name="view_mode">pivot,list,graph</field>
+        <field name="context">{'search_default_errors': 1, 'search_default_last_30': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No tool calls read yet</p>
+            <p>Each ended turn's tool calls are read from its transcript every five minutes.</p>
+        </field>
+    </record>
+
+    <menuitem id="menu_turn_steps" name="Tool calls" parent="menu_tasks_root"
+              action="action_turn_steps" sequence="32"/>
+
+    <record id="view_turn_form_steps" model="ir.ui.view">
+        <field name="name">flightdeck.turn.form.steps</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="inherit_id" ref="view_turn_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='own_cost']" position="after">
+                <field name="tool_calls"/>
+                <field name="avoidable_errors"/>
+                <field name="failed_calls"/>
+                <field name="guard_hits"/>
+                <field name="exact_repeats"/>
+            </xpath>
+            <xpath expr="//page[@name='prompt']" position="before">
+                <page string="Tool calls" name="tool_calls" invisible="not tool_calls">
+                    <group>
+                        <group>
+                            <field name="steps_state"/>
+                            <field name="steps_note" invisible="not steps_note"/>
+                            <field name="sub_tool_calls"/>
+                            <field name="subagents_read"/>
+                        </group>
+                        <group>
+                            <field name="environment_errors"/>
+                            <field name="max_repeat"/>
+                            <field name="tool_seconds"/>
+                            <field name="interruptions"/>
+                        </group>
+                    </group>
+                    <field name="step_ids" readonly="1">
+                        <list decoration-danger="family in ('avoidable', 'failed')"
+                              decoration-warning="family == 'guard'">
+                            <field name="sequence" string="#"/>
+                            <field name="agent_key" optional="show"/>
+                            <field name="name"/>
+                            <field name="input_head"/>
+                            <field name="duration"/>
+                            <field name="outcome"/>
+                            <field name="family"/>
+                            <field name="error_class"/>
+                            <field name="error_head" optional="hide"/>
+                            <field name="repeat"/>
+                        </list>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+</odoo>

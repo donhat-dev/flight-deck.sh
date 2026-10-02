@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.TrendsAction">
+        <div class="o_action fd_trends_page h-100 overflow-auto bg-view p-3">
+            <div t-if="!state.data" class="text-muted">Reading the ledger…</div>
+            <TrendPanel t-else="" series="state.data.series" days="state.days"
+                        onDays.bind="setDays" hoursSince="state.data.hours_since"/>
+        </div>
+    </t>
+</templates>

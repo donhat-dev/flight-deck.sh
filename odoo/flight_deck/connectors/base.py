@@ -45,6 +45,15 @@ class RunnerConnector:
         """
         raise NotImplementedError
 
+    def read_deltas(self, offset):
+        """Streaming text snapshots the runner wrote after `offset`, and the
+        new offset. Shaped exactly like `read_events`, but the caller must
+        never store this offset anywhere durable: the carrier is free to
+        truncate or rotate this feed at will, and a stale cursor kept across
+        a restart would only skip live text, never replay it usefully.
+        """
+        raise NotImplementedError
+
     def status(self):
         """One line a person can read about whether the runner is reachable."""
         return ""

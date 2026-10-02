@@ -14,6 +14,8 @@ from datetime import timedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.workflow_studio.workflow import workflow
+
 from .runner import EFFORTS, MODELS, MODEL_NOTES, PERMISSION_MODES
 
 RUNTIME_STATES = [
@@ -222,6 +224,7 @@ class FlightdeckSessionRuntime(models.Model):
         self._set_runtime_state("busy")
         return True
 
+    @workflow.task(name="Set the runtime state")
     def _set_runtime_state(self, state, pid=None, error=None):
         vals = {"runtime_state": state, "runtime_error": error or False}
         if pid is not None:

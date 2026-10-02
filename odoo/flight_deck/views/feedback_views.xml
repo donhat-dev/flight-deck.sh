@@ -1,0 +1,203 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The labels and their criteria -->
+    <record id="view_feedback_kind_list" model="ir.ui.view">
+        <field name="name">flightdeck.feedback.kind.list</field>
+        <field name="model">flightdeck.feedback.kind</field>
+        <field name="arch" type="xml">
+            <list string="Feedback labels">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="code"/>
+                <field name="family"/>
+                <field name="description"/>
+                <field name="fix_layer" optional="show"/>
+                <field name="active" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_feedback_kind_form" model="ir.ui.view">
+        <field name="name">flightdeck.feedback.kind.form</field>
+        <field name="model">flightdeck.feedback.kind</field>
+        <field name="arch" type="xml">
+            <form string="Feedback label">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="name"/>
+                            <field name="code"/>
+                            <field name="family"/>
+                        </group>
+                        <group>
+                            <field name="fix_layer"/>
+                            <field name="color" widget="color_picker"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <group>
+                        <field name="description" placeholder="It says ..."/>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_feedback_kind" model="ir.actions.act_window">
+        <field name="name">Feedback labels</field>
+        <field name="res_model">flightdeck.feedback.kind</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p>What a prompt can say about the agent's result just before it. Jev and Luna
+               read each label's criterion when they pick one.</p>
+        </field>
+    </record>
+
+    <!-- Feedback on the turn screens -->
+    <record id="view_turn_list_feedback" model="ir.ui.view">
+        <field name="name">flightdeck.turn.list.feedback</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="inherit_id" ref="view_turn_list"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='intent']" position="after">
+                <field name="feedback_ids" widget="many2many_tags" options="{'color_field': 'color'}"
+                       optional="show"/>
+                <field name="feedback_state" optional="hide"/>
+                <field name="feedback_source" optional="hide"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_turn_form_feedback" model="ir.ui.view">
+        <field name="name">flightdeck.turn.form.feedback</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="inherit_id" ref="view_turn_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='labeled_at']" position="after">
+                <field name="feedback_ids" widget="many2many_tags"
+                       options="{'color_field': 'color', 'no_create': True}"/>
+                <field name="feedback_main_id" options="{'no_create': True}"
+                       domain="[('id', 'in', feedback_ids)]" invisible="not feedback_ids"/>
+                <field name="feedback_source" invisible="not feedback_source"/>
+                <field name="feedback_state"/>
+                <field name="previous_turn_id" invisible="not previous_turn_id"/>
+            </xpath>
+            <xpath expr="//field[@name='steer_ids']/list/field[@name='text']" position="after">
+                <field name="feedback_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="view_turn_search_feedback" model="ir.ui.view">
+        <field name="name">flightdeck.turn.search.feedback</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="inherit_id" ref="view_turn_search"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='intent_no_work']" position="after">
+                <separator/>
+                <filter name="fb_wrong" string="Agent wrong" domain="[('feedback_ids.family', '=', 'wrong')]"/>
+                <filter name="fb_revise" string="Revision" domain="[('feedback_ids.family', '=', 'revise')]"/>
+                <filter name="fb_control" string="Control" domain="[('feedback_ids.family', '=', 'control')]"/>
+                <filter name="fb_review" string="Feedback to review" domain="[('feedback_state', '=', 'review')]"/>
+                <filter name="fb_todo" string="Feedback not labelled" domain="[('feedback_state', '=', 'todo')]"/>
+            </xpath>
+            <xpath expr="//filter[@name='g_intent']" position="after">
+                <filter name="g_feedback" string="Main feedback" context="{'group_by': 'feedback_main_id'}"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- The label check: the person labels these before the engines are trusted -->
+    <record id="view_label_check_list" model="ir.ui.view">
+        <field name="name">flightdeck.turn.label.check.list</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="priority">40</field>
+        <field name="arch" type="xml">
+            <list string="Label check" create="0">
+                <header>
+                    <button name="action_compare_label_check" type="object"
+                            string="Compare with the engines" display="always"/>
+                    <button name="action_label_check_figures" type="object"
+                            string="Show the figures" display="always"/>
+                </header>
+                <field name="started_at" string="Start"/>
+                <field name="prompt_head" string="Prompt"/>
+                <field name="intent" optional="hide"/>
+                <field name="check_intent"/>
+                <field name="feedback_ids" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                <field name="feedback_no_fit"/>
+                <field name="feedback_source"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_label_check_form" model="ir.ui.view">
+        <field name="name">flightdeck.turn.label.check.form</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="priority">40</field>
+        <field name="arch" type="xml">
+            <form string="Label check" create="0">
+                <header>
+                    <button name="action_save_label" type="object" string="Save my label"
+                            class="btn-primary"/>
+                </header>
+                <sheet>
+                    <div class="text-muted mb-2">Tick what the prompt says about the reply before it,
+                        or nothing when it moves on without a word on the result, then Save my label.</div>
+                    <group string="Before">
+                        <field name="previous_prompt" readonly="1"/>
+                        <field name="previous_final" readonly="1"/>
+                    </group>
+                    <group string="The prompt">
+                        <field name="prompt_text" readonly="1" nolabel="1" colspan="2"/>
+                    </group>
+                    <group>
+                        <group string="Type">
+                            <field name="check_intent" widget="radio" string="Type"/>
+                        </group>
+                        <group string="Feedback">
+                            <field name="feedback_ids" widget="many2many_checkboxes"/>
+                            <field name="feedback_main_id" options="{'no_create': True}"
+                                   domain="[('id', 'in', feedback_ids)]" invisible="not feedback_ids"/>
+                            <field name="feedback_no_fit"/>
+                            <field name="feedback_source" invisible="not feedback_source"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_label_check" model="ir.actions.act_window">
+        <field name="name">Label check</field>
+        <field name="res_model">flightdeck.turn</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('feedback_gold', '=', True)]</field>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_label_check_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_label_check_form')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No label check drawn yet</p>
+            <p>Run odoo/migration/draw_label_check.py to pick the 60 prompts.</p>
+        </field>
+    </record>
+
+    <!-- The analytics pages ask about Type or Feedback -->
+    <record id="view_label_probe_form_feedback" model="ir.ui.view">
+        <field name="name">flightdeck.label.probe.form.feedback</field>
+        <field name="model">flightdeck.label.probe</field>
+        <field name="inherit_id" ref="view_label_probe_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[hasclass('oe_title')]" position="after">
+                <group>
+                    <field name="question" widget="radio" options="{'horizontal': true}"/>
+                </group>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_label_check" name="Label check" parent="menu_tasks_root"
+              action="action_label_check" sequence="35"/>
+    <menuitem id="menu_feedback_kind" name="Feedback labels" parent="menu_tasks_root"
+              action="action_feedback_kind" sequence="41"/>
+</odoo>

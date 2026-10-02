@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Beside Following, and like it two buttons: the icon is an attribute. -->
+    <record id="view_session_form_notify" model="ir.ui.view">
+        <field name="name">flightdeck.session.form.notify</field>
+        <field name="model">flightdeck.session</field>
+        <field name="inherit_id" ref="flight_deck.view_session_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']/button[@name='action_toggle_following'][last()]" position="after">
+                <field name="notify_turns" invisible="1"/>
+                <button name="action_toggle_notify" type="object"
+                        class="oe_stat_button text-success" icon="fa-bell"
+                        invisible="not notify_turns"
+                        help="Notifications on: the agent finishing a turn, asking a question, or waiting for approval.">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Notifying</span>
+                    </div>
+                </button>
+                <button name="action_toggle_notify" type="object"
+                        class="oe_stat_button text-danger" icon="fa-bell-slash"
+                        invisible="notify_turns"
+                        help="Notifications off for this session.">
+                    <div class="o_stat_info">
+                        <span class="o_stat_text">Not notifying</span>
+                    </div>
+                </button>
+            </xpath>
+        </field>
+    </record>
+</odoo>

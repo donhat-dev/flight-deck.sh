@@ -1,0 +1,42 @@
+// Tasks > Adjustments per task. Boxes reuse the trend charts' `.fd_trend`.
+.fd_model_stats {
+    .fd_trends_bar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: .75rem;
+        margin-bottom: .25rem;
+    }
+    .fd_trends_title { font-weight: 600; font-size: 1.125rem; }
+    .fd_ms_pick { width: auto; }
+
+    .fd_ms_tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+        gap: .75rem;
+    }
+    .fd_ms_tile {
+        border-left: 3px solid $border-color;
+        padding: .25rem .75rem;
+        font-variant-numeric: tabular-nums;
+    }
+    .fd_ms_tile_name { font-size: .8125rem; color: $text-muted; }
+    .fd_ms_ratio { font-size: 1.75rem; font-weight: 600; line-height: 1.2; }
+
+    .fd_ms_canvas { height: 280px; }
+
+    .fd_ms_table {
+        font-variant-numeric: tabular-nums;
+        font-size: .8125rem;
+        th { font-weight: 600; white-space: nowrap; }
+    }
+    .fd_ms_swatch {
+        display: inline-block;
+        width: .625rem;
+        height: .625rem;
+        border-radius: 50%;
+        margin-right: .375rem;
+        vertical-align: baseline;
+    }
+    .fd_ms_swatch_none { border: 1px solid $border-color; }
+}

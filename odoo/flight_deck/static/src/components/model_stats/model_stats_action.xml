@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.ModelStatsAction">
+        <div class="o_action fd_model_stats h-100 overflow-auto bg-view p-3">
+            <div class="fd_trends_bar">
+                <span class="fd_trends_title">Adjustments per task</span>
+                <span class="text-muted small">By the main agent's model, week by week</span>
+                <span class="flex-grow-1"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Range">
+                    <t t-foreach="ranges" t-as="range" t-key="range">
+                        <button type="button" class="btn"
+                                t-att-class="range === state.weeks ? 'btn-primary' : 'btn-outline-secondary'"
+                                t-on-click="() => this.setWeeks(range)">
+                            <t t-out="range"/> weeks
+                        </button>
+                    </t>
+                </div>
+                <button type="button" class="btn btn-sm btn-outline-secondary" t-on-click="openPivot">Pivot</button>
+            </div>
+            <p class="text-muted small mb-3">
+                An adjustment is a Feedback label of the Agent wrong group, or a redirect, on a task's
+                results: a time a person had to fix or redirect the agent. Revisions and decisions are
+                the normal work of steering and are shown apart. A task counts in the week it started.
+            </p>
+            <div t-if="!state.data" class="text-muted">Reading the tasks…</div>
+            <t t-else="">
+                <section class="fd_trend mb-3">
+                    <header>
+                        <span class="fd_trend_name">Compare</span>
+                        <select class="form-select form-select-sm fd_ms_pick" aria-label="Model"
+                                t-on-change="(ev) => this.pick('model', ev)">
+                            <t t-foreach="names" t-as="name" t-key="name">
+                                <option t-att-value="name" t-att-selected="name === state.model"
+                                        t-out="label(name)"/>
+                            </t>
+                        </select>
+                        <span class="text-muted small">against</span>
+                        <select class="form-select form-select-sm fd_ms_pick" aria-label="Baseline"
+                                t-on-change="(ev) => this.pick('baseline', ev)">
+                            <t t-foreach="names" t-as="name" t-key="name">
+                                <option t-att-value="name" t-att-selected="name === state.baseline"
+                                        t-out="label(name)"/>
+                            </t>
+                        </select>
+                        <span class="fd_trend_hint" t-out="compareLine"/>
+                    </header>
+                    <div class="fd_ms_tiles">
+                        <div t-foreach="tiles" t-as="tile" t-key="tile.key" class="fd_ms_tile">
+                            <div class="fd_ms_tile_name"><t t-out="tile.label"/> per task</div>
+                            <div class="fd_ms_ratio" t-out="tile.ratio"/>
+                            <div class="small">
+                                <t t-out="label(state.model)"/> <b t-out="tile.model"/>
+                                · <t t-out="label(state.baseline)"/> <b t-out="tile.baseline"/>
+                            </div>
+                            <div class="small text-muted" t-out="tile.note"/>
+                        </div>
+                    </div>
+                </section>
+
+                <section class="fd_trend mb-3">
+                    <header>
+                        <span class="fd_trend_name">Per task, week by week</span>
+                        <select class="form-select form-select-sm fd_trend_measure" aria-label="Measure"
+                                t-model="state.measure">
+                            <t t-foreach="measures" t-as="m" t-key="m.key">
+                                <option t-att-value="m.key" t-out="m.label"/>
+                            </t>
+                        </select>
+                        <span class="fd_trend_hint">
+                            A model's week with fewer than <t t-out="state.data.week_floor"/> tasks is left out.
+                            The baseline is dashed; other models are paler. Hover for the task count.
+                        </span>
+                    </header>
+                    <div class="fd_trend_canvas fd_ms_canvas"><canvas t-ref="canvas"/></div>
+                </section>
+
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Every model in the range</span>
+                        <span class="fd_trend_hint">
+                            Means per task. The 95% range is a rough one (normal approximation); a model with fewer
+                            than <t t-out="state.data.few_tasks"/> tasks is greyed. The ratio compares adjustments
+                            with <t t-out="baselineLabel"/> over the weeks both ran.
+                        </span>
+                    </header>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle mb-0 fd_ms_table">
+                            <thead>
+                                <tr>
+                                    <th>Model</th>
+                                    <th class="text-end">Tasks</th>
+                                    <th class="text-end">Adjustments</th>
+                                    <th class="text-end">95% range</th>
+                                    <th class="text-end">vs <t t-out="baselineLabel"/></th>
+                                    <th class="text-end">Agent wrong</th>
+                                    <th class="text-end">Revisions</th>
+                                    <th class="text-end">Decisions</th>
+                                    <th class="text-end">Pulls</th>
+                                    <th class="text-end">Follow-ups</th>
+                                    <th class="text-end">Steer messages</th>
+                                    <th class="text-end">Cost per task</th>
+                                    <th class="text-end">First task</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr t-foreach="state.data.models" t-as="row" t-key="row.name"
+                                    t-att-class="row.tasks &lt; state.data.few_tasks ? 'text-muted' : ''">
+                                    <td t-att-title="row.name">
+                                        <span class="fd_ms_swatch" t-if="color(row)"
+                                              t-attf-style="background: {{ color(row) }};"/>
+                                        <span class="fd_ms_swatch fd_ms_swatch_none" t-else=""/>
+                                        <t t-out="label(row.name)"/>
+                                    </td>
+                                    <td class="text-end" t-out="row.tasks"/>
+                                    <td class="text-end fw-bold" t-out="perTask(row.metrics.adjustments.mean)"/>
+                                    <td class="text-end text-muted" t-out="rangeText(row.metrics.adjustments)"/>
+                                    <td class="text-end">
+                                        <t t-if="row.vs_baseline and row.vs_baseline.ratio !== null">
+                                            <t t-out="row.vs_baseline.ratio.toFixed(2)"/>×
+                                            <span class="text-muted small">
+                                                (<t t-out="row.vs_baseline.shared_weeks"/> wk)
+                                            </span>
+                                        </t>
+                                        <t t-elif="row.name === state.data.baseline">baseline</t>
+                                        <t t-else="">–</t>
+                                    </td>
+                                    <td class="text-end" t-out="perTask(row.metrics.wrong_results.mean)"/>
+                                    <td class="text-end" t-out="perTask(row.metrics.revisions.mean)"/>
+                                    <td class="text-end" t-out="perTask(row.metrics.decisions.mean)"/>
+                                    <td class="text-end" t-out="perTask(row.metrics.pulls.mean)"/>
+                                    <td class="text-end" t-out="perTask(row.metrics.follow_ups.mean)"/>
+                                    <td class="text-end" t-out="perTask(row.metrics.steers.mean)"/>
+                                    <td class="text-end" t-out="usd(row.cost)"/>
+                                    <td class="text-end text-nowrap" t-out="row.first"/>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </t>
+        </div>
+    </t>
+</templates>

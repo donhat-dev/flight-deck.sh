@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The live sessions on this machine and the agents each runs; watching only -->
+    <record id="action_orchestrator" model="ir.actions.client">
+        <field name="name">Orchestrator</field>
+        <field name="tag">flight_deck.orchestrator</field>
+    </record>
+
+    <menuitem id="menu_orchestrator" name="Orchestrator" parent="menu_root"
+              action="action_orchestrator" sequence="15"/>
+</odoo>

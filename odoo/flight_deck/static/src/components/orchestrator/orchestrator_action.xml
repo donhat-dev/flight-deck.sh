@@ -1,0 +1,233 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.OrchestratorAction">
+        <div class="o_action fd_orch h-100 d-flex flex-column">
+            <div class="fd_orch_bar">
+                <span class="fd_orch_title">Orchestrator</span>
+                <span class="text-muted small" t-out="summary"/>
+                <span t-if="state.error" class="text-danger small" t-out="state.error"/>
+                <span class="flex-grow-1"/>
+                <span class="fd_orch_legend small text-muted">
+                    <span t-foreach="legend" t-as="item" t-key="item.key" class="fd_orch_legend_item">
+                        <span t-attf-class="fd_orch_dot fd_orch_dot_{{item.key}}"/>
+                        <t t-out="item.label"/>
+                    </span>
+                </span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Zoom">
+                    <button type="button" class="btn btn-outline-secondary" title="Zoom out" aria-label="Zoom out"
+                            t-on-click="() => this.zoom(1 / 1.2)"><i class="fa fa-minus"/></button>
+                    <button type="button" class="btn btn-outline-secondary" title="Show the whole tree"
+                            t-on-click="() => this.fit()">Fit</button>
+                    <button type="button" class="btn btn-outline-secondary" title="Zoom in" aria-label="Zoom in"
+                            t-on-click="() => this.zoom(1.2)"><i class="fa fa-plus"/></button>
+                </div>
+            </div>
+            <div class="fd_orch_body flex-grow-1">
+            <div class="fd_orch_view flex-grow-1" t-ref="view"
+                 t-att-class="{ fd_orch_dragging: state.dragging }"
+                 t-att-style="viewStyle"
+                 t-on-wheel="onWheel"
+                 t-on-pointerdown="onPointerDown"
+                 t-on-pointermove="onPointerMove"
+                 t-on-pointerup="onPointerUp"
+                 t-on-pointercancel="onPointerUp">
+                <t t-set="plan" t-value="layout"/>
+                <div t-if="state.data?.sessions.length" class="fd_orch_plane" t-att-style="planeStyle">
+                    <svg class="fd_orch_wires" t-att-width="plan.width" t-att-height="plan.height"
+                         aria-hidden="true">
+                        <path t-foreach="plan.edges" t-as="edge" t-key="edge.key" t-att-d="edge.d"
+                              t-attf-class="fd_orch_wire fd_orch_wire_{{edge.status}}"/>
+                    </svg>
+                    <t t-foreach="plan.nodes" t-as="node" t-key="node.key">
+                        <button type="button"
+                                t-att-class="nodeClass(node)"
+                                t-att-aria-pressed="state.selected?.key === node.key ? 'true' : 'false'"
+                                t-att-style="nodeStyle(node)" t-att-title="titleOf(node)"
+                                t-on-click="() => this.select(node)">
+                            <t t-call="flight_deck.OrchestratorNodeBody"/>
+                        </button>
+                    </t>
+                </div>
+                <div t-elif="state.data" class="fd_orch_empty text-muted">
+                    No Claude sessions are running. A session shows here once the CLI lists it
+                    under ~/.claude/sessions.
+                </div>
+            </div>
+            <aside t-if="state.selected" class="fd_orch_panel" aria-label="Details">
+                <t t-set="picked" t-value="selectedNode"/>
+                <div class="fd_orch_panel_head">
+                    <span t-attf-class="fd_orch_dot fd_orch_dot_{{picked.status}}"/>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="fd_orch_panel_title" t-out="picked.label"/>
+                        <div class="text-muted small" t-out="picked.meta"/>
+                    </div>
+                    <button type="button" class="btn-close" aria-label="Close" title="Close (Esc)"
+                            t-on-click="closePanel"/>
+                </div>
+                <div class="fd_orch_panel_body">
+                    <t t-if="state.selected.kind === 'root'" t-call="flight_deck.OrchestratorRootPanel"/>
+                    <t t-else="">
+                        <div t-if="state.detailError" class="text-danger small mb-2" t-out="state.detailError"/>
+                        <div t-if="!state.detail and !state.detailError" class="text-muted">Reading…</div>
+                        <t t-elif="state.detail and state.selected.kind === 'session'"
+                           t-call="flight_deck.OrchestratorSessionPanel"/>
+                        <t t-elif="state.detail" t-call="flight_deck.OrchestratorAgentPanel"/>
+                    </t>
+                </div>
+            </aside>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.OrchestratorRootPanel">
+        <t t-set="orch" t-value="orchestrator"/>
+        <dl class="fd_orch_facts">
+            <dt>Relay</dt><dd t-out="relayLabel(orch)"/>
+            <dt>Model</dt><dd>Haiku</dd>
+            <dt t-if="orch">Cost so far</dt><dd t-if="orch" t-out="money(orch.cost)"/>
+        </dl>
+        <div t-if="orch and orch.error" class="text-danger small mb-2" t-out="orch.error"/>
+        <div t-if="canSend" class="fd_orch_panel_actions">
+            <button t-if="!orch or orch.runtime === 'stopped' or orch.gate !== 'ok'" type="button"
+                    class="btn btn-sm btn-primary" t-att-disabled="state.working" t-on-click="startRelay">
+                Start and test the gate
+            </button>
+            <button t-if="orch and orch.runtime !== 'stopped'" type="button"
+                    class="btn btn-sm btn-outline-secondary" t-att-disabled="state.working"
+                    t-on-click="stopRelay">Stop</button>
+        </div>
+        <p class="text-muted small">
+            The relay sends a session only what you confirm on its panel. Each start sends one
+            test message that has to be denied; until it is, nothing else goes out.
+        </p>
+        <t t-if="canSend">
+            <div class="fd_orch_section">Ask about the sessions</div>
+            <textarea class="form-control form-control-sm mb-2" rows="3"
+                      placeholder="Which sessions finished since this morning?"
+                      t-model="state.askText"/>
+            <button type="button" class="btn btn-sm btn-primary"
+                    t-att-disabled="state.working or !state.askText.trim()" t-on-click="ask">Ask</button>
+        </t>
+        <t t-if="orch and orch.requests.length">
+            <div class="fd_orch_section">Recent requests</div>
+            <t t-call="flight_deck.OrchestratorRequests">
+                <t t-set="rows" t-value="orch.requests"/>
+            </t>
+        </t>
+    </t>
+
+    <t t-name="flight_deck.OrchestratorRequests">
+        <ul class="fd_orch_requests">
+            <li t-foreach="rows" t-as="row" t-key="row.id">
+                <div class="fd_orch_request_head">
+                    <span t-if="row.kind === 'ask'">Question</span>
+                    <span t-else="">To <t t-out="row.target"/></span>
+                    <span t-attf-class="fd_orch_request_state fd_orch_rs_{{row.state}}" t-out="row.state_label"/>
+                </div>
+                <div class="fd_orch_request_text" t-out="row.text"/>
+                <div t-if="row.note" class="text-muted small" t-out="row.note"/>
+                <div t-if="row.reply" class="fd_orch_quote mt-1" t-out="row.reply"/>
+                <div class="text-muted small" t-out="ago(row.at)"/>
+            </li>
+        </ul>
+    </t>
+
+    <t t-name="flight_deck.OrchestratorSessionPanel">
+        <t t-set="d" t-value="state.detail"/>
+        <div class="fd_orch_panel_actions">
+            <button type="button" class="btn btn-sm btn-primary" t-on-click="openLogbook">Open logbook</button>
+        </div>
+        <dl class="fd_orch_facts">
+            <dt>Logbook</dt><dd t-out="d.name"/>
+            <dt>Folder</dt><dd t-out="d.cwd or picked.ref.session.cwd"/>
+            <dt t-if="d.branch">Branch</dt><dd t-if="d.branch" t-out="d.branch"/>
+            <dt>Last 24 hours</dt>
+            <dd><t t-out="d.day_turns"/> turns · <t t-out="money(d.day_cost)"/></dd>
+        </dl>
+        <t t-if="canSend">
+            <div class="fd_orch_section">Send a message</div>
+            <textarea class="form-control form-control-sm mb-2" rows="3"
+                      placeholder="Arrives as a message from fd-orchestrator"
+                      t-model="state.sendText"/>
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <button type="button" class="btn btn-sm btn-primary"
+                        t-att-disabled="state.working or !state.sendText.trim()"
+                        t-on-click="confirmSend">Send…</button>
+                <span class="text-muted small">Its Claude decides whether to act on it.</span>
+            </div>
+            <t t-if="d.sends and d.sends.length" t-call="flight_deck.OrchestratorRequests">
+                <t t-set="rows" t-value="d.sends"/>
+            </t>
+        </t>
+        <t t-if="d.latest">
+            <div class="fd_orch_section">
+                <t t-if="d.latest.ended_at">Last turn</t><t t-else="">Running turn</t>
+                · <t t-out="ago(d.latest.started_at)"/>
+            </div>
+            <div t-if="d.latest.title" class="fw-semibold mb-1" t-out="d.latest.title"/>
+            <div class="text-muted small mb-1">
+                <t t-out="d.latest.intent or 'Not labelled yet'"/> · <t t-out="money(d.latest.cost)"/>
+                · started <t t-out="when(d.latest.started_at)"/>
+            </div>
+            <div class="fd_orch_quote" t-out="d.latest.prompt"/>
+            <t t-if="d.latest.reply">
+                <div class="fd_orch_section">Last reply</div>
+                <div class="fd_orch_quote" t-out="d.latest.reply"/>
+            </t>
+        </t>
+        <t t-if="d.turns.length">
+            <div class="fd_orch_section">Recent turns</div>
+            <ul class="fd_orch_turns">
+                <li t-foreach="d.turns" t-as="turn" t-key="turn.id">
+                    <span class="fd_orch_turn_text" t-att-title="turn.text" t-out="turn.text"/>
+                    <span t-out="money(turn.cost)"/>
+                    <span class="fd_orch_turn_meta">
+                        <t t-out="ago(turn.started_at)"/>
+                        <t t-if="turn.intent"> · <t t-out="turn.intent"/></t>
+                        <t t-if="turn.running"> · running</t>
+                    </span>
+                </li>
+            </ul>
+        </t>
+        <div t-else="" class="text-muted">No turns read yet.</div>
+    </t>
+
+    <t t-name="flight_deck.OrchestratorAgentPanel">
+        <t t-set="d" t-value="state.detail"/>
+        <div class="fd_orch_panel_actions">
+            <button type="button" class="btn btn-sm btn-primary" t-att-disabled="!picked.openable"
+                    t-att-title="picked.openable ? '' : 'This agent left no transcript file'"
+                    t-on-click="openTranscript">Open transcript</button>
+        </div>
+        <dl class="fd_orch_facts">
+            <dt t-if="d.agent_type">Kind</dt><dd t-if="d.agent_type" t-out="d.agent_type"/>
+            <dt t-if="d.model">Model</dt><dd t-if="d.model" t-out="d.model"/>
+            <dt t-if="d.parent">Started by</dt><dd t-if="d.parent" t-out="d.parent"/>
+            <dt>Started</dt><dd t-out="when(d.started_at) or '—'"/>
+            <dt>Ended</dt><dd t-out="when(d.ended_at) or (d.status === 'working' or d.status === 'waiting' ? 'running' : 'not recorded')"/>
+            <dt t-if="d.seconds">Duration</dt><dd t-if="d.seconds" t-out="duration(d.seconds)"/>
+            <dt t-if="d.tokens">Tokens</dt><dd t-if="d.tokens" t-out="compact(d.tokens)"/>
+            <dt t-if="d.tool_uses">Tool calls</dt><dd t-if="d.tool_uses" t-out="d.tool_uses"/>
+            <dt>Runs in background</dt><dd t-out="d.background ? 'yes' : 'no'"/>
+        </dl>
+        <t t-if="d.prompt">
+            <div class="fd_orch_section">Asked to do</div>
+            <div class="fd_orch_quote" t-out="d.prompt"/>
+        </t>
+        <t t-if="d.summary">
+            <div class="fd_orch_section">Reported back</div>
+            <div class="fd_orch_quote" t-out="d.summary"/>
+        </t>
+    </t>
+
+    <t t-name="flight_deck.OrchestratorNodeBody">
+        <span t-if="node.kind !== 'root'" class="fd_orch_port fd_orch_port_in"/>
+        <span t-if="node.children.length" class="fd_orch_port fd_orch_port_out"/>
+        <span t-attf-class="fd_orch_dot fd_orch_dot_{{node.status}}"/>
+        <span class="fd_orch_text">
+            <span class="fd_orch_name" t-out="node.label"/>
+            <span t-if="node.sub" class="fd_orch_sub" t-out="node.sub"/>
+            <span class="fd_orch_meta" t-out="node.meta"/>
+        </span>
+    </t>
+</templates>

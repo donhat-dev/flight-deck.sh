@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.TaskTranscript">
+        <div class="fd_task_transcript">
+            <div class="fd_tt_bar">
+                <select t-if="state.turns.length > 1" class="form-select form-select-sm w-auto"
+                        t-on-change="onPick" aria-label="Turn">
+                    <t t-foreach="state.turns" t-as="turn" t-key="turn.id">
+                        <option t-att-value="turn.id" t-att-selected="turn.id === state.turnId"
+                                t-out="turnLabel(turn)"/>
+                    </t>
+                </select>
+                <span class="flex-grow-1"/>
+                <div class="form-check form-switch small mb-0">
+                    <input class="form-check-input" type="checkbox" id="fd_tt_machine"
+                           t-model="state.showMachine"/>
+                    <label class="form-check-label" for="fd_tt_machine">Lines the CLI wrote</label>
+                </div>
+            </div>
+            <div t-if="state.loading" class="text-muted small py-2">Reading the transcript…</div>
+            <div t-elif="state.missing" class="text-muted small py-2">
+                The transcript of this session is no longer on disk.
+            </div>
+            <div t-elif="!rows.length" class="text-muted small py-2">Nothing to show for this turn.</div>
+            <div t-else="" class="fd_tt_lines">
+                <t t-foreach="rows" t-as="line" t-key="line.seq">
+                    <div t-if="line.tool_name" class="fd_tt_tool">
+                        <button type="button" class="fd_tt_tool_head" t-on-click="() => this.toggle(line.seq)"
+                                t-att-aria-expanded="state.open[line.seq] ? 'true' : 'false'">
+                            <i t-attf-class="fa {{ state.open[line.seq] ? 'fa-caret-down' : 'fa-caret-right' }}"/>
+                            <span class="fd_tt_tool_name" t-out="line.tool_name"/>
+                            <span class="fd_tt_tool_input" t-out="head(line)"/>
+                        </button>
+                        <div t-if="state.open[line.seq]" class="fd_tt_tool_body">
+                            <pre t-out="line.tool_input"/>
+                            <pre t-if="line.tool_output" class="fd_tt_output" t-out="output(line)"/>
+                        </div>
+                    </div>
+                    <div t-elif="line.role === 'user'" class="fd_tt_prompt"
+                         t-att-class="line.machine ? 'fd_tt_machine' : ''">
+                        <div class="fd_tt_when" t-out="stamp(line.ts)"/>
+                        <div class="fd_tt_text" t-out="line.text"/>
+                    </div>
+                    <div t-else="" class="fd_tt_reply">
+                        <div class="fd_tt_when" t-out="stamp(line.ts)"/>
+                        <div class="fd_tt_markdown" t-out="markdown(line.text)"/>
+                    </div>
+                </t>
+                <div t-if="state.cut" class="text-muted small py-2">
+                    The turn goes on past what is shown here; the rest is in the session's file.
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

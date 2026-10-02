@@ -13,6 +13,8 @@ from datetime import datetime, timedelta, timezone
 from odoo import api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.workflow_studio.workflow import workflow
+
 from ..connectors import get_connector, kinds
 
 _logger = logging.getLogger(__name__)
@@ -149,7 +151,7 @@ class FlightdeckRunner(models.Model):
         connector = self._connector()
         events, offset = connector.read_events(self.events_offset)
         for event in events:
-            self._apply_event(event)
+            self._handle_event(event)
         if offset != self.events_offset:
             self.write({"events_offset": offset, "last_event_at": fields.Datetime.now()})
         self._reconcile(connector)
@@ -169,6 +171,17 @@ class FlightdeckRunner(models.Model):
             if session.session_id not in running:
                 session._set_runtime_state("stopped", error="The runner no longer has this process.")
 
+    @workflow.flow(lambda self, event: "flight_deck.runner_event.%s" % (event.get("kind") or "unknown"),
+                   name=lambda self, event: "Runner event: %s" % (event.get("kind") or "unknown"))
+    def _handle_event(self, event):
+        """Apply one runner event; each is recorded as a code run of its kind.
+
+        The flow wraps the call rather than `_apply_event` itself: modules
+        override `_apply_event` for their own kinds (quota.py), and the
+        outermost override is where every event enters.
+        """
+        return self._apply_event(event)
+
     def _apply_event(self, event):
         kind = event.get("kind")
         if kind == "ack" and event.get("cmd_id"):
@@ -180,6 +193,7 @@ class FlightdeckRunner(models.Model):
                     "error": event.get("error") or False,
                 })
                 session = row.session_ref_id
+                workflow.link(session)
                 if event.get("error") and session:
                     if row.op == "start":
                         session._set_runtime_state("stopped", error=event["error"])
@@ -194,6 +208,8 @@ class FlightdeckRunner(models.Model):
                 [("session_id", "=", event["session_id"])], limit=1)
         if not session:
             return
+        # The event's run shows on the session's form beside the runner's.
+        workflow.link(session)
         if kind == "state":
             pid = (event.get("payload") or {}).get("pid")
             session._set_runtime_state(event.get("state"), pid=pid, error=event.get("error"))

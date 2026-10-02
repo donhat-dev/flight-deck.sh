@@ -6,6 +6,13 @@ Layout under `runner.spool_dir`:
     done/                         where the runner moves a handled command
     state/  <session_id>.json     the runner's view of each live process
     events.jsonl                  appended by the runner; read by byte offset
+    deltas.jsonl                  streaming text snapshots; read by byte
+                                   offset, but never a durable one — the
+                                   runner truncates this file on its own once
+                                   it grows past its cap, and a caller that
+                                   kept the old offset across that must fall
+                                   back the same way `read_events` already
+                                   does when a file shrinks underneath it.
 
 No network and no token: whoever can write into cmd/ drives the runner, and
 the mount is what grants that.
@@ -33,11 +40,20 @@ class SpoolConnector(RunnerConnector):
         os.rename(tmp, os.path.join(cmd_dir, name))
 
     def read_events(self, offset):
-        path = self._path("events.jsonl")
+        return self._read_jsonl("events.jsonl", offset)
+
+    def read_deltas(self, offset):
+        return self._read_jsonl("deltas.jsonl", offset)
+
+    def _read_jsonl(self, name, offset):
+        path = self._path(name)
         if not os.path.exists(path):
             return [], offset
         size = os.path.getsize(path)
         if size < offset:
+            # The runner rewrote or truncated the file (deltas.jsonl does
+            # this on its own once it grows past its cap), so the old offset
+            # means nothing; read again from the start.
             offset = 0
         if size == offset:
             return [], offset
@@ -48,15 +64,15 @@ class SpoolConnector(RunnerConnector):
         end = buf.rfind(b"\n")
         if end < 0:
             return [], offset
-        events = []
+        rows = []
         for raw in buf[:end].split(b"\n"):
             if not raw.strip():
                 continue
             try:
-                events.append(json.loads(raw))
+                rows.append(json.loads(raw))
             except ValueError:
                 continue
-        return events, offset + end + 1
+        return rows, offset + end + 1
 
     def live_states(self):
         """What the runner says is running, from state/."""

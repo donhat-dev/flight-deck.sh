@@ -13,6 +13,8 @@ import json
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from odoo.addons.workflow_studio.workflow import workflow
+
 BUS_ASK = "flightdeck.session/permission"
 BUS_DECIDED = "flightdeck.session/decision"
 
@@ -34,6 +36,9 @@ class FlightdeckDecision(models.Model):
     runner_id = fields.Many2one(related="session_ref_id.runner_id", store=True)
     request_id = fields.Char(required=True, index=True)
     tool_use_id = fields.Char()
+    # Which agent asked. Empty for the session's own turn; filled from the
+    # hook payload, which is the only source that names it.
+    agent_id = fields.Char(index=True)
     tool_name = fields.Char(required=True)
     # The tool's own arguments, as the model asked for them.
     tool_input = fields.Text()
@@ -63,6 +68,7 @@ class FlightdeckDecision(models.Model):
 
     # --- from the runner -----------------------------------------------------
     @api.model
+    @workflow.task(name="Record the permission request")
     def _from_event(self, session, payload):
         """Record a request the runner parked, and tell the open form."""
         existing = self.search([("request_id", "=", payload.get("request_id"))], limit=1)
@@ -83,6 +89,7 @@ class FlightdeckDecision(models.Model):
         session._bus_send(BUS_ASK, record._bus_payload())
         return record
 
+    @workflow.task(name="Close the permission request")
     def _resolve(self, payload):
         """Close a record the runner answered, whoever caused it."""
         self.ensure_one()
