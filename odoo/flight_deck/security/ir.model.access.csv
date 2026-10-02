@@ -48,3 +48,5 @@ access_session_message_manager,session.message.manager,model_flightdeck_session_
 access_session_thread_user,session.thread.user,model_flightdeck_session_thread,group_user,1,0,0,0
 access_session_thread_manager,session.thread.manager,model_flightdeck_session_thread,group_manager,1,1,1,1
 access_session_message_scan_manager,session.message.scan.manager,model_flightdeck_session_message_scan,group_manager,1,1,1,1
+access_session_reply_user,session.reply.user,model_flightdeck_session_reply,group_user,1,0,0,0
+access_session_reply_manager,session.reply.manager,model_flightdeck_session_reply,group_manager,1,1,1,1

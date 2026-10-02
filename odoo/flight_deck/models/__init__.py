@@ -28,3 +28,4 @@ from . import turn_step
 from . import turn_feedback
 from . import turn_notify
 from . import session_message
+from . import chat_bridge
