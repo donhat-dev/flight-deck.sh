@@ -22,4 +22,6 @@ Refs: core/internal/{ledger,ingest,metrics}, core/cmd/fd/thinking.go, .agents/sk
 - How far `--raw` reaches: complete from today − cleanupPeriodDays (read from `~/.claude/settings.json`, else 30), because Claude Code deletes by inactivity; the oldest line on disk (2026-07-14) only shows how far incomplete days go.
 - Subagent transcripts carry no `output_tokens_details`, so token figures are the sessions' own; said in the output notes rather than hidden.
 - A `sidechain` column and `--agent` / `--by agent`, because the baseline run showed subagents (3,037 of 7,578 responses this week) moving the daily figures; it went into schema v2 before v2 left this machine, so the local ledger was rebuilt from the v1 copy.
+- `--from`/`--to`/`--split-at` taking a date or a time with its zone, because the first before/after test (split at the AGENTS.md rewrite, 2026-10-01 09:27 UTC) had to drop the whole changeover day and its 428 responses; bounds are turned into the transcripts' own UTC stamp form so they compare as text.
+- `-h`/`--help` prints the command's flags with exit 0, because the test agent's first move was `fd thinking --help` and it got a refusal.
 - The skill is a skills-directory plugin `fd` with child `fd:thinking`, like `nakivo-jira`, so later fd questions (spend, sessions) become siblings.

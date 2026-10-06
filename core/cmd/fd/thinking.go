@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -31,7 +32,11 @@ func cmdThinking(args []string) (output, error) {
 	fs := newFlags("thinking")
 	p := addPaths(fs)
 	days := fs.Int("days", 7, "days back from today, today included")
-	by := fs.String("by", "day", "day, model, effort or agent")
+	fromFlag := fs.String("from", "", "start of the range instead of --days: a date (local midnight) "+
+		"or a time such as 2026-10-01T16:27+07:00")
+	toFlag := fs.String("to", "", "end of the range, not included: a date (local midnight) or a time")
+	by := fs.String("by", "day", "day, model, effort, agent or split")
+	splitAt := fs.String("split-at", "", "a time: buckets before and after it (sets --by split)")
 	model := fs.String("model", "", "only this model, e.g. claude-opus-5-5")
 	effort := fs.String("effort", "", "only this effort, e.g. high")
 	agent := fs.String("agent", "", "only main (the sessions' own responses) or subagent")
@@ -43,8 +48,19 @@ func cmdThinking(args []string) (output, error) {
 	if *days < 1 {
 		return output{}, refuse("--days must be 1 or more")
 	}
-	if *by != "day" && *by != "model" && *by != "effort" && *by != "agent" {
-		return output{}, refuse("--by must be day, model, effort or agent, not %q", *by)
+	byGiven := false
+	fs.Visit(func(f *flag.Flag) { byGiven = byGiven || f.Name == "by" })
+	if *splitAt != "" && !byGiven {
+		*by = "split"
+	}
+	switch *by {
+	case "day", "model", "effort", "agent":
+	case "split":
+		if *splitAt == "" {
+			return output{}, refuse("--by split needs --split-at")
+		}
+	default:
+		return output{}, refuse("--by must be day, model, effort, agent or split, not %q", *by)
 	}
 	if *agent != "" && *agent != "main" && *agent != "subagent" {
 		return output{}, refuse("--agent must be main or subagent, not %q", *agent)
@@ -52,7 +68,28 @@ func cmdThinking(args []string) (output, error) {
 	// Like the spend ranges: the local calendar date, compared with UTC timestamps.
 	from := time.Now().Local().AddDate(0, 0, -(*days - 1))
 	from = time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.Local)
-	since := from.Format(time.DateOnly)
+	since, until, split := from.Format(time.DateOnly), "", ""
+	if *fromFlag != "" {
+		t, err := parseWhen(*fromFlag)
+		if err != nil {
+			return output{}, err
+		}
+		from, since = t, utcStamp(t)
+	}
+	if *toFlag != "" {
+		t, err := parseWhen(*toFlag)
+		if err != nil {
+			return output{}, err
+		}
+		until = utcStamp(t)
+	}
+	if *splitAt != "" {
+		t, err := parseWhen(*splitAt)
+		if err != nil {
+			return output{}, err
+		}
+		split = utcStamp(t)
+	}
 
 	var rows []metrics.ThinkingRow
 	var warnings []string
@@ -61,7 +98,7 @@ func cmdThinking(args []string) (output, error) {
 	if *raw {
 		source = "transcripts"
 		var err error
-		rows, reach, warnings, err = rawRows(p.projects, from, since)
+		rows, reach, warnings, err = rawRows(p.projects, from, since, until)
 		if err != nil {
 			return output{}, err
 		}
@@ -76,24 +113,32 @@ func cmdThinking(args []string) (output, error) {
 				return output{}, err
 			}
 		}
-		if rows, err = metrics.ThinkingRows(s.DB, since); err != nil {
+		if rows, err = metrics.ThinkingRows(s.DB, since, until); err != nil {
 			return output{}, err
 		}
 	}
-	buckets := metrics.Thinking(rows, *by, metrics.ThinkingFilter{Model: *model, Effort: *effort, Agent: *agent})
+	buckets := metrics.Thinking(rows, metrics.Grouping{By: *by, SplitAt: split},
+		metrics.ThinkingFilter{Model: *model, Effort: *effort, Agent: *agent})
 	var trends []metrics.Trend
 	if *by == "day" {
 		trends = metrics.Trends(buckets)
 	}
 	notes := thinkingNotes(buckets)
-	data := map[string]any{"source": source, "since": since, "days": *days, "by": *by,
-		"model": *model, "effort": *effort, "agent": *agent, "buckets": buckets, "trends": trends,
-		"notes": notes, "warnings": warnings}
+	data := map[string]any{"source": source, "since": since, "until": until, "days": *days, "by": *by,
+		"split_at": split, "model": *model, "effort": *effort, "agent": *agent, "buckets": buckets,
+		"trends": trends, "notes": notes, "warnings": warnings}
 	if reach != nil {
 		data["coverage"] = reach
 	}
 	return output{Data: data, Text: func(w io.Writer) {
-		fmt.Fprintf(w, "thinking since %s (%d days) from the %s, by %s\n", since, *days, source, *by)
+		span := fmt.Sprintf("since %s (%d days)", since, *days)
+		if *fromFlag != "" || until != "" {
+			span = fmt.Sprintf("from %s to %s", since, firstOf(until, "now"))
+		}
+		if split != "" {
+			span += ", split at " + split
+		}
+		fmt.Fprintf(w, "thinking %s from the %s, by %s\n", span, source, *by)
 		tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', tabwriter.AlignRight)
 		fmt.Fprintln(tw, *by+"\tresponses\tthought\ttokens p50\ttokens mean\tthink s p50\tthink n\twait s p50\twait n\t")
 		for _, b := range buckets {
@@ -126,7 +171,7 @@ type coverage struct {
 
 // rawRows reads the transcripts, saying first what that costs and how far back
 // it can reach.
-func rawRows(projects string, from time.Time, since string) ([]metrics.ThinkingRow, *coverage, []string, error) {
+func rawRows(projects string, from time.Time, since, until string) ([]metrics.ThinkingRow, *coverage, []string, error) {
 	if st, err := os.Stat(projects); err != nil || !st.IsDir() {
 		return nil, nil, nil, refuse("projects directory %s not found", projects)
 	}
@@ -175,7 +220,36 @@ func rawRows(projects string, from time.Time, since string) ([]metrics.ThinkingR
 		return nil, nil, nil, err
 	}
 	fmt.Fprintf(warnOut, "fd thinking: read %d responses in %.1fs\n", len(resps), time.Since(t0).Seconds())
-	return metrics.ThinkingRowsOf(resps), &coverage{CompleteFrom: complete, OldestLine: oldest}, warnings, nil
+	return metrics.ThinkingRowsOf(resps, until), &coverage{CompleteFrom: complete, OldestLine: oldest}, warnings, nil
+}
+
+// stampLayout is how the transcripts write a timestamp, so a bound compares
+// with them as text.
+const stampLayout = "2006-01-02T15:04:05.000Z"
+
+func utcStamp(t time.Time) string { return t.UTC().Format(stampLayout) }
+
+// parseWhen reads a date (local midnight) or a time, with or without a zone
+// (local when none is given).
+func parseWhen(s string) (time.Time, error) {
+	for _, layout := range []string{time.RFC3339Nano, "2006-01-02T15:04Z07:00"} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, nil
+		}
+	}
+	for _, layout := range []string{time.DateOnly, "2006-01-02T15:04:05", "2006-01-02T15:04"} {
+		if t, err := time.ParseInLocation(layout, s, time.Local); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, refuse("%q is not a date or a time such as 2026-10-01 or 2026-10-01T16:27+07:00", s)
+}
+
+func firstOf(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // cleanupPeriod is Claude Code's cleanupPeriodDays as this machine sets it, and
