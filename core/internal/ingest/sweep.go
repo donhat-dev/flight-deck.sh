@@ -15,6 +15,7 @@ type Transcript struct {
 	Path    string
 	BornNS  int64 // birth time, or MtimeNS where the filesystem has none
 	MtimeNS int64
+	Size    int64
 }
 
 // Sweep reads every transcript under root in creation order. On a cold read the
@@ -63,7 +64,7 @@ func List(root string) ([]Transcript, error) {
 			return nil
 		}
 		mtime := info.ModTime().UnixNano()
-		out = append(out, Transcript{Path: p, BornNS: bornNS(p, mtime), MtimeNS: mtime})
+		out = append(out, Transcript{Path: p, BornNS: bornNS(p, mtime), MtimeNS: mtime, Size: info.Size()})
 		return nil
 	})
 	sortByCreation(out)
