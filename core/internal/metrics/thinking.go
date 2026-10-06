@@ -14,6 +14,7 @@ type ThinkingRow struct {
 	// Agent is "main" for the session's own responses, "subagent" for a
 	// subagent's, "" when the row was read before fd recorded it.
 	Day, Model, Effort, Agent string
+	TS                        string // the response's UTC timestamp
 	Tokens, MS, WaitMS        *int64
 }
 
@@ -24,15 +25,21 @@ func agentOf(sidechain bool) string {
 	return "main"
 }
 
-// ThinkingRows reads the ledger from `since` (YYYY-MM-DD, "" for all).
-func ThinkingRows(db *sql.DB, since string) ([]ThinkingRow, error) {
+// ThinkingRows reads the ledger's responses with since <= ts < until; each
+// bound is a YYYY-MM-DD or a UTC timestamp as the transcripts write it, ""
+// for no bound.
+func ThinkingRows(db *sql.DB, since, until string) ([]ThinkingRow, error) {
 	q := `SELECT COALESCE(substr(ts,1,10),''), COALESCE(model,''), COALESCE(effort,''),
-		CASE sidechain WHEN 1 THEN 'subagent' WHEN 0 THEN 'main' ELSE '' END,
+		CASE sidechain WHEN 1 THEN 'subagent' WHEN 0 THEN 'main' ELSE '' END, COALESCE(ts,''),
 		thinking_tokens, thinking_ms, think_wait_ms FROM responses WHERE model IS NOT '<synthetic>'`
 	args := []any{}
 	if since != "" {
 		q += " AND ts >= ?"
 		args = append(args, since)
+	}
+	if until != "" {
+		q += " AND ts < ?"
+		args = append(args, until)
 	}
 	rows, err := db.Query(q, args...)
 	if err != nil {
@@ -43,7 +50,7 @@ func ThinkingRows(db *sql.DB, since string) ([]ThinkingRow, error) {
 	for rows.Next() {
 		var r ThinkingRow
 		var tok, ms, wait sql.NullInt64
-		if err := rows.Scan(&r.Day, &r.Model, &r.Effort, &r.Agent, &tok, &ms, &wait); err != nil {
+		if err := rows.Scan(&r.Day, &r.Model, &r.Effort, &r.Agent, &r.TS, &tok, &ms, &wait); err != nil {
 			return nil, err
 		}
 		r.Tokens, r.MS, r.WaitMS = ptr(tok), ptr(ms), ptr(wait)
@@ -59,18 +66,19 @@ func ptr(v sql.NullInt64) *int64 {
 	return &v.Int64
 }
 
-// ThinkingRowsOf turns responses read straight from the transcripts into rows.
-func ThinkingRowsOf(resps []ledger.Response) []ThinkingRow {
+// ThinkingRowsOf turns responses read straight from the transcripts into rows,
+// keeping those before `until` ("" for no bound).
+func ThinkingRowsOf(resps []ledger.Response, until string) []ThinkingRow {
 	out := make([]ThinkingRow, 0, len(resps))
 	for _, r := range resps {
-		if r.Model == "<synthetic>" {
+		if r.Model == "<synthetic>" || (until != "" && r.TS >= until) {
 			continue
 		}
 		day := r.TS
 		if len(day) > 10 {
 			day = day[:10]
 		}
-		out = append(out, ThinkingRow{Day: day, Model: r.Model, Effort: r.Effort, Agent: agentOf(r.Sidechain),
+		out = append(out, ThinkingRow{Day: day, Model: r.Model, Effort: r.Effort, Agent: agentOf(r.Sidechain), TS: r.TS,
 			Tokens: r.ThinkingTokens, MS: r.ThinkingMS, WaitMS: r.ThinkWaitMS})
 	}
 	return out
@@ -129,8 +137,30 @@ func (f ThinkingFilter) keeps(r ThinkingRow) bool {
 		(f.Agent == "" || r.Agent == f.Agent)
 }
 
-// Thinking groups the rows the filter keeps by "day", "model", "effort" or "agent".
-func Thinking(rows []ThinkingRow, by string, f ThinkingFilter) []ThinkingBucket {
+// Grouping is how rows are put in buckets: By is "day", "model", "effort",
+// "agent", or "split", which puts each row "before" or "after" SplitAt (a UTC
+// timestamp as the transcripts write it).
+type Grouping struct{ By, SplitAt string }
+
+func (g Grouping) key(r ThinkingRow) string {
+	switch g.By {
+	case "model":
+		return r.Model
+	case "effort":
+		return r.Effort
+	case "agent":
+		return r.Agent
+	case "split":
+		if r.TS < g.SplitAt {
+			return "before"
+		}
+		return "after"
+	}
+	return r.Day
+}
+
+// Thinking puts the rows the filter keeps in buckets.
+func Thinking(rows []ThinkingRow, g Grouping, f ThinkingFilter) []ThinkingBucket {
 	type acc struct {
 		b              ThinkingBucket
 		tok, sec, wait []float64
@@ -140,15 +170,7 @@ func Thinking(rows []ThinkingRow, by string, f ThinkingFilter) []ThinkingBucket 
 		if !f.keeps(r) {
 			continue
 		}
-		key := r.Day
-		switch by {
-		case "model":
-			key = r.Model
-		case "effort":
-			key = r.Effort
-		case "agent":
-			key = r.Agent
-		}
+		key := g.key(r)
 		if key == "" {
 			key = "unknown"
 		}
@@ -178,8 +200,11 @@ func Thinking(rows []ThinkingRow, by string, f ThinkingFilter) []ThinkingBucket 
 		out = append(out, a.b)
 	}
 	sort.Slice(out, func(i, j int) bool {
-		if by == "day" {
+		switch g.By {
+		case "day":
 			return out[i].Key < out[j].Key
+		case "split":
+			return out[i].Key == "before"
 		}
 		return out[i].Responses > out[j].Responses
 	})

@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 )
 
 // output is what a command returns: Data for --json, Text for a person.
@@ -58,6 +59,11 @@ func run(args []string, stdout, stderr io.Writer) (code int) {
 	}
 	out, err := cmd.run(args[1:])
 	if err != nil {
+		var h helpText
+		if errors.As(err, &h) {
+			fmt.Fprint(stdout, h.text)
+			return 0
+		}
 		var r refusal
 		if errors.As(err, &r) {
 			return answer(stdout, stderr, asJSON, 2, r.msg)
@@ -118,8 +124,20 @@ func newFlags(name string) *flag.FlagSet {
 	return fs
 }
 
+// helpText is a command's own help, asked for with -h or --help: exit 0.
+type helpText struct{ text string }
+
+func (h helpText) Error() string { return h.text }
+
 func parse(fs *flag.FlagSet, args []string) error {
 	if err := fs.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			var b strings.Builder
+			fmt.Fprintf(&b, "usage: %s [flags]\n", fs.Name())
+			fs.SetOutput(&b)
+			fs.PrintDefaults()
+			return helpText{b.String()}
+		}
 		return refuse("%v", err)
 	}
 	if fs.NArg() > 0 {

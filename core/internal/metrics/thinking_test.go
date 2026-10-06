@@ -26,7 +26,7 @@ func trendRows() []ThinkingRow {
 }
 
 func TestThinkingByDayCountsOnlyWhatEachResponseReports(t *testing.T) {
-	days := Thinking(trendRows(), "day", ThinkingFilter{})
+	days := Thinking(trendRows(), Grouping{By: "day"}, ThinkingFilter{})
 	if len(days) != 5 || days[0].Key != "2026-10-03" {
 		t.Fatalf("%+v", days)
 	}
@@ -38,7 +38,7 @@ func TestThinkingByDayCountsOnlyWhatEachResponseReports(t *testing.T) {
 }
 
 func TestTheTrendIsTheSlopeOfTheDailyMedians(t *testing.T) {
-	trends := Trends(Thinking(trendRows(), "day", ThinkingFilter{}))
+	trends := Trends(Thinking(trendRows(), Grouping{By: "day"}, ThinkingFilter{}))
 	byName := map[string]Trend{}
 	for _, tr := range trends {
 		byName[tr.Metric] = tr
@@ -56,7 +56,7 @@ func TestTheTrendIsTheSlopeOfTheDailyMedians(t *testing.T) {
 
 func TestATrendNeedsThreeDays(t *testing.T) {
 	rows := trendRows()[:2*MinTrendSamples]
-	for _, tr := range Trends(Thinking(rows, "day", ThinkingFilter{})) {
+	for _, tr := range Trends(Thinking(rows, Grouping{By: "day"}, ThinkingFilter{})) {
 		if tr.SlopePctPerDay != nil || tr.Note == "" {
 			t.Fatalf("%+v", tr)
 		}
@@ -64,7 +64,7 @@ func TestATrendNeedsThreeDays(t *testing.T) {
 }
 
 func TestThinkingFiltersByModelAndEffort(t *testing.T) {
-	got := Thinking(trendRows(), "model", ThinkingFilter{Effort: "high"})
+	got := Thinking(trendRows(), Grouping{By: "model"}, ThinkingFilter{Effort: "high"})
 	if len(got) != 1 || got[0].Key != "claude-opus-5-5" || got[0].Responses != 4*MinTrendSamples {
 		t.Fatalf("%+v", got)
 	}
@@ -74,12 +74,26 @@ func TestThinkingSplitsTheSessionsFromTheirSubagents(t *testing.T) {
 	rows := []ThinkingRow{{Day: "2026-10-06", Agent: "main", WaitMS: n(3000)},
 		{Day: "2026-10-06", Agent: "subagent", WaitMS: n(30000)},
 		{Day: "2026-10-06", Agent: "subagent", WaitMS: n(40000)}}
-	by := Thinking(rows, "agent", ThinkingFilter{})
+	by := Thinking(rows, Grouping{By: "agent"}, ThinkingFilter{})
 	if len(by) != 2 || by[0].Key != "subagent" || by[0].WaitSeconds.N != 2 {
 		t.Fatalf("%+v", by)
 	}
-	main := Thinking(rows, "day", ThinkingFilter{Agent: "main"})
+	main := Thinking(rows, Grouping{By: "day"}, ThinkingFilter{Agent: "main"})
 	if len(main) != 1 || main[0].WaitSeconds.P50 != 3 {
 		t.Fatalf("%+v", main)
+	}
+}
+
+// A change in the middle of a day: rows on either side of the moment, not of the day.
+func TestThinkingSplitsAtAMoment(t *testing.T) {
+	rows := []ThinkingRow{
+		{Day: "2026-10-01", TS: "2026-10-01T09:26:59.999Z", Tokens: n(300)},
+		{Day: "2026-10-01", TS: "2026-10-01T09:27:00.000Z", Tokens: n(150)},
+		{Day: "2026-10-02", TS: "2026-10-02T08:00:00.000Z", Tokens: n(170)},
+	}
+	got := Thinking(rows, Grouping{By: "split", SplitAt: "2026-10-01T09:27:00.000Z"}, ThinkingFilter{})
+	if len(got) != 2 || got[0].Key != "before" || got[0].Tokens.N != 1 || got[1].Key != "after" ||
+		got[1].Tokens.N != 2 || got[1].Tokens.P50 != 150 {
+		t.Fatalf("%+v", got)
 	}
 }

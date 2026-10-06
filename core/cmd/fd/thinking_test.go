@@ -99,6 +99,47 @@ func TestThinkingRawWarnsAndAnswersTheSame(t *testing.T) {
 	}
 }
 
+// --from/--to bound the range and --split-at cuts it at a moment, given in
+// any zone; the bounds compare with the transcripts' UTC timestamps.
+func TestThinkingSplitsARangeAtAMoment(t *testing.T) {
+	db, projects := writeThinking(t)
+	at := time.Now().UTC().Add(-time.Hour)
+	zone := time.FixedZone("ICT", 7*3600)
+	split := at.Add(time.Second).In(zone).Format("2006-01-02T15:04:05Z07:00")
+	code, out, errOut := runFd("thinking", "--json", "--db", db, "--projects", projects,
+		"--from", at.Add(-time.Hour).Format(time.RFC3339), "--split-at", split)
+	if code != 0 {
+		t.Fatalf("exit %d: %s", code, errOut)
+	}
+	var v struct {
+		By      string `json:"by"`
+		SplitAt string `json:"split_at"`
+		Buckets []struct {
+			Key       string `json:"key"`
+			Responses int    `json:"responses"`
+		} `json:"buckets"`
+	}
+	oneDocument(t, out, &v)
+	// The response landed 3 s after `at`: after the split.
+	if v.By != "split" || !strings.HasSuffix(v.SplitAt, "Z") || len(v.Buckets) != 1 ||
+		v.Buckets[0].Key != "after" || v.Buckets[0].Responses != 1 {
+		t.Fatalf("%+v", v)
+	}
+	code, out, _ = runFd("thinking", "--json", "--db", db, "--no-ingest", "--from", at.Add(-time.Hour).Format(time.RFC3339),
+		"--to", at.Add(time.Second).Format(time.RFC3339))
+	oneDocument(t, out, &v)
+	if code != 0 || len(v.Buckets) != 0 {
+		t.Fatalf("exit %d, %+v: --to must leave the response out", code, v)
+	}
+}
+
+func TestThinkingHelpIsNotARefusal(t *testing.T) {
+	code, out, _ := runFd("thinking", "--help")
+	if code != 0 || !strings.Contains(out, "-split-at") {
+		t.Fatalf("exit %d: %s", code, out)
+	}
+}
+
 func TestThinkingRefusesAnUnknownGrouping(t *testing.T) {
 	code, out, _ := runFd("thinking", "--json", "--by", "week")
 	if code != 2 || !strings.Contains(out, "--by must be") {
