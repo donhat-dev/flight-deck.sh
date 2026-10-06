@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
@@ -41,6 +41,11 @@ CREATE TABLE IF NOT EXISTS responses (
   inference_geo   TEXT,
   source          TEXT NOT NULL DEFAULT 'transcript',
   dedupe_method   TEXT,
+  thinking_tokens INTEGER,
+  thinking_ms     INTEGER,
+  think_wait_ms   INTEGER,
+  effort          TEXT,
+  sidechain       INTEGER,
   PRIMARY KEY (message_id, request_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS responses_ts ON responses(ts);
@@ -94,7 +99,10 @@ func prepare(db *sql.DB) error {
 			return fmt.Errorf("ledger schema version %q is newer than this fd understands (%d); use a newer fd",
 				v, schemaVersion)
 		}
-		return nil // steps from version n up to schemaVersion go here once a second version exists
+		if n < 2 {
+			return upgradeTo2(db)
+		}
+		return nil
 	}
 	if !errors.Is(err, sql.ErrNoRows) && !strings.Contains(err.Error(), "no such table") {
 		return err
@@ -112,6 +120,40 @@ func prepare(db *sql.DB) error {
 	return nil
 }
 
+// thinkingColumns arrived in schema version 2.
+var thinkingColumns = []string{"thinking_tokens INTEGER", "thinking_ms INTEGER",
+	"think_wait_ms INTEGER", "effort TEXT", "sidechain INTEGER"}
+
+// upgradeTo2 adds the thinking columns and sets every read cursor back to the
+// start, so the next ingest reads each transcript still on disk again and fills
+// them in on the rows it already holds. Rows whose transcript is gone keep NULL.
+func upgradeTo2(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var v string
+	if err := tx.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&v); err != nil {
+		return err
+	}
+	if v != "1" {
+		return nil // another process upgraded it while this one waited for the lock
+	}
+	for _, col := range thinkingColumns {
+		if _, err := tx.Exec(`ALTER TABLE responses ADD COLUMN ` + col); err != nil {
+			return fmt.Errorf("ledger upgrade: %w", err)
+		}
+	}
+	if _, err := tx.Exec(`UPDATE files SET mtime_ns=0, size=0, bytes_read=0, lines=0`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE meta SET value='2' WHERE key='schema_version'`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) Close() error { return s.DB.Close() }
 
 // Response is one billed API response. MessageID is message.id, or
@@ -121,6 +163,15 @@ type Response struct {
 	SessionID, Project, Model, TS                string
 	Input, CacheRead, Create5m, Create1h, Output int64
 	ServiceTier, Speed, Geo                      string
+	// Thinking, nil when the line does not say. ThinkingTokens is
+	// usage.output_tokens_details.thinking_tokens; ThinkingMS is the CLI's
+	// thinkingDurationMs (2.1.289 on); ThinkWaitMS runs from the last line
+	// before the response to its last thinking block, so it also holds the
+	// wait for the first token.
+	ThinkingTokens, ThinkingMS, ThinkWaitMS *int64
+	Effort                                  string
+	// Sidechain marks a subagent's response (the line's isSidechain).
+	Sidechain bool
 }
 
 type Outcome int
@@ -132,7 +183,8 @@ const (
 )
 
 // Upsert stores one billed line. The first session to bring a response keeps
-// it; a later line may raise output_tokens (early lines carry a partial count).
+// it; a later line may raise output_tokens (early lines carry a partial count)
+// and fill in the thinking figures, which only some of its lines carry.
 func Upsert(tx *sql.Tx, r Response) (Outcome, error) {
 	var session sql.NullString
 	err := tx.QueryRow(`SELECT session_id FROM responses WHERE message_id=? AND request_id=?`,
@@ -140,10 +192,12 @@ func Upsert(tx *sql.Tx, r Response) (Outcome, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		_, err = tx.Exec(`INSERT INTO responses (message_id, request_id, uuid, session_id, project,
 			model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens,
-			service_tier, speed, inference_geo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			service_tier, speed, inference_geo, thinking_tokens, thinking_ms, think_wait_ms, effort,
+			sidechain) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			r.MessageID, r.RequestID, r.UUID, null(r.SessionID), null(r.Project), null(r.Model),
 			null(r.TS), r.Input, r.CacheRead, r.Create5m, r.Create1h, r.Output,
-			null(r.ServiceTier), null(r.Speed), null(r.Geo))
+			null(r.ServiceTier), null(r.Speed), null(r.Geo),
+			r.ThinkingTokens, r.ThinkingMS, r.ThinkWaitMS, null(r.Effort), r.Sidechain)
 		return New, err
 	}
 	if err != nil {
@@ -153,10 +207,38 @@ func Upsert(tx *sql.Tx, r Response) (Outcome, error) {
 		AND output_tokens<?`, r.Output, r.MessageID, r.RequestID, r.Output); err != nil {
 		return 0, err
 	}
+	if err := raiseThinking(tx, r); err != nil {
+		return 0, err
+	}
 	if session.String != r.SessionID {
 		return Copy, nil
 	}
 	return Repeat, nil
+}
+
+// raiseThinking keeps the largest figure any line of a response gave: thinking
+// tokens grow as the response streams, like output_tokens, and the time to the
+// end of thinking is measured at its last thinking block.
+func raiseThinking(tx *sql.Tx, r Response) error {
+	for col, v := range map[string]*int64{"thinking_tokens": r.ThinkingTokens,
+		"thinking_ms": r.ThinkingMS, "think_wait_ms": r.ThinkWaitMS} {
+		if v == nil {
+			continue
+		}
+		if _, err := tx.Exec(`UPDATE responses SET `+col+`=? WHERE message_id=? AND request_id=?
+			AND (`+col+` IS NULL OR `+col+`<?)`, *v, r.MessageID, r.RequestID, *v); err != nil {
+			return err
+		}
+	}
+	if r.Effort != "" {
+		if _, err := tx.Exec(`UPDATE responses SET effort=? WHERE message_id=? AND request_id=?
+			AND effort IS NULL`, r.Effort, r.MessageID, r.RequestID); err != nil {
+			return err
+		}
+	}
+	_, err := tx.Exec(`UPDATE responses SET sidechain=? WHERE message_id=? AND request_id=?
+		AND sidechain IS NULL`, r.Sidechain, r.MessageID, r.RequestID)
+	return err
 }
 
 // null stores "" as NULL, as the Python ledger stores a missing field.

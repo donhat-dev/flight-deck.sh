@@ -2,7 +2,6 @@ package ingest
 
 import (
 	"bufio"
-	"encoding/json"
 	"io"
 	"os"
 
@@ -48,6 +47,7 @@ func (in *Ingester) File(path string) (int, error) {
 	defer tx.Rollback()
 	rd := bufio.NewReaderSize(f, 1<<20)
 	added, consumed := 0, int64(0)
+	var s stream
 	for {
 		raw, err := rd.ReadBytes('\n')
 		if err == io.EOF {
@@ -58,11 +58,11 @@ func (in *Ingester) File(path string) (int, error) {
 		}
 		consumed += int64(len(raw))
 		lines++
-		var r record
-		if json.Unmarshal(raw, &r) != nil {
-			continue // torn write: one real file has a run of NUL bytes
+		resp, ok, r, parsed := s.next(raw)
+		if !parsed {
+			continue
 		}
-		if resp, ok := billed(r); ok {
+		if ok {
 			o, err := ledger.Upsert(tx, resp)
 			if err != nil {
 				return 0, err
