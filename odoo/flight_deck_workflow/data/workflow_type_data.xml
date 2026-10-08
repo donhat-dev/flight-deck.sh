@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+        <!-- Updated with the module: settings and sockets follow the runners in models/agent_runners.py. -->
+        <record id="workflow_type_fd_ask_agent" model="workflow.type">
+            <field name="name">Ask Agent</field>
+            <field name="node_type">fd_ask_agent</field>
+            <field name="category">integration</field>
+            <field name="icon">icon-bot-message-square</field>
+            <field name="description">Send a prompt to a FlightDeck session and wait for its answer</field>
+            <field name="config_schema">{
+    "prompt": {"type": "expression", "label": "Prompt", "required": true, "placeholder": "={{ _json['message']['text'] }}", "help": "What the session is asked, as a user turn."},
+    "chat_key": {"type": "expression", "label": "Conversation Key", "placeholder": "=zalo:{{ _json['message']['chat']['id'] }}", "help": "Steps and runs with the same key talk to the same session, which remembers the conversation. Empty: one session for this run."},
+    "session_name": {"type": "expression", "label": "Session Name", "placeholder": "Zalo chat", "help": "Title of the session when it is made. Empty: the flow's name."},
+    "timeout_amount": {"type": "number", "label": "Time limit", "default": 10, "min": 0, "help": "No answer by then: the run goes on through 'timeout'."},
+    "timeout_unit": {"type": "select", "options": ["minutes", "hours", "days"], "default": "minutes", "label": "Time limit unit"}
+}</field>
+            <field name="input_schema">{
+    "data": {"type": "DataSocket"}
+}</field>
+            <field name="output_schema">{
+    "answer": {"type": "DataSocket", "label": "answer"},
+    "timeout": {"type": "DataSocket", "label": "timeout"},
+    "error": {"type": "ErrorSocket", "label": "error"}
+}</field>
+        </record>
+
+        <record id="workflow_type_fd_start_session" model="workflow.type">
+            <field name="name">Start Session</field>
+            <field name="node_type">fd_start_session</field>
+            <field name="category">integration</field>
+            <field name="icon">icon-bot</field>
+            <field name="description">Send a prompt to a FlightDeck session and go on without waiting</field>
+            <field name="config_schema">{
+    "prompt": {"type": "expression", "label": "Prompt", "required": true, "placeholder": "Review the failed run {{ _json['run_id'] }}", "help": "What the session is asked, as a user turn."},
+    "chat_key": {"type": "expression", "label": "Conversation Key", "help": "Steps and runs with the same key talk to the same session. Empty: one session for this run."},
+    "session_name": {"type": "expression", "label": "Session Name", "help": "Title of the session when it is made. Empty: the flow's name."}
+}</field>
+            <field name="input_schema">{
+    "data": {"type": "DataSocket"}
+}</field>
+            <field name="output_schema">{
+    "output": {"type": "DataSocket", "label": "output"},
+    "error": {"type": "ErrorSocket", "label": "error"}
+}</field>
+        </record>
+</odoo>
