@@ -10,9 +10,11 @@
 
      C1  at most one declared anchor per screen        checkable (via marker)
      C2  density rhythm                               NOT checkable — needs layout
-     C3a depth only on interactive/frame/anchor        checkable
-     C3b depth budget per screen                      checkable (base classes)
-     C3c depth in a repeated list must be conditional  checkable (JSX)
+     C3  no outset shadow anywhere                    checkable
+                                                      (was C3a/C3b/C3c, which
+                                                      rationed depth; DESIGN.md
+                                                      went flat 2026-09-07 so
+                                                      there is nothing to ration)
      C4  asymmetry by default                         NOT checkable — a matrix
                                                       exemption is a content fact
      C5  metadata is distinct per region              NOT checkable here
@@ -26,6 +28,7 @@
 
      composition: anchor                    declares C1's anchor region
      composition-lint-allow: C6a — reason   exemption; the reason is REQUIRED
+     composition-lint-allow: C3 — reason    the overlay exemption, DESIGN.md 5.3
    ============================================================ */
 
 const MAX_VAR_HOPS = 8;
@@ -90,7 +93,6 @@ const ROLE_RULES = [
   },
 ];
 
-const DEPTH_BUDGET = 4;
 
 // ---------------------------------------------------------------- parsing
 
@@ -203,6 +205,23 @@ export function resolveValue(value, vars) {
  *  layer with zero blur and a non-zero offset. This is the `4px 4px 0` material
  *  from DESIGN.md §5. A focus ring (`0 0 0 3px`) has no offset, and a soft
  *  ambient shadow has blur, so neither counts. */
+/**
+ * Any outset shadow at all, blurred or hard.
+ *
+ * `hasOffsetDepth` below only catches a hard offset (blur 0), which is what the
+ * depth ladder rationed. A flat system bans the blurred form too — that is how
+ * `0 18px 48px` sat on the page shell for weeks without the lint noticing.
+ */
+export function hasOutsetShadow(resolved) {
+  return splitTop(resolved, ",").some((layer) => {
+    if (/\binset\b/.test(layer)) return false;
+    let bare = layer;
+    for (let i = 0; i < 4; i++) bare = bare.replace(/[\w-]*\([^()]*\)/g, " ");
+    const lengths = bare.match(/-?\d*\.?\d+(?:px|rem|em)?\b/g) || [];
+    return lengths.length >= 2 && lengths.some((v) => parseFloat(v) !== 0);
+  });
+}
+
 export function hasOffsetDepth(resolved) {
   return splitTop(resolved, ",").some((layer) => {
     if (/\binset\b/.test(layer)) return false;
@@ -231,7 +250,7 @@ function markersFor(comments, line) {
 }
 
 /**
- * An exemption may sit above the selector or beside the declaration. C3a is a
+ * An exemption may sit above the selector or beside the declaration. C3 is a
  * judgement about the whole rule, and its offset is often declared several
  * lines below the selector, so both positions have to count — otherwise the
  * only place a marker works is directly above the box-shadow, which reads as if
@@ -253,7 +272,7 @@ function allowed(comments, lines, ruleId) {
  * Lint one stylesheet. Returns violations plus the measurements a reviewer
  * needs even when nothing failed (which regions carry depth, and where).
  */
-export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedVars } = {}) {
+export function lintCss(src, { file = "<css>", inheritedVars } = {}) {
   const { rules, vars: own, comments } = parseCss(src);
   // A screen sheet reaches for tokens defined in the kit — `.sc-burn` gets its
   // offset from `var(--fdx-shadow-print)`, which lives in index.css. With a
@@ -306,7 +325,7 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
   const depthBases = new Map();
   // Classes whose depth is UNCONDITIONAL — the rule carrying the offset names no
   // attribute and no pseudo-class, so every element with the class gets depth.
-  // C3c needs this distinction: `.radio-channel[data-selected="true"]` gives
+  // The JSX half needs this distinction: `.radio-channel[data-selected="true"]` gives
   // depth to one row, and flagging the class would punish the very pattern that
   // makes the gate visible.
   const unconditional = new Set();
@@ -318,7 +337,7 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
     for (const decl of rule.decls) {
       const resolved = resolveValue(decl.value, vars);
 
-      // C3a / C3b — offset depth, excluding declared block material LAYER BY
+      // Legacy plumbing for depthBases — offset depth, excluding block material LAYER BY
       // LAYER. Testing the whole declaration was wrong: both anchors write
       // `var(--fdx-shadow-block), var(--fdx-shadow-print)`, so one block-material
       // layer made the lint blind to the print offset beside it — re-opening
@@ -327,19 +346,22 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
         decl.prop === "box-shadow"
           ? splitTop(decl.value, ",").filter((layer) => !BLOCK_MATERIAL.test(layer))
           : [];
-      if (controlLayers.some((layer) => hasOffsetDepth(resolveValue(layer, vars)))) {
+      // C3 — the product is flat. Every outset shadow is a violation wherever it
+      // sits, because there is no rung for it to belong to: interactive, frame
+      // and anchor were allowances for rationing depth, and rationing is gone.
+      // Only a declared overlay may keep one (DESIGN.md 5.3).
+      if (decl.prop === "box-shadow" && hasOutsetShadow(resolved)) {
         const base = baseClass(rule.selector);
-        const atRest = !TRANSIENT.test(rule.selector) && !FRAME.test(rule.selector);
-        if (atRest && !depthBases.has(base)) {
+        if (!depthBases.has(base)) {
           depthBases.set(base, { line: decl.line, selector: rule.selector });
         }
         const gated = /[[:]/.test(splitTop(rule.selector, ",")[0].trim());
-        if (atRest && !gated) unconditional.add(base);
-        if (!INTERACTIVE.test(rule.selector) && !FRAME.test(rule.selector) && !isAnchor) {
+        if (!gated) unconditional.add(base);
+        if (!allowed(comments, [rule.line, decl.line], "C3")) {
           push(
-            "C3a",
+            "C3",
             decl.line,
-            `offset depth on \`${rule.selector}\`, which is neither interactive, a frame, nor the declared anchor — depth every element has is not depth`,
+            `outset shadow on \`${rule.selector}\`; the product is flat, so separation is a hairline, a ground value or type weight. Only a declared overlay keeps a shadow`,
             rule.line,
           );
         }
@@ -364,15 +386,6 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
     }
   }
 
-  if (!isLibrary && depthBases.size > budget) {
-    const [, worst] = [...depthBases][budget];
-    push(
-      "C3b",
-      worst.line,
-      `${depthBases.size} elements carry depth at rest (budget ${budget}): ${[...depthBases.keys()].join(", ")}`,
-    );
-  }
-
   return {
     violations,
     depthBases: [...depthBases.keys()],
@@ -387,13 +400,13 @@ export function lintCss(src, { file = "<css>", budget = DEPTH_BUDGET, inheritedV
 // ---------------------------------------------------------------- JSX
 
 /**
- * C3c — depth inside a repeated list.
+ * C3 — an outset shadow inside a repeated list.
  *
  * A depth-bearing class written as a static string inside a `.map()` renders
  * one depth element per row, so a ten-session list ships ten. C3 allows depth
  * on "the active/selected item", which means the class must arrive through a
  * conditional expression. Static count elsewhere in the file is left alone —
- * that is C3b's job, and it reads the stylesheet.
+ * that is the stylesheet half's job.
  */
 export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
   const violations = [];
@@ -433,12 +446,12 @@ export function lintJsx(src, depthClasses, { file = "<jsx>" } = {}) {
     const value = attr[1] ?? attr[2] ?? "";
     const hit = names.find((n) => value.split(/\s+/).includes(n));
     const mapLine = openMaps[openMaps.length - 1].line;
-    if (hit && !allowed(comments, [line, mapLine], "C3c")) {
+    if (hit && !allowed(comments, [line, mapLine], "C3")) {
       violations.push({
-        rule: "C3c",
+        rule: "C3",
         file,
         line,
-        message: `\`${hit}\` carries offset depth and is rendered unconditionally inside a .map(); depth in a list belongs to the selected row only`,
+        message: `\`${hit}\` carries an outset shadow and is rendered unconditionally inside a .map(); a flat product has none, and an exempted overlay is never a list row`,
       });
     }
   }
@@ -456,5 +469,4 @@ export const RULES = {
   INTERACTIVE,
   FRAME,
   ROLE_RULES,
-  DEPTH_BUDGET,
 };

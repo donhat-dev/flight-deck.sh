@@ -41,7 +41,6 @@ body:has(.radio-plane) {
   border: 1px solid var(--fdx-rule-strong);
   border-radius: var(--fdx-radius-block);
   background: var(--fdx-canvas);
-  box-shadow: var(--fdx-shadow-block);
   color: var(--fdx-text);
   font-family: var(--fdx-font-primary);
 }
@@ -153,7 +152,6 @@ body:has(.radio-plane) {
 
 .radio-lamp[data-live="true"] i {
   background: var(--fdx-signal);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--fdx-signal) 22%, transparent);
 }
 
 /* ---------- tab bar ---------- */
@@ -200,7 +198,6 @@ body:has(.radio-plane) {
   border-color: var(--fdx-rule-strong);
   background: var(--fdx-surface);
   color: var(--fdx-signal);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 /* View-scoped controls live beside the tabs, so a control that means nothing on

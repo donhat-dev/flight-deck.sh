@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import React from "react";
 
-import { TreasureListRow, TreasureMobileCard, kb, relTime } from "./TreasureRow.jsx";
+import { TreasureListRow, TreasureMobileCard } from "./TreasureRow.jsx";
+import { kb, relTime } from "../format.js";
 
 const ROW = {
   id: "abc123",

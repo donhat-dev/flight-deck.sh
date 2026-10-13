@@ -65,7 +65,7 @@ function Chip({ active, onClick, children, count }) {
       className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
         active
           ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-          : "border-[color:var(--fd-hair-2)] text-zinc-400 hover:bg-zinc-500/5"
+          : "border-[color:var(--fdx-rule)] text-zinc-400 hover:bg-zinc-500/5"
       }`}
     >
       {children}
@@ -162,7 +162,7 @@ export default function ManualsView() {
           <button
             type="button"
             onClick={() => setRange((r) => r)}
-            className="mt-4 rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-zinc-300 hover:bg-zinc-500/5"
+            className="mt-4 rounded-lg border border-[color:var(--fdx-rule)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-zinc-300 hover:bg-zinc-500/5"
           >
             Retry
           </button>
@@ -180,7 +180,7 @@ export default function ManualsView() {
     <div className="space-y-4">
       {/* Summary strip */}
       <section className="fd-shell">
-        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-[color:var(--fd-hair-2)] sm:grid-cols-3 lg:grid-cols-5">
+        <div className="fd-core grid grid-cols-2 divide-x divide-y divide-[color:var(--fdx-rule)] sm:grid-cols-3 lg:grid-cols-5">
           <StatCell
             label="Skills"
             value={s.total}
@@ -238,12 +238,12 @@ export default function ManualsView() {
           <table className="w-full">
             <thead>
               <tr className="font-mono text-[9px] uppercase text-zinc-500">
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 pl-5 text-left font-medium">Skill</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-left font-medium">Source</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-left font-medium">Description</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Calls</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Sessions</th>
-                <th className="border-b border-[color:var(--fd-hair-2)] px-4 py-3 text-right font-medium">Last used</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 pl-5 text-left font-medium">Skill</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-left font-medium">Source</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-left font-medium">Description</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Calls</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Sessions</th>
+                <th className="border-b border-[color:var(--fdx-rule)] px-4 py-3 text-right font-medium">Last used</th>
               </tr>
             </thead>
             <tbody>
@@ -260,7 +260,7 @@ export default function ManualsView() {
                 return (
                   <tr
                     key={`${sk.source}:${sk.name}:${sk.path}`}
-                    className={`border-b border-[color:var(--fd-hair-2)] transition-colors last:border-b-0 hover:bg-zinc-500/5 ${rowBg}`}
+                    className={`border-b border-[color:var(--fdx-rule)] transition-colors last:border-b-0 hover:bg-zinc-500/5 ${rowBg}`}
                   >
                     <td className="px-4 py-2.5 pl-5 align-top">
                       <div className="flex flex-wrap items-center gap-2">
@@ -298,7 +298,7 @@ export default function ManualsView() {
 
               {/* Ghosts: invoked names not found on disk (only in All view) */}
               {filter === "all" && ghosts.map((g) => (
-                <tr key={`ghost:${g.name}`} className="border-b border-[color:var(--fd-hair-2)] bg-amber-500/[0.04] last:border-b-0">
+                <tr key={`ghost:${g.name}`} className="border-b border-[color:var(--fdx-rule)] bg-amber-500/[0.04] last:border-b-0">
                   <td className="px-4 py-2.5 pl-5 align-top">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-[11px] font-semibold text-amber-300">{g.name}</span>

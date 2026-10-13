@@ -19,34 +19,12 @@ body { zoom: var(--app-zoom); }
    =================================================================== */
 :root {
   /* ground */
-  --fd-void: #050505;
-  --fd-raise: #0B0C10;
-  --fd-raise-2: #101218;
-  --fd-glass: rgba(255, 255, 255, 0.045);
-  --fd-hair: rgba(255, 255, 255, 0.10);
-  --fd-hair-2: rgba(255, 255, 255, 0.07);
   /* type color */
-  --fd-text: #F4F3EF;
-  --fd-dim: rgba(244, 243, 239, 0.62);
-  --fd-faint: rgba(244, 243, 239, 0.38);
   /* signal (the one accent) */
-  --fd-coral: #D93A18;
-  --fd-coral-deep: #B92E0F;
-  --fd-coral-hot: #FF5133;
   /* environment (panels/charts only) */
-  --fd-sky: #4E93CC;
-  --fd-sky-deep: #2E6FB0;
   /* light-world constants */
-  --fd-bone: #EFEDE6;
-  --fd-ink: #17191E;
   /* shape */
-  --fd-r-shell: 2rem;
-  --fd-r-core: calc(2rem - 6px);
-  --fd-r-chip: 1.25rem;
   /* motion (the ONLY easing curve) */
-  --fd-ease: cubic-bezier(.32, .72, 0, 1);
-  --fd-glow: drop-shadow(0 0 7px rgba(255, 81, 51, 0.7));
-  --fd-ring-glow: drop-shadow(0 0 5px); /* instrument-ring glow; color-matched via currentColor */
 
   /* Tailwind ramp channels (space-separated RGB for rgb(var()/<alpha>)) --
      Night (default). The whole app theme-switches through these; Day overrides
@@ -74,15 +52,6 @@ body { zoom: var(--app-zoom); }
   --e-500: 217 58 24;   --e-600: 176 44 12;   --e-700: 143 36 8;
 
   /* --fd-* tokens re-lit for paper */
-  --fd-void: #E8E3D8; --fd-raise: #F2EEE5; --fd-raise-2: #DED8CB;
-  --fd-glass: rgba(46, 44, 40, 0.035);
-  --fd-hair: rgba(46, 44, 40, 0.14); --fd-hair-2: rgba(46, 44, 40, 0.08);
-  --fd-text: #2E2C28; --fd-dim: rgba(46, 44, 40, 0.66); --fd-faint: rgba(46, 44, 40, 0.42);
-  --fd-coral: #D93A18; --fd-coral-deep: #B02C0C; --fd-coral-hot: #C6350F;
-  --fd-sky: #3E7CB1; --fd-sky-deep: #2E6395;
-  --fd-bone: #EFEDE6; --fd-ink: #2E2C28;
-  --fd-glow: none; /* daylight does not glow */
-  --fd-ring-glow: none;
 }
 /* atmosphere + bezel re-lit for Day */
 :root[data-theme="day"] .fd-mesh {
@@ -92,9 +61,11 @@ body { zoom: var(--app-zoom); }
     radial-gradient(620px 620px at 96% 92%, rgba(62, 124, 177, 0.08), transparent 64%);
 }
 :root[data-theme="day"] .fd-grain { opacity: 0.02; mix-blend-mode: multiply; }
-:root[data-theme="day"] .fd-shell { box-shadow: 0 1px 2px rgba(60, 52, 40, 0.12); }
+/* DESIGN.md §5.4 — one light source, four pixels down and right. The two blurred
+   from-above shadows that used to sit here (a Day-only leftover from the retired
+   Night Ops bezel) were a second light model on the ground plane. The inset warm
+   highlight is not depth and stays. */
 :root[data-theme="day"] .fd-core {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 8px 20px -12px rgba(60, 52, 40, 0.26);
 }
 
 @layer base {
@@ -102,7 +73,7 @@ body { zoom: var(--app-zoom); }
     font-family: var(--fdx-font-primary);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    background: var(--fd-void);
+    background: var(--fdx-canvas);
   }
   /* All monospaced numeric values line up in columns. */
   .font-mono {
@@ -115,9 +86,9 @@ body { zoom: var(--app-zoom); }
   }
   /* Uniform focus ring for every interactive element (design system rule 8). */
   :focus-visible {
-    outline: 2px solid var(--fd-coral-hot);
+    outline: 2px solid var(--fdx-signal-hover);
     outline-offset: 3px;
-    border-radius: 6px;
+    border-radius: var(--fdx-radius-block);
   }
   /* Thin, theme-matched scrollbar. */
   * {
@@ -127,7 +98,7 @@ body { zoom: var(--app-zoom); }
   *::-webkit-scrollbar { height: 8px; width: 8px; }
   *::-webkit-scrollbar-thumb {
     background: rgb(255 255 255 / 0.12);
-    border-radius: 9999px;
+    border-radius: var(--fdx-radius-control);
   }
   *::-webkit-scrollbar-thumb:hover { background: rgb(255 255 255 / 0.2); }
 }
@@ -139,10 +110,12 @@ body { zoom: var(--app-zoom); }
    inset highlight so it reads as machined, lit hardware.
    =================================================================== */
 .fd-shell {
-  background: var(--fd-glass);
-  border: 1px solid var(--fd-hair-2);
-  border-radius: var(--fd-r-shell);
-  padding: 6px;
+  background: var(--fdx-surface);
+  border: 1px solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
+  /* Flat, DESIGN.md §4/§5 — the concentric bezel is gone. The shell IS the block
+     now, so there is no inner padding ring for a core to sit inside. */
+  padding: 0;
   /* flex column so the core fills the shell's full height -- in a stretched
      grid row the shell matches its tallest sibling, and the core grows to it
      instead of leaving a bezel gap below shorter content (e.g. Cost trend). */
@@ -152,13 +125,13 @@ body { zoom: var(--app-zoom); }
 .fd-core {
   flex: 1 1 auto;
   min-height: 0;
-  background: var(--fd-raise);
-  border-radius: var(--fd-r-core);
-  box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.07);
+  /* No longer a second layer: transparent, no radius of its own. Kept for its
+     overflow clip and its flex growth, which the views rely on. */
+  background: transparent;
   overflow: hidden;
 }
 /* hover lift for interactive shells (no transform on containers, per DS) */
-.fd-shell.is-hoverable:hover .fd-core { background: var(--fd-raise-2); }
+.fd-shell.is-hoverable:hover .fd-core { background: var(--fdx-surface-raised); }
 
 /* ===================================================================
    Atmosphere - fixed, inert page chrome (grain + mesh orbs)
@@ -189,7 +162,7 @@ body { zoom: var(--app-zoom); }
   font-weight: 800;
   letter-spacing: -0.035em;
   white-space: nowrap;
-  color: var(--fd-text);
+  color: var(--fdx-text);
 }
 .fdi {
   position: relative;
@@ -216,9 +189,9 @@ body { zoom: var(--app-zoom); }
   transform: translateX(-50%);
   width: 0.30em;
   height: 0.235em;
-  background: var(--fd-coral-hot);
+  background: var(--fdx-signal-hover);
   clip-path: polygon(50% 0, 100% 100%, 0 100%);
-  filter: var(--fd-glow);
+  filter: none;
 }
 .fd-roundel { flex: none; }
 /* Flat wordmark: drop the coral-dot glow so a view region keeps at most the
@@ -238,8 +211,8 @@ body { zoom: var(--app-zoom); }
   transform: translateX(-50%);
   background: repeating-linear-gradient(
     to bottom,
-    var(--fd-void) 0,
-    var(--fd-void) 0.09em,
+    var(--fdx-canvas) 0,
+    var(--fdx-canvas) 0.09em,
     transparent 0.09em,
     transparent 0.18em
   );
@@ -250,20 +223,18 @@ body { zoom: var(--app-zoom); }
    =================================================================== */
 .loom-shell {
   border-color: rgba(255, 255, 255, 0.16);
-  border-radius: 1rem;
+  border-radius: var(--fdx-radius-block);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 42%),
     rgba(11, 12, 16, 0.66);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 .loom-waypoint {
   transform-origin: center;
 }
 .loom-route-segment {
-  transition: stroke 280ms var(--fd-ease), opacity 280ms var(--fd-ease);
+  transition: stroke 280ms var(--fdx-ease), opacity 280ms var(--fdx-ease);
 }
 .loom-inspector {
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
 }
 
 @media (min-width: 1280px) {
@@ -279,7 +250,7 @@ body { zoom: var(--app-zoom); }
 .md {
   font-size: 0.875rem;
   line-height: 1.65;
-  color: var(--fd-text);
+  color: var(--fdx-text);
   word-break: break-word;
   overflow-wrap: anywhere;
 }
@@ -291,7 +262,7 @@ body { zoom: var(--app-zoom); }
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: -0.01em;
-  color: var(--fd-text);
+  color: var(--fdx-text);
 }
 .md h1 { font-size: 1.15rem; }
 .md h2 { font-size: 1.05rem; }
@@ -301,30 +272,30 @@ body { zoom: var(--app-zoom); }
 .md ol { list-style: decimal; }
 .md li { margin: 0.25em 0; }
 .md li > ul, .md li > ol { margin: 0.2em 0; }
-.md a { color: var(--fd-coral-hot); text-decoration: underline; text-underline-offset: 2px; }
+.md a { color: var(--fdx-signal-hover); text-decoration: underline; text-underline-offset: 2px; }
 .md a:hover { color: #FF7A61; }
-.md strong { color: var(--fd-text); font-weight: 600; }
+.md strong { color: var(--fdx-text); font-weight: 600; }
 .md blockquote {
   margin: 0.7em 0;
   padding-left: 0.9em;
-  border-left: 2px solid var(--fd-hair);
-  color: var(--fd-dim);
+  border-left: 2px solid var(--fdx-rule);
+  color: var(--fdx-text-muted);
 }
-.md hr { margin: 1em 0; border: 0; border-top: 1px solid var(--fd-hair-2); }
+.md hr { margin: 1em 0; border: 0; border-top: 1px solid var(--fdx-rule); }
 .md code {
   font-family: var(--fdx-font-mono);
   font-size: 0.82em;
-  background: var(--fd-raise-2);
-  border: 1px solid var(--fd-hair-2);
-  border-radius: 6px;
+  background: var(--fdx-surface-raised);
+  border: 1px solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
   padding: 0.1em 0.35em;
 }
 .md pre {
   margin: 0.7em 0;
   padding: 0.85em 1em;
   background: #08090c;
-  border: 1px solid var(--fd-hair-2);
-  border-radius: 12px;
+  border: 1px solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
   overflow-x: auto;
 }
 .md pre code {
@@ -333,7 +304,7 @@ body { zoom: var(--app-zoom); }
   padding: 0;
   font-size: 0.82rem;
   line-height: 1.55;
-  color: var(--fd-text);
+  color: var(--fdx-text);
 }
 .md table {
   margin: 0.7em 0;
@@ -342,8 +313,8 @@ body { zoom: var(--app-zoom); }
   overflow-x: auto;
   font-size: 0.82rem;
 }
-.md th, .md td { border: 1px solid var(--fd-hair-2); padding: 0.4em 0.7em; text-align: left; }
-.md th { background: var(--fd-raise-2); color: var(--fd-text); font-weight: 600; }
+.md th, .md td { border: 1px solid var(--fdx-rule); padding: 0.4em 0.7em; text-align: left; }
+.md th { background: var(--fdx-surface-raised); color: var(--fdx-text); font-weight: 600; }
 
 /* ===================================================================
    Diff instrument (repo-diff). Shell uses FlightDeck tokens; the diff body
@@ -360,7 +331,7 @@ body { zoom: var(--app-zoom); }
    an in-flow opaque bar can never overlap content. The file tree sidebar
    carries the "where am I" navigation instead. */
 .rd-file-summary {
-  background: var(--fd-raise); border-bottom: 1px solid var(--fd-hair-2);
+  background: var(--fdx-surface); border-bottom: 1px solid var(--fdx-rule);
 }
 table.rd-sxs {
   border-collapse: collapse; width: 100%; table-layout: fixed;
@@ -369,22 +340,22 @@ table.rd-sxs {
 .rd-sxs col.gc { width: 44px; }
 .rd-sxs col.cc { width: calc((100% - 88px) / 2); }
 .rd-sxs td.num {
-  text-align: right; padding: 0 8px; color: var(--fd-faint); user-select: none;
-  white-space: nowrap; border-right: 1px solid var(--fd-hair-2); vertical-align: top;
+  text-align: right; padding: 0 8px; color: var(--fdx-text-muted); user-select: none;
+  white-space: nowrap; border-right: 1px solid var(--fdx-rule); vertical-align: top;
 }
-.rd-sxs td.num.sep { border-left: 1px solid var(--fd-hair); }
+.rd-sxs td.num.sep { border-left: 1px solid var(--fdx-rule); }
 .rd-sxs td.ln {
   padding: 0 10px; white-space: pre-wrap; word-break: break-word; overflow-wrap: anywhere;
-  vertical-align: top; color: var(--fd-dim);
+  vertical-align: top; color: var(--fdx-text-muted);
 }
-.rd-sxs tr.ctx td.ln { color: var(--fd-dim); }
+.rd-sxs tr.ctx td.ln { color: var(--fdx-text-muted); }
 .rd-sxs tr.add td.ln.r, .rd-sxs tr.pair td.ln.r { background: #12261e; color: #7ee0a0; }
 .rd-sxs tr.add td.num.r, .rd-sxs tr.pair td.num.r { background: #16351f; }
 .rd-sxs tr.del td.ln.l, .rd-sxs tr.pair td.ln.l { background: #2a1519; color: #ff9b9b; }
 .rd-sxs tr.del td.num.l, .rd-sxs tr.pair td.num.l { background: #3a1a20; }
 .rd-sxs td.ln.blank { background: rgba(255,255,255,.015); }
 .rd-sxs tr.hunkrow td {
-  background: var(--fd-raise-2); color: var(--fd-faint); padding: 2px 10px; font-size: 11px;
+  background: var(--fdx-surface-raised); color: var(--fdx-text-muted); padding: 2px 10px; font-size: 11px;
 }
 
 /* Motion collapses fully under reduced motion. */
@@ -422,6 +393,9 @@ table.rd-sxs {
   --fdx-text-inverse: #201d18;
   --fdx-rule: rgba(244, 237, 224, 0.22);
   --fdx-rule-strong: rgba(244, 237, 224, 0.42);
+  /* environment, DESIGN.md §2 — panels, chart series and the roundel horizon only */
+  --fdx-environment: #4e93cc;
+  --fdx-environment-deep: #2e6fb0;
   --fdx-signal: #e84d2a;
   --fdx-signal-hover: #ff6344;
   --fdx-signal-active: #c83a1c;
@@ -453,9 +427,6 @@ table.rd-sxs {
      shadow turned the plane into a bento grid, when a radio is one face with
      areas grooved into it. The lint tells this apart from control depth by the
      token's NAME, layer by layer — see BLOCK_MATERIAL in compositionLint.js. */
-  --fdx-shadow-block:
-    0.2rem 0.2rem 0 color-mix(in srgb, var(--fdx-orange) 24%, transparent),
-    0 1.25rem 2.5rem -1.45rem color-mix(in srgb, var(--fdx-depth-ink) 65%, transparent);
   --fdx-control-edge-highlight: rgba(255, 249, 241, 0.26);
   /* Menu and control labels. The reference uses ONLY 700/800/900 — there is no
      light UI type in this style — so 700 is the floor for anything you click or
@@ -478,8 +449,6 @@ table.rd-sxs {
   --fdx-size-label: 1;
   --fdx-size-figure: 1;
   --fdx-control-border-width: 2px;
-  --fdx-control-depth-x: 4px;
-  --fdx-control-depth-y: 4px;
   --fdx-critical: #f16d74;
   --fdx-warning: #e6b85c;
   --fdx-positive: #62c59b;
@@ -501,7 +470,6 @@ table.rd-sxs {
   --fdx-space-16: 4rem;
   --fdx-space-24: 6rem;
   --fdx-space-32: 8rem;
-  --fdx-radius-xs: 2px;
   --fdx-radius-sm: 5px;
   --fdx-radius-md: 10px;
   /* Square, per the reference screenshot: its primary button, code block, cards
@@ -509,27 +477,9 @@ table.rd-sxs {
      the showcase CSS belong to its FLOATING chrome (the topbar, the volume pill),
      not to controls or blocks. What makes the style read as soft is the warm
      paper palette, not the corner. */
-  --fdx-radius-control: 0;
-  --fdx-radius-block: 0;
-  --fdx-shadow-print: 4px 4px 0 var(--fdx-signal);
-  --fdx-shadow-control:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-control-depth);
-  --fdx-shadow-control-hover:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    5px 5px 0 var(--fdx-control-depth);
-  --fdx-shadow-control-pressed:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    1px 1px 0 var(--fdx-control-depth);
-  --fdx-shadow-control-alert:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    var(--fdx-control-depth-x) var(--fdx-control-depth-y) 0 var(--fdx-control-depth);
-  --fdx-shadow-control-alert-hover:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    5px 5px 0 var(--fdx-control-depth);
-  --fdx-shadow-control-alert-pressed:
-    inset 0 1px 0 var(--fdx-control-edge-highlight),
-    1px 1px 0 var(--fdx-control-depth);
+  /* DESIGN.md §4 — radius says what a thing IS. Actions are pills, blocks are 5px. */
+  --fdx-radius-control: 999px;
+  --fdx-radius-block: 5px;
   /* Second-tier controls: the SAME offset geometry as the primary, in grey.
      An earlier pass used 3px against the primary's 4px so the tier would be
      legible from the travel alone. Measured side by side that failed: two buttons
@@ -539,12 +489,16 @@ table.rd-sxs {
 
      No inset highlight either — an edge highlight lights the top of a FACE, and
      this tier has none, so it was drawing a faint line over nothing. */
-  --fdx-shadow-control-quiet: 4px 4px 0 var(--fdx-depth-muted);
-  --fdx-shadow-control-quiet-hover: 5px 5px 0 var(--fdx-depth-muted);
-  --fdx-shadow-control-quiet-pressed: 1px 1px 0 var(--fdx-depth-muted);
-  --fdx-shadow-control-muted:
-    inset 0 1px 0 color-mix(in srgb, var(--fdx-control-edge-highlight) 44%, transparent),
-    3px 3px 0 var(--fdx-depth-muted);
+  /* The side menu's icon chip. Same three layers as a button in a smaller body,
+     so it needs its own offset: the control's 4px reads as a slab under a 32px
+     chip, and 3px is the offset that still lands on whole pixels. Hover grows to
+     4px, which is the kit's own hover grammar one size down. */
+
+  /* Two widths for the side menu, named because the page content has to be
+     offset by exactly the same number. 76px is a 44px chip with 16px either
+     side; 272px is that chip's expanded row plus a label that does not truncate. */
+  --fdx-rail-width: 272px;
+  --fdx-rail-width-collapsed: 76px;
   --fdx-shadow-float: 0 18px 48px rgba(0, 0, 0, 0.28);
   --fdx-motion-fast: 160ms;
   --fdx-motion-normal: 220ms;
@@ -562,6 +516,8 @@ table.rd-sxs {
   --fdx-text-inverse: #f8f3e8;
   --fdx-rule: rgba(32, 29, 24, 0.24);
   --fdx-rule-strong: rgba(32, 29, 24, 0.54);
+  --fdx-environment: #3e7cb1;
+  --fdx-environment-deep: #2e6395;
   --fdx-signal: #d94625;
   --fdx-signal-hover: #b93418;
   --fdx-signal-active: #98280f;
@@ -664,10 +620,9 @@ table.rd-sxs {
   display: grid;
   grid-template-columns: repeat(2, minmax(6.5rem, 1fr));
   border: var(--fdx-control-border-width) solid var(--fdx-text);
-  border-radius: var(--fdx-radius-xs);
+  border-radius: var(--fdx-radius-control);
   color: var(--fdx-text);
   background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-print);
 }
 
 .fdx-theme-toggle button {
@@ -930,9 +885,6 @@ table.rd-sxs {
   --fdx-button-label: var(--fdx-text);
   --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: var(--fdx-surface-raised);
-  --fdx-button-shadow: var(--fdx-shadow-control-alert);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-alert-pressed);
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -942,11 +894,10 @@ table.rd-sxs {
   /* No border. The offset shadow is the whole edge treatment: a frame plus an
      offset drew the same boundary twice, and the shadow is the one that carries
      the press. */
-  border: 0;
+  border: 1px solid var(--fdx-button-rule, var(--fdx-rule));
   border-radius: var(--fdx-radius-control);
   color: var(--fdx-button-label);
   background: var(--fdx-button-face);
-  box-shadow: var(--fdx-button-shadow);
   font-family: var(--fdx-font-primary);
   font-size: 0.82rem;
   font-weight: 700;
@@ -984,15 +935,10 @@ table.rd-sxs {
   --fdx-button-label: var(--fdx-control-label);
   --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: color-mix(in srgb, var(--fdx-control-face) 88%, var(--fdx-control-depth));
-  --fdx-button-shadow: var(--fdx-shadow-control);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-pressed);
 }
 
 .fdx-button[data-variant="primary"]:hover:not(:disabled) {
   --fdx-button-face: color-mix(in srgb, var(--fdx-control-face) 92%, var(--fdx-control-label));
-  transform: translate(-1px, -1px);
-  box-shadow: var(--fdx-button-shadow-hover);
 }
 
 /* EVERY control carries an offset — mass is what makes it a control. What the
@@ -1010,9 +956,6 @@ table.rd-sxs {
   --fdx-button-label: var(--fdx-text);
   --fdx-button-depth: var(--fdx-depth-muted);
   --fdx-button-active-face: transparent;
-  --fdx-button-shadow: var(--fdx-shadow-control-quiet);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-quiet-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-quiet-pressed);
   border: 1px solid var(--fdx-rule-strong);
 }
 
@@ -1020,28 +963,19 @@ table.rd-sxs {
 .fdx-icon-button[data-variant="quiet"]:hover:not(:disabled) {
   --fdx-button-label: var(--fdx-text);
   border-color: var(--fdx-text);
-  transform: translate(-1px, -1px);
-  box-shadow: var(--fdx-button-shadow-hover);
 }
 
 .fdx-button[data-variant="inverse"] {
   --fdx-button-face: var(--fdx-surface-inverse);
   --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: var(--fdx-action-face-active);
-  --fdx-button-shadow: var(--fdx-shadow-control);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-pressed);
   color: var(--fdx-text-inverse);
 }
 
 .fdx-button[data-variant="inverse"]:hover:not(:disabled) {
   --fdx-button-face: var(--fdx-action-face);
   --fdx-button-depth: var(--fdx-control-depth);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-alert-pressed);
   color: #fff9f1;
-  transform: translate(-1px, -1px);
-  box-shadow: var(--fdx-button-shadow-hover);
 }
 
 .fdx-button[data-variant="error"],
@@ -1050,16 +984,12 @@ table.rd-sxs {
   --fdx-button-label: #fff;
   --fdx-button-depth: var(--fdx-control-depth);
   --fdx-button-active-face: color-mix(in srgb, var(--fdx-control-error-face) 82%, var(--fdx-depth-ink));
-  --fdx-button-shadow: var(--fdx-shadow-control-alert);
-  --fdx-button-shadow-hover: var(--fdx-shadow-control-alert-hover);
-  --fdx-button-shadow-pressed: var(--fdx-shadow-control-alert-pressed);
 }
 
 .fdx-button:active:not(:disabled),
 .fdx-icon-button:active:not(:disabled) {
   --fdx-button-face: var(--fdx-button-active-face);
-  box-shadow: var(--fdx-button-shadow-pressed);
-  transform: translate(3px, 3px);
+  border-color: var(--fdx-text);
 }
 
 .fdx-button[data-state="loading"],
@@ -1069,8 +999,6 @@ table.rd-sxs {
   color: color-mix(in srgb, var(--fdx-text) 72%, var(--fdx-text-muted));
   cursor: progress;
   opacity: 1;
-  box-shadow: var(--fdx-shadow-control-alert);
-  transform: none;
 }
 
 .fdx-button[data-state="disabled"],
@@ -1080,8 +1008,6 @@ table.rd-sxs {
   color: var(--fdx-text-muted);
   cursor: not-allowed;
   opacity: 0.68;
-  box-shadow: var(--fdx-shadow-control-muted);
-  transform: none;
 }
 
 .fdx-button:disabled,
@@ -1113,7 +1039,9 @@ table.rd-sxs {
   border: 1px solid var(--fdx-rule-strong);
   border-radius: var(--fdx-radius-sm);
   background: color-mix(in srgb, var(--fdx-surface) 92%, transparent);
-  box-shadow: var(--fdx-shadow-print), var(--fdx-shadow-float);
+  /* composition-lint-allow: C3 — a true overlay has to separate from the live
+     content underneath it, which a hairline cannot do. DESIGN.md §5.3. */
+  box-shadow: var(--fdx-shadow-float);
   overflow: hidden;
   transform: rotate(-1.2deg);
 }
@@ -1156,7 +1084,6 @@ table.rd-sxs {
   aspect-ratio: 1;
   border: 1px solid var(--fdx-rule-strong);
   background: var(--fdx-surface-inverse);
-  box-shadow: var(--fdx-shadow-print);
 }
 
 .fdx-console-reticle::before,
@@ -1610,7 +1537,7 @@ table.rd-sxs {
   min-height: 44px;
   padding: 0 2.6rem 0 var(--fdx-space-4);
   border: 1px solid var(--fdx-rule-strong);
-  border-radius: var(--fdx-radius-xs);
+  border-radius: var(--fdx-radius-block);
   outline: 0;
   color: var(--fdx-text);
   background: transparent;
@@ -1702,7 +1629,7 @@ table.rd-sxs {
   min-height: 4.5rem;
   padding: var(--fdx-space-3) var(--fdx-space-4);
   border: 1px solid var(--fdx-rule-strong);
-  border-radius: var(--fdx-radius-xs);
+  border-radius: var(--fdx-radius-block);
   color: var(--fdx-text);
   background: var(--fdx-surface-raised);
   text-align: left;
@@ -1736,7 +1663,6 @@ table.rd-sxs {
   border: var(--fdx-control-border-width) solid var(--fdx-depth-ink);
   border-radius: 999px;
   background: var(--fdx-surface-inverse);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
   transition:
     background-color var(--fdx-motion-fast) var(--fdx-ease),
     box-shadow var(--fdx-motion-fast) var(--fdx-ease);
@@ -1755,7 +1681,6 @@ table.rd-sxs {
 
 .fdx-toggle[data-checked="true"] .fdx-toggle-track {
   background: var(--fdx-action-face);
-  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-toggle[data-checked="true"] .fdx-toggle-track i {
@@ -1800,8 +1725,8 @@ table.rd-sxs {
   width: 1.45rem;
   height: 1.45rem;
   border: var(--fdx-control-border-width) solid var(--fdx-depth-ink);
+  border-radius: var(--fdx-radius-block);
   background: var(--fdx-surface-inverse);
-  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-check input:focus-visible + .fdx-check-mark {
@@ -1811,7 +1736,6 @@ table.rd-sxs {
 
 .fdx-check input:checked + .fdx-check-mark {
   background: var(--fdx-action-face);
-  box-shadow: 2px 2px 0 var(--fdx-control-depth);
 }
 
 .fdx-check input:checked + .fdx-check-mark::after {
@@ -2194,7 +2118,6 @@ table.rd-sxs {
   min-width: 0;
   border: 1px solid var(--fdx-rule-strong);
   background: var(--fdx-surface);
-  box-shadow: var(--fdx-shadow-print);
 }
 
 .fdx-pixel-showcase {
@@ -2990,7 +2913,6 @@ table.rd-sxs {
 .fdx-segmented-seg[aria-pressed="true"] {
   background: var(--fdx-surface);
   color: var(--fdx-signal);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 /* Appearance's figure and body weights. Scoped to the roles they name so a change
@@ -3004,4 +2926,457 @@ table.rd-sxs {
 body {
   font-weight: var(--fdx-weight-body);
   font-size: var(--fdx-size-body);
+}
+
+/* ===================================================================
+   Side menu
+   Two widths, one attribute. `data-collapsed` on the rail is the only
+   switch: every difference between the 272px menu and the 76px chip rail
+   is expressed here rather than as a second set of class names in the
+   view, so the two states cannot drift apart.
+
+   The chip, not the row, is the thing that carries an item's identity.
+   That is deliberate: when the label goes away at 76px the chip is what
+   is left, so it has to be the part a reader recognises at either width.
+   Each chip is the kit's three layers at a smaller size — a face, a 2px
+   frame, and an offset that appears only on the row you are on.
+   =================================================================== */
+.fdx-rail {
+  width: var(--fdx-rail-width);
+  border-right: 1px solid var(--fdx-rule);
+  background: var(--fdx-canvas);
+  color: var(--fdx-text);
+  font-family: var(--fdx-font-primary);
+  /* Only the off-canvas slide moves. Width is not animated: DESIGN.md §9 bans
+     animating width, and a 196px reflow per frame is the reason for the ban. */
+  transition: transform var(--fdx-motion-slow) var(--fdx-ease);
+}
+
+.fdx-rail[data-collapsed="true"] {
+  width: var(--fdx-rail-width-collapsed);
+}
+
+/* The page content is offset by exactly the rail's width, from the same two
+   tokens, so the two can never disagree. Below the desktop breakpoint the rail
+   is an overlay and the content owes it nothing. */
+.fdx-rail-offset { padding-left: 0; }
+
+@media (min-width: 1024px) {
+  .fdx-rail-offset[data-rail="expanded"] { padding-left: var(--fdx-rail-width); }
+  .fdx-rail-offset[data-rail="collapsed"] { padding-left: var(--fdx-rail-width-collapsed); }
+}
+
+/* ---- brand row ---- */
+.fdx-rail-brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--fdx-space-3);
+  min-height: 64px;
+  padding: 0 var(--fdx-space-4);
+  border: 0;
+  border-bottom: 1px solid var(--fdx-rule);
+  background: transparent;
+  color: var(--fdx-text);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-rail-brand:hover { color: var(--fdx-signal); }
+
+.fdx-rail-brand:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -3px;
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-rail-brand {
+  justify-content: center;
+  padding: 0;
+}
+
+/* ---- the list ---- */
+.fdx-nav {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--fdx-space-1);
+  padding: var(--fdx-space-3) var(--fdx-space-3) var(--fdx-space-2);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav {
+  align-items: center;
+  padding-inline: var(--fdx-space-2);
+}
+
+/* Group label expanded, a short centred rule collapsed. One element and one
+   height for both, which is what keeps the vertical rhythm identical: the row
+   below a group starts at the same y whichever width the rail is at. */
+.fdx-nav-label {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 1rem;
+  margin: var(--fdx-space-4) 0 var(--fdx-space-2);
+  padding: 0 var(--fdx-space-2);
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
+  font-weight: var(--fdx-weight-label);
+  letter-spacing: 0.18em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.fdx-nav-label:first-child { margin-top: 0; }
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-label {
+  justify-content: center;
+  width: 100%;
+  padding: 0;
+}
+
+/* Clipped rather than removed, so the group name is still read out and the rail
+   does not become an unlabelled pile of marks for a screen reader. */
+.fdx-rail[data-collapsed="true"] .fdx-nav-label > span,
+.fdx-rail[data-collapsed="true"] .fdx-nav-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-label::before {
+  content: "";
+  width: 24px;
+  height: 2px;
+  background: var(--fdx-rule-strong);
+}
+
+/* ---- one row ---- */
+.fdx-nav-button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: var(--fdx-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--fdx-space-1) var(--fdx-space-2);
+  border: 0;
+  border-radius: var(--fdx-radius-control);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-primary);
+  font-size: 0.86rem;
+  font-weight: var(--fdx-weight-label);
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-nav-button:hover {
+  background: var(--fdx-surface);
+  color: var(--fdx-text);
+}
+
+.fdx-nav-button:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.fdx-nav-button[aria-pressed="true"] {
+  background: var(--fdx-surface);
+  color: var(--fdx-text);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-button {
+  justify-content: center;
+  width: 44px;
+  padding: 0;
+}
+
+/* ---- the chip ---- */
+.fdx-nav-chip {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border: var(--fdx-control-border-width) solid var(--fdx-rule);
+  border-radius: var(--fdx-radius-block);
+  background: var(--fdx-surface-raised);
+  color: var(--fdx-text-muted);
+  transition:
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    border-color var(--fdx-motion-fast) var(--fdx-ease),
+    box-shadow var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-chip {
+  width: 44px;
+  height: 44px;
+}
+
+.fdx-nav-button:hover .fdx-nav-chip {
+  border-color: var(--fdx-rule-strong);
+  background: var(--fdx-surface);
+  color: var(--fdx-text);
+}
+
+.fdx-nav-button:focus-visible .fdx-nav-chip {
+  border-color: var(--fdx-rule-strong);
+  color: var(--fdx-text);
+}
+
+/* The row you are on is the only one with a face, an ink frame and an offset —
+   depth every row has is not depth. */
+.fdx-nav-button[aria-pressed="true"] .fdx-nav-chip {
+  border-color: var(--fdx-depth-ink);
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+}
+
+.fdx-nav-button[aria-pressed="true"]:hover .fdx-nav-chip {
+}
+
+/* Collapsed only: a group whose child is the current route wears the mark, since
+   the child row it belongs to is not on screen at 76px. */
+.fdx-rail[data-collapsed="true"] .fdx-nav-button[data-active-child="true"] .fdx-nav-chip {
+  border-color: var(--fdx-depth-ink);
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-button[data-active-child="true"]:hover .fdx-nav-chip {
+}
+
+.fdx-pixel-mark {
+  display: block;
+  width: 16px;
+  height: 16px;
+  image-rendering: pixelated;
+}
+
+.fdx-pixel-mark-flip { transform: scaleX(-1); }
+
+/* Opens outside this app. Sits at the end of the row, and goes with the label:
+   at 76px there is no room for a second mark beside a 44px chip, and the link
+   still announces itself as a link. */
+.fdx-nav-away {
+  width: 12px;
+  height: 12px;
+  margin-left: auto;
+  opacity: 0.6;
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-nav-away { display: none; }
+
+/* ---- disclosure (Treasures and its child) ---- */
+.fdx-nav-group { display: flex; flex-direction: column; }
+.fdx-nav-group-row { display: flex; align-items: center; gap: var(--fdx-space-1); }
+
+.fdx-nav-caret {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: var(--fdx-radius-control);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  cursor: pointer;
+  transition:
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-nav-caret:hover { background: var(--fdx-surface); color: var(--fdx-text); }
+
+.fdx-nav-caret:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.fdx-nav-caret .fdx-pixel-mark {
+  /* The chevron grid points left, so 180deg is "closed, pointing at the row it
+     would open" and 270deg is "open, pointing down at what it opened". */
+  transition: transform var(--fdx-motion-fast) var(--fdx-ease);
+  transform: rotate(180deg);
+}
+
+.fdx-nav-caret[aria-expanded="true"] .fdx-pixel-mark { transform: rotate(270deg); }
+
+.fdx-nav-children {
+  display: flex;
+  flex-direction: column;
+  gap: var(--fdx-space-1);
+  margin-top: var(--fdx-space-1);
+  padding-left: var(--fdx-space-6);
+}
+
+.fdx-nav-children[hidden] { display: none; }
+
+/* At 76px a nested list has nowhere to indent to, and a caret has nowhere to
+   sit beside a 44px chip. The parent row still navigates, and expanding the
+   rail brings the child back. */
+.fdx-rail[data-collapsed="true"] .fdx-nav-caret,
+.fdx-rail[data-collapsed="true"] .fdx-nav-children { display: none; }
+
+/* ---- footer ---- */
+.fdx-rail-footer {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--fdx-space-2);
+  padding: var(--fdx-space-3);
+  border-top: 1px solid var(--fdx-rule);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-rail-footer {
+  align-items: center;
+  padding-inline: var(--fdx-space-2);
+}
+
+.fdx-rail-live {
+  display: flex;
+  align-items: center;
+  min-height: 24px;
+  padding-inline: var(--fdx-space-2);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-rail-live { padding-inline: 0; }
+
+/* Day/Night. The chip is the control — a face, a frame and an offset at every
+   state, because unlike a nav row there is only one of it. The mark inside says
+   which palette is running, and the two-cell track says which side is on. */
+.fdx-palette-switch {
+  display: flex;
+  align-items: center;
+  gap: var(--fdx-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--fdx-space-1) var(--fdx-space-2);
+  border: 0;
+  border-radius: var(--fdx-radius-control);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-primary);
+  font-size: 0.86rem;
+  font-weight: var(--fdx-weight-label);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-palette-switch:hover { background: var(--fdx-surface); color: var(--fdx-text); }
+
+.fdx-palette-switch:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.fdx-palette-switch .fdx-nav-chip {
+  border-color: var(--fdx-depth-ink);
+  background: var(--fdx-control-face);
+  color: var(--fdx-control-label);
+}
+
+
+.fdx-rail[data-collapsed="true"] .fdx-palette-switch {
+  justify-content: center;
+  width: 44px;
+  padding: 0;
+}
+
+.fdx-palette-track {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--fdx-rule-strong);
+}
+
+.fdx-palette-track i {
+  width: 8px;
+  height: 8px;
+  background: var(--fdx-rule);
+  transition: background-color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-palette-switch[aria-checked="true"] .fdx-palette-track i:first-child,
+.fdx-palette-switch[aria-checked="false"] .fdx-palette-track i:last-child {
+  background: var(--fdx-signal);
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-palette-track { display: none; }
+
+/* ---- the width switch ---- */
+/* Desktop only, as before: below 1024px the menu is an overlay opened by the top
+   bar's own control, and a 76px overlay is not a state anybody asked for. */
+.fdx-rail-collapse { display: none; }
+
+@media (min-width: 1024px) {
+  .fdx-rail-collapse { display: flex; }
+}
+
+.fdx-rail-collapse {
+  align-items: center;
+  flex: none;
+  gap: var(--fdx-space-3);
+  width: 100%;
+  min-height: 44px;
+  padding: var(--fdx-space-2) var(--fdx-space-3);
+  border: 0;
+  border-top: 1px solid var(--fdx-rule);
+  background: transparent;
+  color: var(--fdx-text-muted);
+  font-family: var(--fdx-font-label);
+  font-size: calc(10px * var(--fdx-size-label));
+  font-weight: var(--fdx-weight-label);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    background-color var(--fdx-motion-fast) var(--fdx-ease),
+    color var(--fdx-motion-fast) var(--fdx-ease);
+}
+
+.fdx-rail-collapse:hover { background: var(--fdx-surface); color: var(--fdx-text); }
+
+.fdx-rail-collapse:focus-visible {
+  outline: var(--fdx-focus-width) solid var(--fdx-focus);
+  outline-offset: -2px;
+}
+
+.fdx-rail[data-collapsed="true"] .fdx-rail-collapse {
+  justify-content: center;
+  padding: var(--fdx-space-2) 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fdx-rail,
+  .fdx-nav-button,
+  .fdx-nav-chip,
+  .fdx-nav-caret,
+  .fdx-nav-caret .fdx-pixel-mark,
+  .fdx-palette-switch,
+  .fdx-palette-track i,
+  .fdx-rail-brand,
+  .fdx-rail-collapse {
+    transition: none;
+  }
 }

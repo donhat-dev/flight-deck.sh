@@ -78,7 +78,6 @@
   /* Block lift plus the hard print offset — see radio.css: soft says "panel",
      offset says "anchor". */
   border-radius: var(--fdx-radius-block);
-  box-shadow: var(--fdx-shadow-block), var(--fdx-shadow-print);
 }
 
 @media (max-width: 68rem) {
@@ -298,7 +297,6 @@
 .sc-signal[data-selected="true"] {
   border-left-color: var(--fdx-signal);
   background: var(--fdx-surface);
-  box-shadow: 2px 2px 0 var(--fdx-depth-muted);
 }
 
 .sc-signal i {

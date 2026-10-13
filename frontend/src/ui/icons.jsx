@@ -70,3 +70,13 @@ export const IconMute = () => (
     <path d="M10.5 6.5l3 3M13.5 6.5l-3 3" />
   </svg>
 );
+
+/* A frame with its right column filled: the shape says WHICH region the toggle
+   affects, which a chevron or a hamburger cannot. */
+export const IconPanel = () => (
+  <svg {...base}>
+    <rect x="2" y="3" width="12" height="10" rx="1.5" />
+    <path d="M10 3v10" />
+    <path d="M11.4 5.5h1.2M11.4 8h1.2M11.4 10.5h1.2" />
+  </svg>
+);

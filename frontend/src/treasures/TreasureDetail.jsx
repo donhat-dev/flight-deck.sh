@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import { subscribe } from "../api.js";
+import CmsPanel from "./detail/CmsPanel.jsx";
+import DetailHeader from "./detail/DetailHeader.jsx";
+import { IconBack } from "../ui/icons.jsx";
 import { Editor, rootCtx, defaultValueCtx } from "@milkdown/core";
 import { commonmark } from "@milkdown/preset-commonmark";
 import { gfm } from "@milkdown/preset-gfm";
@@ -37,83 +40,17 @@ import "@fontsource/jetbrains-mono/700.css";
  * source keeps the plain textarea, and so does a markdown source if this
  * component is ever loaded in an environment where Milkdown didn't install.
  *
- * Small presentational atoms (StatusBadge/LanguageBadge/relTime/kb) are
- * intentionally duplicated from TreasuresView.jsx rather than imported —
- * list and detail are now separate routes/files and shouldn't reach into
- * each other's internals.
+ * This file is now the page's STATE and data access only. Everything that draws
+ * chrome moved out: `detail/DetailHeader.jsx` (one compact bar) and
+ * `detail/CmsPanel.jsx` (the document's properties, collapsible). The old build
+ * spent about a third of the viewport on stacked header rows before the preview —
+ * the thing the page exists to show — began.
+ *
+ * The metadata atoms that used to live here went with them, and the duplicated
+ * `relTime`/`kb` are now one implementation in `../format.js`; the two copies had
+ * drifted to disagree about unparseable dates.
  */
 
-function relTime(ts) {
-  if (!ts) return "—";
-  const t = Date.parse(ts);
-  if (Number.isNaN(t)) return ts;
-  const diff = Date.now() - t;
-  const minute = 60000, hour = 3600000, day = 86400000;
-  if (diff < minute) return "just now";
-  if (diff < hour) return `${Math.round(diff / minute)}m ago`;
-  if (diff < day) return `${Math.round(diff / hour)}h ago`;
-  const d = Math.floor(diff / day);
-  if (d < 30) return `${d}d ago`;
-  if (d < 365) return `${Math.floor(d / 30)}mo ago`;
-  return `${Math.floor(d / 365)}y ago`;
-}
-
-function kb(bytes) {
-  if (!bytes && bytes !== 0) return "—";
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
-
-// vscode's registered protocol handler opens a local file straight from a
-// browser link — no server round-trip, works because these paths are on the
-// same machine the browser (and VS Code) run on.
-function vscodeUri(path) {
-  return path ? `vscode://file${path}` : undefined;
-}
-
-function FilePathLink({ path, label }) {
-  if (!path) return null;
-  return (
-    <a
-      href={vscodeUri(path)}
-      title={`Open in VS Code: ${path}`}
-      className="inline-flex items-center gap-1 font-mono text-[10px] text-zinc-500 transition-colors hover:text-emerald-300"
-    >
-      ↗ {label}
-    </a>
-  );
-}
-
-const STATUS_TONE = {
-  draft: "border-zinc-500/30 bg-zinc-500/10 text-zinc-400",
-  published: "border-emerald-500/30 bg-emerald-500/10 text-emerald-400",
-  archived: "border-zinc-700/40 bg-zinc-800/20 text-zinc-600",
-};
-function StatusBadge({ status }) {
-  return (
-    <span className={`inline-flex items-center rounded-full border px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide ${STATUS_TONE[status] || STATUS_TONE.draft}`}>
-      {status}
-    </span>
-  );
-}
-
-function LanguageBadge({ language }) {
-  const vi = language === "vi";
-  return (
-    <span className={`inline-flex items-center rounded border px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-wide ${
-      vi ? "border-amber-500/30 bg-amber-500/10 text-amber-400" : "border-zinc-500/30 bg-zinc-500/10 text-zinc-400"
-    }`}>
-      {language}
-    </span>
-  );
-}
-
-// Mirrors render.FONTS in the backend (backend/flightdeck/treasures/render.py)
-// — keep the two lists in sync by hand, there is no shared source yet.
-const FONT_OPTIONS = [
-  { value: "space-grotesk", label: "Space Grotesk" },
-  { value: "jetbrains-mono", label: "JetBrains Mono" },
-  { value: "default", label: "Default (system)" },
-];
 // The Edit pane's own font-family, so it matches whichever a treasure has
 // picked instead of always showing Space Grotesk.
 const FONT_STACK = {
@@ -121,20 +58,6 @@ const FONT_STACK = {
   "jetbrains-mono": "'JetBrains Mono', ui-monospace, monospace",
   "default": "system-ui, -apple-system, 'Segoe UI', sans-serif",
 };
-
-function ProvenanceLink({ originId, onOpenSession }) {
-  if (!originId) return null;
-  return (
-    <button
-      type="button"
-      onClick={() => onOpenSession?.(originId)}
-      title={`Open originating session ${originId}`}
-      className="rounded-md border border-[color:var(--fd-hair-2)] px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-zinc-400 transition-colors hover:border-emerald-500/40 hover:text-emerald-300"
-    >
-      → session
-    </button>
-  );
-}
 
 /* ---- raw fetch helpers ----------------------------------------------------
  * api.js's `get`/`post` throw a generic Error on !ok without exposing the
@@ -401,7 +324,7 @@ const ARTIFACT_SKIN_CSS = `
 
 function MarkdownEditor({ defaultValue, apiRef, onReady, font }) {
   return (
-    <div className="treasure-editor-viewport h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] focus-within:border-emerald-500/40">
+    <div className="treasure-editor-viewport h-[55vh] w-full overflow-auto rounded-lg border border-[color:var(--fdx-rule)] focus-within:border-emerald-500/40">
       <div
         className="treasure-artifact-skin"
         style={{ fontFamily: FONT_STACK[font] || FONT_STACK["space-grotesk"] }}
@@ -444,23 +367,17 @@ function EditModeToggle({ mode, onChange }) {
   );
 }
 
-function SaveRow({ onSave, saving, disabled, savedVersion, saveError }) {
+/* The Save BUTTON lives in the header — it is the view's one primary action, and
+   the design puts that at the top right. What stays here is the outcome, next to
+   the text it describes. */
+function SaveStatus({ savedVersion, saveError }) {
+  if (savedVersion == null && !saveError) return null;
   return (
-    <div className="mt-3 flex flex-wrap items-center gap-3">
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={disabled}
-        className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
-      >
-        {saving ? "Saving…" : "Save"}
-      </button>
+    <div className="mt-2 text-[12px]">
       {savedVersion != null && (
-        <span className="font-mono text-[10px] text-emerald-400">
-          saved → v{savedVersion}, preview reloaded
-        </span>
+        <span className="text-emerald-400">Saved → v{savedVersion}, preview reloaded.</span>
       )}
-      {saveError && <span className="font-mono text-[10px] text-rose-400">{saveError}</span>}
+      {saveError && <span className="text-rose-400">{saveError}</span>}
     </div>
   );
 }
@@ -489,6 +406,18 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
   const [headSaved, setHeadSaved] = useState(false);
   const [updating, setUpdating] = useState(false);
   const [updateError, setUpdateError] = useState(null);
+  const [statusSaving, setStatusSaving] = useState(false);
+  const [statusError, setStatusError] = useState(null);
+  // Panel chrome. `openSection` force-opens ONE section without collapsing what
+  // the user already had open — it is how "Source changed" in the header lands on
+  // the section that can act on it.
+  // Collapsed by default: the page is opened to READ the document, and the
+  // properties are consulted only when there is something to change. It collapses
+  // to a rail, so nothing about the panel becomes unfindable.
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [openSection, setOpenSection] = useState(null);
+  // Which version the PREVIEW is showing; null means the current one.
+  const [viewingVersion, setViewingVersion] = useState(null);
   // "wysiwyg" | "raw". Raw exists because Milkdown PARSES a paste: dropping a
   // whole markdown document into it goes through the ProseMirror schema, which
   // rewrites anything the schema does not model (our component tags become
@@ -561,6 +490,21 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
     }
   };
 
+  // Status is pure metadata — archiving hides a treasure from the default list
+  // view and touches no files, so unlike font/custom_head it needs no rerender.
+  const changeStatus = async (status) => {
+    setStatusSaving(true);
+    setStatusError(null);
+    try {
+      const updated = await patchTreasure(id, { status });
+      setDetail((d) => (d ? { ...d, ...updated } : d));
+    } catch (e) {
+      setStatusError(String(e.message || e));
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
   const saveCustomHead = async () => {
     setHeadSaving(true);
     setHeadError(null);
@@ -610,6 +554,10 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
     setSaveError(null);
     setTab("preview");
     setMilkdownReady(false);
+    // A version number belongs to ONE treasure — carrying it across navigation
+    // would preview a v5 that the next artifact may not have.
+    setViewingVersion(null);
+    setOpenSection(null);
     apiRef.current = null;
     fetchTreasure(id)
       .then((d) => {
@@ -668,361 +616,213 @@ export default function TreasureDetail({ id, onBack, onOpenSession }) {
   // Sticky back-nav, same treatment as SessionDetail's "← Logbook" strip:
   // a negative margin + top padding lets it sit flush against the Shell's own
   // padding while staying pinned as the page scrolls.
-  const backNav = (
-    <div className="sticky top-0 z-20 -mt-6 bg-zinc-950/95 pt-6 backdrop-blur-xl md:-mt-8 md:pt-8">
-      <div className="mb-4 flex items-center justify-between">
+  // Viewing an old version changes the PREVIEW only. The editor holds the current
+  // source, so history stays read-only: there is no restore endpoint, and letting
+  // Edit run while a v3 preview was on screen would invite saving v3's bytes over
+  // v7 without ever saying so.
+  const selectVersion = (v) => {
+    setViewingVersion(v);
+    if (v != null) setTab("preview");
+  };
+
+  const shell = (children) => (
+    <div className="w-full">
+      <div className="sticky top-0 z-20 -mt-6 border-b border-[color:var(--fdx-rule)] bg-zinc-950/95 pb-3 pt-6 backdrop-blur-xl md:-mt-8 md:pt-8">
         <button
           type="button"
           onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-sm text-zinc-400 transition-colors hover:text-emerald-400"
+          className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg px-2 text-[13px] text-zinc-400 transition-colors hover:bg-zinc-500/5 hover:text-zinc-200"
         >
-          ← Treasures
+          <IconBack />
+          Treasures
         </button>
-        {/* Two-step delete: the first click only arms it, so a stray click can
-            never destroy an artifact. The API is fail-closed too (it needs
-            ?confirm=true), and the server refuses any path outside the
-            filestore. Archiving is offered as the non-destructive option. */}
-        {detail && (
-          <div className="flex items-center gap-2">
-            {deleteArmed && (
-              <span className="font-mono text-[10px] text-rose-300">
-                deletes files + index row — permanent
-              </span>
-            )}
-            {deleteArmed && (
-              <button
-                type="button"
-                onClick={() => setDeleteArmed(false)}
-                className="rounded-lg border border-[color:var(--fd-hair-2)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-zinc-400 hover:bg-zinc-500/10"
-              >
-                Cancel
-              </button>
-            )}
-            <button
-              type="button"
-              disabled={deleting}
-              onClick={() => (deleteArmed ? doDelete() : setDeleteArmed(true))}
-              title={deleteArmed
-                ? "Permanently delete this artifact"
-                : "Delete permanently (asks for confirmation)"}
-              className={`rounded-lg border px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors disabled:opacity-50 ${
-                deleteArmed
-                  ? "border-rose-500/50 bg-rose-500/15 text-rose-300 hover:bg-rose-500/25"
-                  : "border-[color:var(--fd-hair-2)] text-zinc-500 hover:text-rose-300"
-              }`}
-            >
-              {deleting ? "Deleting…" : deleteArmed ? "Confirm delete" : "Delete"}
-            </button>
-          </div>
-        )}
       </div>
-      {deleteError && (
-        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/5 px-3 py-2 font-mono text-[11px] text-rose-300">
-          {deleteError}
-        </div>
-      )}
+      <div className="mt-4 rounded-xl border border-[color:var(--fdx-rule)] p-6">{children}</div>
     </div>
   );
 
   if (notFound) {
-    return (
-      <div className="w-full">
-        {backNav}
-        <div className="fd-shell">
-          <div className="fd-core p-6 text-sm">
-            <div className="font-mono text-[11px] uppercase tracking-wide text-zinc-500">Not found</div>
-            <p className="mt-2 text-zinc-400">
-              No treasure with id <span className="font-mono text-zinc-300">{id}</span>. It may have
-              been removed, or the link is stale.
-            </p>
-            <button
-              type="button"
-              onClick={onBack}
-              className="mt-4 rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-zinc-300 hover:bg-zinc-500/5"
-            >
-              ← Back to Treasures
-            </button>
-          </div>
-        </div>
-      </div>
+    return shell(
+      <>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">Not found</p>
+        <p className="mt-2 text-[14px] text-zinc-400">
+          No treasure with id <span className="font-mono text-zinc-300">{id}</span>. It may have been
+          removed, or the link is stale.
+        </p>
+      </>
     );
   }
 
   if (detailError) {
-    return (
-      <div className="w-full">
-        {backNav}
-        <div className="fd-shell">
-          <div className="fd-core p-6 text-sm">
-            <div className="font-mono text-[11px] uppercase tracking-wide text-rose-400">Failed to load</div>
-            <p className="mt-2 text-zinc-400">{detailError}</p>
-            <button
-              type="button"
-              onClick={onBack}
-              className="mt-4 rounded-lg border border-[color:var(--fd-hair-2)] px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-zinc-300 hover:bg-zinc-500/5"
-            >
-              ← Back to Treasures
-            </button>
-          </div>
-        </div>
-      </div>
+    return shell(
+      <>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-rose-400">Failed to load</p>
+        <p className="mt-2 text-[14px] text-zinc-400">{detailError}</p>
+      </>
     );
   }
 
   if (!detail) {
-    return (
-      <div className="w-full">
-        {backNav}
-        <div className="fd-shell">
-          <div className="fd-core p-6">
-            <div className="h-40 animate-pulse rounded-lg bg-zinc-800/40" />
-          </div>
-        </div>
-      </div>
-    );
+    return shell(<div className="h-40 animate-pulse rounded-lg bg-zinc-500/10" />);
   }
+
+  // The header's one primary action, which is whatever the current view can do.
+  // Preview and Source can do nothing, so they get no button rather than a
+  // disabled one that implies a capability.
+  const canEdit = !published && tab === "edit" && viewingVersion == null;
+  const headerAction = canEdit ? (
+    <button
+      type="button"
+      onClick={save}
+      disabled={saving || (isMarkdown && editMode === "wysiwyg" && !milkdownReady)}
+      className="fdx-button"
+      data-variant="primary"
+      data-size="sm"
+    >
+      <span>{saving ? "Saving…" : "Save"}</span>
+    </button>
+  ) : null;
 
   return (
     <div className="w-full">
-      {backNav}
+      <DetailHeader
+        detail={detail}
+        tab={tab}
+        onTab={setTab}
+        published={published}
+        viewingVersion={viewingVersion}
+        onBack={onBack}
+        panelOpen={panelOpen}
+        onTogglePanel={() => setPanelOpen((o) => !o)}
+        staleClick={() => { setPanelOpen(true); setOpenSection("source"); }}
+        action={headerAction}
+      />
 
-      <header className="border-b border-[color:var(--fd-hair-2)] pb-5">
-        <h1 className="text-xl font-semibold tracking-tight text-zinc-100">{detail.title}</h1>
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500">
-          <span className="font-mono text-zinc-400">{detail.slug}</span>
-          <span className="text-zinc-700">·</span>
-          <span>{detail.kind}</span>
-          <span className="text-zinc-700">·</span>
-          <StatusBadge status={detail.status} />
-          <span className="text-zinc-700">·</span>
-          <LanguageBadge language={detail.language} />
-          <span className="text-zinc-700">·</span>
-          <span className="font-mono">v{version}</span>
-          <span className="text-zinc-700">·</span>
-          <span className="font-mono">{kb(detail.render_bytes)}</span>
-          <span className="text-zinc-700">·</span>
-          <span title={detail.updated_at}>{relTime(detail.updated_at)}</span>
-          {detail.origin_id && (
+      {/* The preview is the dominant region and the panel is a column beside it.
+          Below `lg` they stack, panel last — on a narrow screen the document
+          matters more than its properties. */}
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row">
+        <div className="min-w-0 flex-1">
+          {viewingVersion != null && (
+            <div className="mb-2 flex flex-wrap items-center gap-3 rounded-lg border border-[color:var(--fdx-signal)]/30 bg-[color:var(--fdx-signal)]/[0.07] px-3 py-2">
+              <p className="text-[12px] text-zinc-200">
+                Previewing <span className="font-mono">v{viewingVersion}</span> — read-only.
+                Editing applies to v{detail.version}.
+              </p>
+              <button
+                type="button"
+                onClick={() => selectVersion(null)}
+                className="text-[12px] font-semibold text-[color:var(--fdx-signal)] hover:underline"
+              >
+                Back to current
+              </button>
+            </div>
+          )}
+
+          {tab === "preview" && (
             <>
-              <span className="text-zinc-700">·</span>
-              <ProvenanceLink originId={detail.origin_id} onOpenSession={onOpenSession} />
+              <iframe
+                key={`${id}-${version}-${viewingVersion ?? "cur"}-${previewNonce}`}
+                src={`/api/treasures/${encodeURIComponent(id)}/raw${
+                  viewingVersion != null ? `?version=${viewingVersion}` : ""
+                }`}
+                sandbox=""
+                className="h-[calc(100vh-13rem)] min-h-[420px] w-full rounded-xl border border-[color:var(--fdx-rule)] bg-white"
+                title={detail.title}
+              />
+              <p className="mt-1.5 text-[11px] text-zinc-600">
+                Rendered in an isolated sandbox — a bare <span className="font-mono">sandbox=&quot;&quot;</span>{" "}
+                forces an opaque origin and blocks scripts.
+              </p>
             </>
           )}
-        </div>
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">
-          <FilePathLink path={detail.source_path} label="source.md" />
-          <FilePathLink path={detail.artifact_path} label="artifact.html" />
-          {/* Read-only here: tags are set by an agent (treasure_tag) or by
-              clicking a chip in the list. Showing them makes that state visible
-              instead of something you have to query for. */}
-          {(detail.tags || []).map((t) => (
-            <span
-              key={t}
-              className="rounded-full border border-[color:var(--fd-hair-2)] px-2 py-0.5 font-mono text-[9px] text-zinc-400"
-            >
-              #{t}
-            </span>
-          ))}
-        </div>
-        {/* The origin document moved on. Shown only when the server says so,
-            and only for an artifact wrapped from a real file — a transcript
-            origin cannot be re-read. Updating is a click, never automatic:
-            auto-refreshing on save would mint a version per editor flush. */}
-        {detail.origin_stale?.stale === true && (
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 font-mono text-[9px] uppercase tracking-wide text-amber-400">
-              origin changed
-            </span>
-            <button
-              type="button"
-              onClick={updateFromOrigin}
-              disabled={updating}
-              title={`Re-read ${detail.origin_stale.origin_path} into a new version`}
-              className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide text-amber-300 transition-colors hover:bg-amber-500/20 disabled:pointer-events-none disabled:opacity-50"
-            >
-              {updating ? "Updating…" : "Update from source"}
-            </button>
-            <FilePathLink path={detail.origin_stale.origin_path} label="origin" />
-            {updateError && <span className="font-mono text-[10px] text-rose-400">{updateError}</span>}
-          </div>
-        )}
-        <div className="mt-1.5 flex flex-wrap items-center gap-2">
-          <label className="font-mono text-[10px] uppercase tracking-wide text-zinc-500">Font</label>
-          <select
-            value={detail.font || "space-grotesk"}
-            disabled={fontSaving || published}
-            onChange={(e) => changeFont(e.target.value)}
-            title={published ? "Published artifacts are read-only from the dashboard" : "Change the body font and rerender"}
-            className="rounded-md border border-[color:var(--fd-hair-2)] bg-zinc-950/40 px-2 py-0.5 font-mono text-[10px] text-zinc-300 disabled:opacity-50"
-          >
-            {FONT_OPTIONS.map((f) => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-          {fontSaving && <span className="font-mono text-[10px] text-zinc-500">rerendering…</span>}
-          {fontError && <span className="font-mono text-[10px] text-rose-400">{fontError}</span>}
-        </div>
-        {detail.published_url && (
-          <p className="mt-2.5 text-[11px] text-amber-300/90">
-            Published —{" "}
-            <a
-              href={detail.published_url}
-              target="_blank"
-              rel="noreferrer"
-              className="underline decoration-dotted underline-offset-2 hover:text-amber-200"
-            >
-              {detail.published_url}
-            </a>
-            <span className="text-amber-300/60"> · the published copy can't be updated from here — claude.ai has no update API.</span>
-          </p>
-        )}
-      </header>
 
-      <div className="mt-4 flex items-center gap-2">
-        {["preview", "source", "edit"].map((t) => {
-          const disabled = t === "edit" && published;
-          return (
-            <button
-              key={t}
-              type="button"
-              disabled={disabled}
-              onClick={() => setTab(t)}
-              title={disabled ? "Published artifacts are read-only from the dashboard — claude.ai has no update API" : undefined}
-              className={`rounded-md px-2.5 py-1 font-mono text-[10px] uppercase tracking-wide transition-colors ${
-                tab === t
-                  ? "bg-emerald-500/15 text-emerald-400"
-                  : disabled
-                    ? "cursor-not-allowed text-zinc-700"
-                    : "text-zinc-400 hover:bg-zinc-500/5"
-              }`}
-            >
-              {t}
-            </button>
-          );
-        })}
-      </div>
+          {tab === "source" && (
+            <pre className="h-[calc(100vh-13rem)] min-h-[420px] overflow-auto rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-950/40 p-4 font-mono text-[12px] leading-relaxed text-zinc-300">
+              {detail.source}
+            </pre>
+          )}
 
-      <div className="mt-4">
-        {tab === "preview" && (
-          <div>
-            <p className="mb-2 text-[10px] text-zinc-500">
-              Rendered in an isolated sandbox — bare <span className="font-mono">sandbox=""</span> forces
-              an opaque origin and blocks scripts.
+          {tab === "edit" && published && (
+            <p className="rounded-xl border border-[color:var(--fdx-rule)] p-4 text-[13px] text-zinc-400">
+              Published artifacts are read-only from the dashboard — claude.ai has no update API.
             </p>
-            <iframe
-              key={`${id}-${version}-${previewNonce}`}
-              src={`/api/treasures/${encodeURIComponent(id)}/raw`}
-              sandbox=""
-              className="h-[78vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-white"
-              title={detail.title}
-            />
-          </div>
-        )}
+          )}
 
-        {tab === "source" && (
-          <pre className="max-h-[78vh] overflow-auto rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-4 font-mono text-[11px] leading-relaxed text-zinc-300">
-            {detail.source}
-          </pre>
-        )}
-
-        {tab === "edit" && published && (
-          <p className="text-[11px] text-zinc-500">
-            Published artifacts are read-only from the dashboard — claude.ai has no update API.
-          </p>
-        )}
-
-        {/* The edit surface stays MOUNTED (hidden via CSS, not unmounted) once
-           the source is loaded, regardless of which tab is active. Milkdown
-           owns its document internally — remounting it on every tab switch
-           would discard whatever the user had typed. */}
-        {!published && isMarkdown && (
-          <div className={tab === "edit" ? "" : "hidden"}>
-            <EditModeToggle mode={editMode} onChange={switchEditMode} />
-            {/* Raw is a sibling, not a replacement: Milkdown stays mounted so
-                switching back and forth cannot lose its document. */}
-            <div className={editMode === "raw" ? "hidden" : ""}>
-              <MarkdownEditor
-                key={milkdownKey}
-                defaultValue={draft}
-                apiRef={apiRef}
-                onReady={() => setMilkdownReady(true)}
-                font={detail.font || "space-grotesk"}
-              />
+          {/* The edit surface stays MOUNTED (hidden via CSS, not unmounted) once
+              the source is loaded, regardless of which tab is active. Milkdown
+              owns its document internally — remounting it on every tab switch
+              would discard whatever the user had typed. */}
+          {!published && isMarkdown && (
+            <div className={tab === "edit" ? "" : "hidden"}>
+              <EditModeToggle mode={editMode} onChange={switchEditMode} />
+              {/* Raw is a sibling, not a replacement: Milkdown stays mounted so
+                  switching back and forth cannot lose its document. */}
+              <div className={editMode === "raw" ? "hidden" : ""}>
+                <MarkdownEditor
+                  key={milkdownKey}
+                  defaultValue={draft}
+                  apiRef={apiRef}
+                  onReady={() => setMilkdownReady(true)}
+                  font={detail.font || "space-grotesk"}
+                />
+              </div>
+              {editMode === "raw" && (
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  spellCheck={false}
+                  placeholder="Paste markdown here — stored byte-for-byte, nothing is reparsed."
+                  className="h-[calc(100vh-19rem)] min-h-[320px] w-full rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-[color:var(--fdx-signal)]/50 focus:outline-none"
+                />
+              )}
+              <SaveStatus savedVersion={savedVersion} saveError={saveError} />
             </div>
-            {editMode === "raw" && (
+          )}
+          {!published && !isMarkdown && (
+            <div className={tab === "edit" ? "" : "hidden"}>
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 spellCheck={false}
-                placeholder="Paste markdown here — stored byte-for-byte, nothing is reparsed."
-                className="h-[55vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
+                className="h-[calc(100vh-16rem)] min-h-[320px] w-full rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-[color:var(--fdx-signal)]/50 focus:outline-none"
               />
-            )}
-            <SaveRow
-              onSave={save}
-              saving={saving}
-              disabled={saving || (editMode === "wysiwyg" && !milkdownReady)}
-              savedVersion={savedVersion}
-              saveError={saveError}
-            />
-          </div>
-        )}
-        {!published && !isMarkdown && (
-          <div className={tab === "edit" ? "" : "hidden"}>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              spellCheck={false}
-              className="h-[55vh] w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
-            />
-            <SaveRow
-              onSave={save}
-              saving={saving}
-              disabled={saving}
-              savedVersion={savedVersion}
-              saveError={saveError}
-            />
-          </div>
-        )}
+              <SaveStatus savedVersion={savedVersion} saveError={saveError} />
+            </div>
+          )}
+        </div>
 
-        {!published && tab === "edit" && (
-          <div className="mt-5 border-t border-[color:var(--fd-hair-2)] pt-4">
-            <button
-              type="button"
-              onClick={() => setHeadOpen((o) => !o)}
-              className="font-mono text-[10px] uppercase tracking-wide text-zinc-500 hover:text-zinc-300"
-            >
-              {headOpen ? "▾" : "▸"} Custom &lt;head&gt;
-            </button>
-            {headOpen && (
-              <div className="mt-2">
-                <p className="mb-2 text-[10px] text-zinc-500">
-                  Raw HTML spliced in right before &lt;/head&gt; — extra meta/style/link tags. Not
-                  escaped; only paste HTML you trust.
-                </p>
-                <textarea
-                  value={headDraft}
-                  onChange={(e) => { setHeadDraft(e.target.value); setHeadSaved(false); }}
-                  spellCheck={false}
-                  placeholder='<meta name="robots" content="noindex">'
-                  className="h-24 w-full rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-950/40 p-3 font-mono text-[12px] leading-relaxed text-zinc-200 focus:border-emerald-500/40 focus:outline-none"
-                />
-                <div className="mt-2 flex flex-wrap items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={saveCustomHead}
-                    disabled={headSaving}
-                    className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-mono text-[10px] uppercase tracking-wide text-emerald-300 transition-colors hover:bg-emerald-500/15 disabled:pointer-events-none disabled:opacity-50"
-                  >
-                    {headSaving ? "Saving…" : "Save & rerender"}
-                  </button>
-                  {headSaved && <span className="font-mono text-[10px] text-emerald-400">saved, preview reloaded</span>}
-                  {headError && <span className="font-mono text-[10px] text-rose-400">{headError}</span>}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        <CmsPanel
+          detail={detail}
+          id={id}
+          open={panelOpen}
+          onOpen={() => setPanelOpen(true)}
+          openSection={openSection}
+          onOpenSection={setOpenSection}
+          onOpenSession={onOpenSession}
+          viewingVersion={viewingVersion}
+          onSelectVersion={selectVersion}
+          onUpdateFromOrigin={updateFromOrigin}
+          updating={updating}
+          updateError={updateError}
+          onChangeFont={changeFont}
+          fontSaving={fontSaving}
+          fontError={fontError}
+          onChangeStatus={changeStatus}
+          statusSaving={statusSaving}
+          statusError={statusError}
+          headDraft={headDraft}
+          onHeadDraft={(v) => { setHeadDraft(v); setHeadSaved(false); }}
+          onSaveHead={saveCustomHead}
+          headSaving={headSaving}
+          headSaved={headSaved}
+          headError={headError}
+          onDelete={doDelete}
+          deleteArmed={deleteArmed}
+          onArmDelete={setDeleteArmed}
+          deleting={deleting}
+          deleteError={deleteError}
+        />
       </div>
     </div>
   );

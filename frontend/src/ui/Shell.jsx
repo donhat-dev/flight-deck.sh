@@ -36,10 +36,18 @@ export function Shell({
   // (e.g. Spend uses a 1rem top + tighter gaps to fit one screen). Session
   // detail keeps the default py-6/py-8 its sticky back-nav math depends on.
   contentClassName = "space-y-5 px-5 py-6 md:px-8 md:py-8",
+  // The centered cap. 1440 is right for data pages — a table read across 1900px is
+  // worse, not better. A view whose subject IS the full width (the treasure
+  // preview, which hides the nav to gain room) passes `max-w-none`; without this
+  // the freed 224px only became a wider margin.
+  maxWidthClassName = "max-w-[1440px]",
 }) {
   if (variant === "bleed") {
     return (
-      <div className="flex h-[100dvh] min-h-0 flex-col">
+      // `body { zoom: var(--app-zoom) }` scales the whole app, so a plain
+      // 100dvh box is rendered 12% taller than the viewport and the page grows
+      // a scrollbar it should not have. Divide the height back out.
+      <div className="flex h-[calc(100dvh/var(--app-zoom,1))] min-h-0 flex-col">
         {header}
         <div className="min-h-0 flex-1 overflow-hidden">{children}</div>
       </div>
@@ -48,7 +56,7 @@ export function Shell({
   return (
     <div className="flex flex-col">
       {header}
-      <main className={`mx-auto w-full max-w-[1440px] ${contentClassName}`}>
+      <main className={`mx-auto w-full ${maxWidthClassName} ${contentClassName}`}>
         {children}
       </main>
     </div>

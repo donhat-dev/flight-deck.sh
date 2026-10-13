@@ -1,5 +1,7 @@
 import React from "react";
 
+import { relTime } from "../format.js";
+
 /**
  * One treasure, in the two shapes a library needs.
  *
@@ -34,24 +36,6 @@ const SOURCE_LABEL = {
   ui: "Pasted",
   discover: "Discovered",
 };
-
-export function relTime(ts) {
-  if (!ts) return "—";
-  const then = new Date(ts).getTime();
-  if (Number.isNaN(then)) return "—";
-  const mins = Math.max(0, Math.round((Date.now() - then) / 60000));
-  if (mins < 60) return `${mins}m ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return `${Math.round(days / 7)}w ago`;
-}
-
-export function kb(bytes) {
-  if (!bytes) return "—";
-  return `${(bytes / 1024).toFixed(1)} KB`;
-}
 
 function sourceOf(row) {
   if (row.published_url) return { label: "claude.ai", tone: "text-zinc-500" };
@@ -88,7 +72,7 @@ export function TreasureListRow({ row, onOpen }) {
     <a
       href={`#/treasure/${encodeURIComponent(row.id)}`}
       onClick={() => onOpen?.(row.id)}
-      className="grid grid-cols-[minmax(0,1fr)_150px_190px_28px] items-center gap-3 border-b border-[color:var(--fd-hair-2)] px-5 py-3.5 transition-colors last:border-b-0 hover:bg-zinc-500/5"
+      className="grid grid-cols-[minmax(0,1fr)_150px_190px_28px] items-center gap-3 border-b border-[color:var(--fdx-rule)] px-5 py-3.5 transition-colors last:border-b-0 hover:bg-zinc-500/5"
     >
       <span className="min-w-0 space-y-1">
         <span className="block truncate text-[15px] font-semibold text-zinc-100">{row.title}</span>
@@ -110,7 +94,7 @@ export function TreasureMobileCard({ row, onOpen }) {
     <a
       href={`#/treasure/${encodeURIComponent(row.id)}`}
       onClick={() => onOpen?.(row.id)}
-      className="block space-y-2.5 border-b border-[color:var(--fd-hair-2)] px-4 py-3.5 transition-colors last:border-b-0 active:bg-zinc-500/10"
+      className="block space-y-2.5 border-b border-[color:var(--fdx-rule)] px-4 py-3.5 transition-colors last:border-b-0 active:bg-zinc-500/10"
     >
       <span className="block text-[15px] font-semibold leading-snug text-zinc-100">{row.title}</span>
       <Meta row={row} />

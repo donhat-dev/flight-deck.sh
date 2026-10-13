@@ -92,7 +92,6 @@ html, body, #root { height: 100%; }
 .rdr-nav-key[aria-current="page"] {
   background: var(--fdx-control-face);
   color: var(--fdx-control-label);
-  box-shadow: var(--fdx-shadow-control-quiet);
 }
 
 .rdr-chrome-title { font-size: 0.9375rem; font-weight: 700; }
@@ -145,14 +144,13 @@ html, body, #root { height: 100%; }
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
-  box-shadow: var(--fdx-shadow-control-quiet);
 }
 .rdr-btn[data-variant="primary"] {
   border-color: transparent;
   background: var(--fdx-control-face);
   color: var(--fdx-control-label);
 }
-.rdr-btn:active { box-shadow: var(--fdx-shadow-control-pressed); translate: 3px 3px; }
+.rdr-btn:active { background: var(--fdx-surface-raised); border-color: var(--fdx-text); }
 
 .rdr-icon-btn {
   border: 1px solid var(--fdx-depth-muted);

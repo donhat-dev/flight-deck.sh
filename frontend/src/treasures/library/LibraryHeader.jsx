@@ -3,29 +3,52 @@ import React from "react";
 import { IconRefresh } from "../../ui/icons.jsx";
 
 /**
- * Library header: what the library is, then what you can do to it.
+ * Library action bar.
  *
- * Replaces a five-cell statistics block that cost most of a mobile viewport
- * before the first document appeared. The same facts fit on one line, because a
- * count is a caption, not a panel.
+ * It carries NO title. The app shell's Header already renders "Treasures" plus a
+ * subtitle for this view, so a second heading here was the same word twice on one
+ * screen — the duplication was visible the moment both were on screen together.
  *
- * `Refresh` is gone as a button. The live indicator IS the control: it reports
- * the real SSE state and clicking it refetches, so the technical detail earns its
- * space instead of sitting beside a status it duplicates.
+ * Actions sit on the left in the order they are reached for: New treasure first
+ * as the single primary action, Scan sources second as the separate workflow.
+ * State sits on the right, so "what I can do" and "what is happening" do not
+ * interleave.
  *
- * One primary action — New treasure. Scan sources is a different workflow and
- * reads as one.
+ * `Refresh` is not a button of its own. The live indicator IS the control: it
+ * reports the real SSE state and clicking it refetches, so the technical detail
+ * earns its space instead of sitting beside a status it duplicates.
  */
 export default function LibraryHeader({
   total, published, live, onRefresh, onNew, creating, onScan, scanning,
 }) {
   return (
-    <header className="flex flex-wrap items-end justify-between gap-4">
-      <div className="space-y-1.5">
-        <h2 className="text-[26px] font-bold leading-none tracking-tight text-zinc-100">
-          Treasures
-        </h2>
-        <p className="flex flex-wrap items-center gap-2 text-[13px] text-zinc-400">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={onNew}
+          aria-expanded={creating}
+          className="fdx-button"
+          data-variant={creating ? "secondary" : "primary"}
+          data-size="sm"
+        >
+          <span>{creating ? "Close" : "New treasure"}</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onScan}
+          disabled={scanning}
+          className="fdx-button"
+          data-variant="secondary"
+          data-size="sm"
+        >
+          <span>{scanning ? "Scanning…" : "Scan sources"}</span>
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="flex items-center gap-2 text-[13px] text-zinc-400">
           <span>
             <span className="font-mono text-zinc-200">{total}</span> artifacts
           </span>
@@ -34,11 +57,6 @@ export default function LibraryHeader({
             <span className="font-mono text-zinc-200">{published}</span> published
           </span>
         </p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {/* The status doubles as the refresh control, so the label is honest about
-            both what is happening and what clicking will do. */}
         <button
           type="button"
           onClick={onRefresh}
@@ -53,29 +71,7 @@ export default function LibraryHeader({
           {live ? "Live" : "Offline"}
           <IconRefresh />
         </button>
-
-        <button
-          type="button"
-          onClick={onScan}
-          disabled={scanning}
-          className="fdx-button"
-          data-variant="secondary"
-          data-size="sm"
-        >
-          <span>{scanning ? "Scanning…" : "Scan sources"}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onNew}
-          aria-expanded={creating}
-          className="fdx-button"
-          data-variant={creating ? "secondary" : "primary"}
-          data-size="sm"
-        >
-          <span>{creating ? "Close" : "New treasure"}</span>
-        </button>
       </div>
-    </header>
+    </div>
   );
 }

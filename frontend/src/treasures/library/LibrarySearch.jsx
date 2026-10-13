@@ -39,8 +39,8 @@ function Option({ active, onClick, children, count }) {
       onClick={onClick}
       className={`inline-flex min-h-[32px] items-center gap-1.5 rounded-lg border px-2.5 text-[13px] transition-colors ${
         active
-          ? "border-[color:var(--fd-coral)] bg-[color:var(--fd-coral)]/10 text-zinc-100"
-          : "border-[color:var(--fd-hair-2)] text-zinc-400 hover:text-zinc-200"
+          ? "border-[color:var(--fdx-signal)] bg-[color:var(--fdx-signal)]/10 text-zinc-100"
+          : "border-[color:var(--fdx-rule)] text-zinc-400 hover:text-zinc-200"
       }`}
     >
       {children}
@@ -91,7 +91,7 @@ export default function LibrarySearch({
             value={query}
             onChange={(e) => onQuery(e.target.value)}
             placeholder="Title, slug or source path…"
-            className="min-h-[44px] min-w-[220px] flex-1 rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/[0.03] px-3.5 text-[15px] text-zinc-100 placeholder:text-zinc-600 focus:border-[color:var(--fd-coral)]/50 focus:outline-none"
+            className="min-h-[44px] min-w-[220px] flex-1 rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/[0.03] px-3.5 text-[15px] text-zinc-100 placeholder:text-zinc-600 focus:border-[color:var(--fdx-signal)]/50 focus:outline-none"
           />
 
           <div className="relative" ref={popRef}>
@@ -105,7 +105,7 @@ export default function LibrarySearch({
             >
               <span>Filters</span>
               {activeCount > 0 && (
-                <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[color:var(--fd-coral)] px-1 font-mono text-[12px] text-white">
+                <span className="ml-1 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[color:var(--fdx-signal)] px-1 font-mono text-[12px] text-white">
                   {activeCount}
                 </span>
               )}
@@ -115,7 +115,7 @@ export default function LibrarySearch({
               <div
                 role="dialog"
                 aria-label="Filters"
-                className="absolute right-0 z-30 mt-2 w-[300px] space-y-4 rounded-xl border border-[color:var(--fd-hair)] bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl"
+                className="absolute right-0 z-30 mt-2 w-[300px] space-y-4 rounded-xl border border-[color:var(--fdx-rule)] bg-zinc-950/95 p-4 shadow-2xl backdrop-blur-xl"
               >
                 <FilterGroup title="Status">
                   {STATUS.map(([k, label]) => (
@@ -154,7 +154,7 @@ export default function LibrarySearch({
             id="treasure-sort"
             value={sort}
             onChange={(e) => onSort(e.target.value)}
-            className="min-h-[44px] rounded-lg border border-[color:var(--fd-hair-2)] bg-transparent px-3 text-[14px] font-semibold text-zinc-200 focus:outline-none"
+            className="min-h-[44px] rounded-lg border border-[color:var(--fdx-rule)] bg-transparent px-3 text-[14px] font-semibold text-zinc-200 focus:outline-none"
           >
             <option value="updated">Updated</option>
             <option value="title">Title</option>
@@ -172,7 +172,7 @@ export default function LibrarySearch({
                 key={key}
                 type="button"
                 onClick={clear}
-                className="inline-flex min-h-[32px] items-center gap-2 rounded-lg border border-[color:var(--fd-hair-2)] bg-zinc-500/[0.03] px-2.5 text-[13px] text-zinc-200 transition-colors hover:border-[color:var(--fd-coral)]/50"
+                className="inline-flex min-h-[32px] items-center gap-2 rounded-lg border border-[color:var(--fdx-rule)] bg-zinc-500/[0.03] px-2.5 text-[13px] text-zinc-200 transition-colors hover:border-[color:var(--fdx-signal)]/50"
               >
                 {label}
                 <span aria-hidden="true" className="text-zinc-500">×</span>
@@ -183,7 +183,7 @@ export default function LibrarySearch({
           <button
             type="button"
             onClick={onClearAll}
-            className="text-[13px] font-semibold text-[color:var(--fd-coral)] hover:underline"
+            className="text-[13px] font-semibold text-[color:var(--fdx-signal)] hover:underline"
           >
             Clear all
           </button>
