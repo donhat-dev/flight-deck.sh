@@ -13,3 +13,7 @@ fastmcp>=2.0
 # test-only: verifies the artifact fonts carry the Vietnamese block
 fonttools>=4.53
 brotli>=1.1
+# Compose stack scan (systems/compose_scan.py) reads the top-level `name:` from
+# docker-compose files. Present in the host .venv only transitively before this;
+# the image installs exactly this file, so it must be declared.
+pyyaml>=6

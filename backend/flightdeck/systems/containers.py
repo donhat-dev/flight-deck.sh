@@ -17,6 +17,8 @@ import time
 
 from fastapi import APIRouter, HTTPException
 
+from flightdeck.systems import compose_scan
+
 router = APIRouter(prefix="/api/systems", tags=["systems"])
 
 # Docker Engine API version to pin the request path to. 1.41 ships with
@@ -173,6 +175,14 @@ def _build_container(c):
         "ports": _ports(c.get("Ports")),
         "project": labels.get("com.docker.compose.project"),
         "service": labels.get("com.docker.compose.service"),
+        # Compose records the files and directory that produced this container.
+        # They are what lets a running stack be matched to a compose file on
+        # disk, so the board can also list the stacks that are fully down.
+        "config_files": [
+            f for f in (labels.get("com.docker.compose.project.config_files") or "").split(",")
+            if f
+        ],
+        "working_dir": labels.get("com.docker.compose.project.working_dir") or None,
         "health": _health(status),
     }
 
@@ -302,4 +312,105 @@ def container_stats(cid: str):
         "mem_usage": mem_usage,
         "mem_limit": mem_limit,
         "mem_pct": mem_pct,
+    }
+
+
+@router.get("/stacks")
+def stacks_overview():
+    """Compose stacks: the ones with containers, plus the ones fully down.
+
+    Two sources, joined on the compose project name. Running containers carry it
+    as `com.docker.compose.project`; a compose file on disk carries it as its
+    top-level `name:` (or contributes its directory basename). A stack present
+    only on disk is DOWN — the case the container board structurally cannot show,
+    because a stack that was brought down leaves nothing to list.
+
+    Read-only, like everything else in this module. Never 500s on a missing
+    daemon: the disk half still answers, with every stack marked `unknown`.
+    """
+    try:
+        on_disk = compose_scan.scan()
+    except Exception as e:  # a bad root or unreadable tree must not take the board down
+        on_disk = {}
+        scan_error = str(e)
+    else:
+        scan_error = None
+
+    sock_path = _resolve_sock()
+    live_rows, docker_available, docker_reason = [], False, None
+    docker_version = None
+    if not sock_path:
+        docker_reason = "docker socket not found"
+    else:
+        try:
+            raw = _get(sock_path, "/containers/json?all=true") or []
+            live_rows = [_build_container(c) for c in raw]
+            docker_available = True
+            try:
+                ver = _get(sock_path, "/version")
+                docker_version = ver.get("Version") if ver else None
+            except Exception:
+                docker_version = None  # non-fatal; the list already succeeded
+        except Exception as e:
+            docker_reason = f"docker socket unreachable: {e}"
+
+    live = {}
+    for c in live_rows:
+        if c["project"]:
+            live.setdefault(c["project"], []).append(c)
+
+    def _state(rows):
+        if not docker_available:
+            return "unknown"
+        if not rows:
+            return "down"
+        running = sum(1 for r in rows if r["state"] == "running")
+        if running == 0:
+            return "down"
+        return "up" if running == len(rows) else "partial"
+
+    stacks = []
+    for project in sorted(set(on_disk) | set(live)):
+        disk = on_disk.get(project)
+        rows = sorted(live.get(project, []),
+                      key=lambda r: (0 if r["state"] == "running" else 1, r["name"].lower()))
+        # A stack with containers but no file on disk still knows its own paths.
+        config_files = list(disk["config_files"]) if disk else []
+        working_dir = disk["working_dir"] if disk else None
+        if not config_files and rows:
+            config_files = rows[0].get("config_files") or []
+        if not working_dir and rows:
+            working_dir = rows[0].get("working_dir")
+        stacks.append({
+            "project": project,
+            "state": _state(rows),
+            "on_disk": disk is not None,
+            "declared": bool(disk and disk["declared"]),
+            "working_dir": working_dir,
+            "config_files": config_files,
+            "total": len(rows),
+            "running": sum(1 for r in rows if r["state"] == "running"),
+            "containers": rows,
+        })
+
+    orphans = sorted(
+        (c for c in live_rows if not c["project"]),
+        key=lambda r: (0 if r["state"] == "running" else 1, r["name"].lower()),
+    )
+
+    return {
+        "available": docker_available,
+        "reason": docker_reason,
+        "scan_error": scan_error,
+        "socket": sock_path,
+        "summary": {
+            "stacks": len(stacks),
+            "up": sum(1 for s in stacks if s["state"] == "up"),
+            "partial": sum(1 for s in stacks if s["state"] == "partial"),
+            "down": sum(1 for s in stacks if s["state"] == "down"),
+            "orphan_containers": len(orphans),
+            "docker_version": docker_version,
+        },
+        "stacks": stacks,
+        "orphans": orphans,
     }

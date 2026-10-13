@@ -1,0 +1,54 @@
+# Example instance registry for the odoo_* tools.
+#
+# Copy to ~/.flightdeck/odoo.toml and `chmod 600` it. This file holds the NAME of the
+# environment variable carrying each password, never a password, so a copy of it leaks
+# nothing. Passwords go in the environment — flight-deck.sh/.env is already ignored by
+# git and is loaded for every CLI entrypoint.
+#
+# There is no "default" key and there will not be one. Every tool names its instance.
+#
+# The second way in, for when you would rather not keep a file at all: declare a whole
+# instance with environment variables and leave it out of here.
+#
+#   export ODOO_STAGING_CE_URL=http://<staging-host>:<port>
+#   export ODOO_STAGING_CE_DB=<staging-db>
+#   export ODOO_STAGING_CE_USER=admin
+#   export ODOO_STAGING_CE_PASSWORD=...
+#   export ODOO_STAGING_CE_WRITE_MODELS=          # comma separated; empty = read only
+#
+# The name maps both ways: staging-ce <-> ODOO_STAGING_CE_. Setting ODOO_<NAME>_URL
+# makes the whole instance come from the environment and shadows any entry here with
+# the same name — the two are never merged field by field.
+#
+# Odoo 12 has no API keys, so 12.0 servers can only use a login and a password. On
+# Odoo 19 put an API key in the same variable; nothing else changes.
+
+[instances.odoo12-local]
+base_url      = "http://127.0.0.1:8069"
+db            = "nakivo"
+login         = "admin"                      # not yet verified on the anonymised restore
+password_env  = "ODOO12_LOCAL_PASSWORD"
+write_models  = []                           # empty = absolutely read-only
+write_methods = []
+note = """Anonymised restore of production with crons and mail off, and NO backup.
+Not a source of truth about production. Writes: never."""
+
+[instances.odoo19-local]
+base_url      = "http://127.0.0.1:8019"
+db            = "odoo_19_ce"
+login         = "admin"
+password_env  = "ODOO19_LOCAL_PASSWORD"
+write_models  = []                           # add a model here when you need to write
+write_methods = []
+note = "Odoo 19 CE sandbox for the subscription, pre-sale and HR tracks. Rebuildable."
+
+[instances.staging-ce]
+base_url      = "http://<staging-host>:<port>"
+db            = "<staging-db>"
+login         = "admin"
+password_env  = "STAGING_CE_PASSWORD"
+write_models  = []
+write_methods = []
+note = """the staging database, the de-coupled CE code from odoo12CE_legal, data nearly empty.
+SHARED with colleagues. Read-only by default; say so in the team channel before adding
+a model to write_models."""

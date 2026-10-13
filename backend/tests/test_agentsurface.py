@@ -21,13 +21,18 @@ BACKEND = Path(__file__).resolve().parents[1]
 
 # ------------------------------------------------------------------- registry
 
-def test_the_registry_merges_both_domains_without_collisions():
+def test_the_registry_merges_every_domain_without_collisions():
     tools = registry.merged()
-    assert len(tools) == 30
+    prefixes = tuple(registry._DOMAINS)
     assert "radar_move" in tools and "treasure_wrap" in tools
+    assert "session_search" in tools
     # Every name wears its domain prefix, which is what makes collisions structurally
-    # unlikely rather than merely untested.
-    assert all(n.startswith(("radar_", "treasure_")) for n in tools)
+    # unlikely rather than merely untested. Derived from _DOMAINS rather than a
+    # literal, so adding a domain is one line there and no edit here.
+    assert all(n.startswith(prefixes) for n in tools)
+    # Every domain actually contributes: a module that fails to export TOOLS would
+    # otherwise merge as silently empty.
+    assert all(any(n.startswith(p) for n in tools) for p in prefixes)
 
 
 def test_every_merged_schema_matches_its_function_signature():
@@ -66,7 +71,7 @@ def scratch(tmp_path):
 def test_list_names_all_tools(scratch):
     proc = cli(["--list"], env_extra=scratch)
     names = proc.stdout.split()
-    assert proc.returncode == 0 and len(names) == 30
+    assert proc.returncode == 0 and len(names) == len(registry.merged())
 
 
 def test_schema_output_is_what_the_mcp_advertises(scratch):
@@ -163,7 +168,7 @@ def test_the_wrapper_serves_fresh_tools_and_results_over_real_stdio(scratch, tmp
         assert init["result"]["serverInfo"]["name"] == "flightdeck"
 
         tools = rpc("tools/list")["result"]["tools"]
-        assert len(tools) == 30
+        assert len(tools) == len(registry.merged())
 
         out = rpc("tools/call", {"name": "radar_create",
                                  "arguments": {"slug": "wrap", "title": "Via wrapper"}})

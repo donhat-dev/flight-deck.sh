@@ -96,14 +96,39 @@ def refresh_treasure(request: Request, ident: str):
         raise HTTPException(status_code=400, detail=f"{type(e).__name__}: {e}")
 
 
+@router.get("/api/treasures/{ident}/versions")
+def treasure_versions(request: Request, ident: str):
+    """The artifact's retained versions, newest first.
+
+    Read off disk rather than out of a table — see `service.versions`. The
+    dashboard's history panel needs this to offer anything beyond "current", and
+    an artifact with one version legitimately returns a single row.
+    """
+    with db.read_conn(_db_path(request)) as conn:
+        try:
+            rows = service.versions(conn, ident)
+        except LookupError:
+            raise HTTPException(status_code=404, detail="treasure not found")
+    return {"versions": rows, "count": len(rows)}
+
+
 @router.get("/api/treasures/{ident}/raw")
-def raw_treasure(request: Request, ident: str):
-    """The rendered artifact, for a sandboxed iframe."""
+def raw_treasure(request: Request, ident: str, version: int | None = None):
+    """The rendered artifact, for a sandboxed iframe.
+
+    `version` serves a historical render instead of the current one. The number is
+    request-supplied, so the path is rebuilt from the indexed `dir_path` and still
+    has to resolve inside the filestore before a byte is read — the same check the
+    current-version path makes, for the same reason.
+    """
     with db.read_conn(_db_path(request)) as conn:
         row = service.get(conn, ident)
     if row is None:
         raise HTTPException(status_code=404, detail="treasure not found")
-    path = Path(row["artifact_path"]).resolve()
+    if version is None:
+        path = Path(row["artifact_path"]).resolve()
+    else:
+        path = (service.version_dir(row, version) / "artifact.html").resolve()
     # The path comes from the index, not the request, but confirm it still sits
     # inside the filestore before reading anything off disk.
     root = filestore.root().resolve()

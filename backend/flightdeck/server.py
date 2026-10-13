@@ -18,8 +18,10 @@ from flightdeck.hub.nodes import load as hub_load
 from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
-from flightdeck.routers import (burn, charts, core, diff, hub, missions, radar, sessions,
-                               stream, tasks, thinking, treasures, treasure_config, appearance)
+from flightdeck.tickets import store as tickets_store
+from flightdeck.routers import (burn, charts, core, decisions, diff, hub, memory, missions,
+                               radar, send, sessions, stream, tasks, thinking, tickets, treasures,
+                               treasure_config, appearance)
 from flightdeck.systems import containers as sys_containers
 from flightdeck.systems import mcp as sys_mcp
 from flightdeck.systems import skills as sys_skills
@@ -50,6 +52,7 @@ def create_app() -> FastAPI:
     # Treasures MCP has never been run in this environment.
     treasures_store.init(write_conn)
     radar_store.init(write_conn)
+    tickets_store.init(write_conn)
     flows_dir = os.environ.get("TOKEN_AUDIT_FLOWS_DIR") or os.path.join(
         os.path.dirname(__file__), "..", "flows")
 
@@ -68,7 +71,11 @@ def create_app() -> FastAPI:
     # Endpoint routers (extracted from the old create_app mega-factory).
     app.include_router(core.router)
     app.include_router(sessions.router)
+    # Writes into a session by spawning the CLI. Own router because everything
+    # in sessions.router is read-only.
+    app.include_router(send.router)
     app.include_router(missions.router)
+    app.include_router(tickets.router)
     app.include_router(tasks.router)
     app.include_router(burn.router)
     app.include_router(thinking.router)
@@ -77,7 +84,14 @@ def create_app() -> FastAPI:
     app.include_router(hub.router)
     app.include_router(radar.router)
     app.include_router(stream.router)
+    # Approval channel: the only router a PreToolUse hook talks to. Registered
+    # here rather than by the track that fills it in, so three tracks building
+    # on the event bus at once never contend for this file.
+    app.include_router(decisions.router)
     app.include_router(appearance.router)
+    # Auto-memory store: four read-only views, no database and no write lock —
+    # the store is files on disk, so this router shares nothing with the ledger.
+    app.include_router(memory.router)
     app.include_router(treasures.router)
     # Separate prefix from treasures.router on purpose — see
     # routers/treasure_config.py's module docstring (that router is in flight

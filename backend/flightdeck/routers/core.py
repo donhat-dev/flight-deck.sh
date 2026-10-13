@@ -11,7 +11,8 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import FileResponse
 
 from flightdeck import ccusage, db, metrics, pulse, quota
-from flightdeck.runtime import _updated, cached, since
+from flightdeck.events import BUS
+from flightdeck.runtime import SUMMARY_UPDATED, cached, since
 
 router = APIRouter(tags=["core"])
 
@@ -81,8 +82,7 @@ def reingest_endpoint(request: Request):
     # for the periodic sweep. The skip-cache keeps this cheap when little
     # changed.
     request.app.state.runtime.reingest()
-    if getattr(request.app.state, "loop", None) is not None:
-        request.app.state.loop.call_soon_threadsafe(_updated.set)
+    BUS.emit(SUMMARY_UPDATED, source="api-reingest")
     snap = request.app.state.snap or {}
     return {"ok": True, "ranges": list(snap.keys())}
 

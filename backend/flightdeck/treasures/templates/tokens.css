@@ -1,4 +1,4 @@
-/* Artifact tokens — the workspace house style (ARTIFACT_STYLE.md).
+/* Artifact tokens — the workspace house style (nakivo-artifact:style, references/visual-system.md).
  *
  * Fonts are LOCAL woff2 files; pandoc --embed-resources base64-inlines them, so
  * a published artifact makes zero network requests (claude.ai's CSP blocks
@@ -448,7 +448,7 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; text-align
 /* === components (docs/treasures-components.md) ============================
  * Authored in markdown as `<div data-component="X">` + blank lines, or
  * `<span data-component="X">` inline. Values are lifted from the canonical
- * hand-authored artifact (ARTIFACT_STYLE.md §8) rather than re-invented, so a
+ * hand-authored artifact (nakivo-artifact:style, visual-system.md §5) rather than re-invented, so a
  * generated document and a hand-built one read as the same system.
  *
  * Selectors match on the ATTRIBUTE, never on `div[...]`: pandoc rewrites a div
@@ -528,7 +528,7 @@ figcaption { font-size: 13px; color: var(--ink-2); margin-top: .4rem; text-align
 [data-component="card"][data-tone="good"] { background: linear-gradient(150deg, var(--good-bg) 0%, var(--card) 55%); border-color: var(--good-line); }
 [data-component="card"][data-tone="mid"]  { background: linear-gradient(150deg, var(--mid-bg) 0%, var(--card) 55%);  border-color: var(--mid-line); }
 [data-component="card"][data-tone="weak"] { background: linear-gradient(150deg, var(--weak-bg) 0%, var(--card) 55%); border-color: var(--weak-line); }
-/* Two epistemic tones, because ARTIFACT_DESIGN.md §3a requires an artifact to
+/* Two epistemic tones, because the former ARTIFACT_DESIGN.md §3a required an artifact to
    mark what is assumed and what is out of scope. Lifted from the canonical
    `.assume` and `.deferred` boxes so the same claim looks the same everywhere. */
 [data-component="card"][data-tone="assume"] {

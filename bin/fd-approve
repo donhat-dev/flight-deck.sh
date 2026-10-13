@@ -1,0 +1,166 @@
+#!/usr/bin/env bash
+# PreToolUse hook: the synchronous approval channel's client half.
+#
+# Contract copied from ~/.claude/hooks/git-owner-guard.sh — the proven local
+# reference for how THIS Claude Code version reads a PreToolUse hook. Two
+# rules taken from it verbatim:
+#   - the hook's JSON arrives on stdin (`tool_name`, `tool_input`, `cwd`,
+#     `session_id`, ...);
+#   - the decision is communicated ENTIRELY through stdout + exit 0. Allow is
+#     "print nothing, exit 0". Deny is the `hookSpecificOutput` JSON below,
+#     also followed by exit 0 — the exit code itself carries no decision.
+#
+# Flow:
+#   1. should_escalate(tool_name, tool_input) — via the SAME regex/config
+#      code `flightdeck.decisions` uses server-side (imported, not
+#      reimplemented in bash) — no match: allow immediately, zero added
+#      latency for the overwhelming majority of tool calls.
+#   2. A match: POST /api/decisions to create the pending row, `notify-send`
+#      the human, then poll GET /api/decisions/{id} every 2s for up to 90s.
+#   3. approve/edit -> allow. reject -> deny (the note as the reason).
+#      auto_released, or still pending once the local 90s budget is spent ->
+#      allow. Fail-open timeout is a deliberate choice (see
+#      flightdeck/decisions.py's TIMEOUT_SECONDS docstring): dcg and the other
+#      PreToolUse guards still fail-closed beneath this one, so the strict
+#      guarantee for a genuinely destructive command is not lost by choosing
+#      availability over blocking a session forever on an unanswered prompt.
+#
+# FAIL OPEN on any infrastructure problem — FlightDeck not running, `curl`
+# erroring, a malformed response, the Python step itself failing. A dashboard
+# that is down must never turn into a session that cannot run any tool call.
+# Every external call below is wrapped so its failure falls through to allow
+# rather than to a bash error exiting non-zero with no decision printed.
+#
+# Repo-relative, no PATH assumptions — same pattern as `bin/flightdeck`:
+# resolve HERE from this script's own (possibly symlinked) location, so a
+# `~/.claude/settings.json` hook entry can reference this path directly.
+set -uo pipefail   # not -e: every external command's failure is handled explicitly
+
+HERE="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+BASE_URL="${FD_APPROVE_URL:-http://127.0.0.1:8010}"
+POLL_SECONDS=2
+TIMEOUT_SECONDS=90   # mirrors flightdeck.decisions.TIMEOUT_SECONDS
+
+input="$(cat)"
+
+allow() { exit 0; }   # no output = allow, same convention as git-owner-guard.sh
+
+# --- 0. fast path: no config, no cost --------------------------------------
+# The step below spawns `.venv/bin/python` and imports `flightdeck.decisions`
+# (which pulls in `flightdeck.db`) just to learn there are no patterns. That
+# measured 58ms. With the recommended `matcher: "*"` entry this hook runs on
+# EVERY tool call, so 58ms is not a per-command cost — it is a tax on the whole
+# session (~12s across a 200-call session) paid to answer a question a file
+# test answers.
+#
+# `approve.conf` does not exist by default, so this is the common case, not an
+# edge case. The fast path can only ever ALLOW, never deny, so short-circuiting
+# it cannot weaken the channel.
+#
+# The default path here MIRRORS `flightdeck.decisions._conf_path()`; if that
+# default moves, this must move with it. `~` is not expanded in an env-var
+# value, matching how a shell would pass it.
+CONF_PATH="${FLIGHTDECK_APPROVE_CONF:-$HOME/.flightdeck/approve.conf}"
+[ -s "$CONF_PATH" ] || allow
+
+deny() {
+  local reason="$1"
+  jq -n --arg reason "$reason" '{
+    hookSpecificOutput: {
+      hookEventName: "PreToolUse",
+      permissionDecision: "deny",
+      permissionDecisionReason: $reason
+    }
+  }'
+  exit 0
+}
+
+# --- 1. escalation check, delegated to the same Python the server runs -----
+# A one-shot subprocess, not a daemon: this hook runs once per tool call, so
+# there is nothing to keep alive between invocations. `should_escalate`'s own
+# mtime cache still applies within this one call; the reload-without-restart
+# guarantee that matters is about the long-lived FastAPI process, not this
+# script, which re-reads approve.conf fresh on every tool call anyway.
+decision_json="$(printf '%s' "$input" | PYTHONPATH="$HERE/backend" "$HERE/.venv/bin/python" -c '
+import json, sys
+from flightdeck.decisions import should_escalate, _command_text
+
+payload = json.load(sys.stdin)
+tool_name = payload.get("tool_name") or ""
+tool_input = payload.get("tool_input") or {}
+pattern = should_escalate(tool_name, tool_input)
+print(json.dumps({
+    "escalate": pattern is not None,
+    "pattern": pattern,
+    "command": _command_text(tool_name, tool_input),
+}))
+' 2>/dev/null)"
+
+# The Python step itself failed (missing venv, import error, bad stdin) -
+# there is nothing safe to decide FROM, so fail open exactly like every other
+# infrastructure problem here.
+[ -z "$decision_json" ] && allow
+
+escalate="$(printf '%s' "$decision_json" | jq -r '.escalate' 2>/dev/null)"
+[ "$escalate" != "true" ] && allow
+
+tool_name="$(printf '%s' "$input" | jq -r '.tool_name // "unknown"' 2>/dev/null)"
+session_id="$(printf '%s' "$input" | jq -r '.session_id // empty' 2>/dev/null)"
+cwd="$(printf '%s' "$input" | jq -r '.cwd // empty' 2>/dev/null)"
+pattern="$(printf '%s' "$decision_json" | jq -r '.pattern // empty' 2>/dev/null)"
+command_text="$(printf '%s' "$decision_json" | jq -r '.command // empty' 2>/dev/null)"
+
+# --- 2. escalate: create the pending decision -------------------------------
+create_body="$(jq -n \
+  --arg tool_name "$tool_name" --arg command "$command_text" \
+  --arg session_id "$session_id" --arg pattern "$pattern" --arg cwd "$cwd" \
+  '{
+    tool_name: $tool_name,
+    command: $command,
+    session_id: (if $session_id == "" then null else $session_id end),
+    pattern: (if $pattern == "" then null else $pattern end),
+    cwd: (if $cwd == "" then null else $cwd end)
+  }' 2>/dev/null)"
+[ -z "$create_body" ] && allow
+
+create_resp="$(curl -sf --max-time 3 -X POST "$BASE_URL/api/decisions" \
+  -H 'Content-Type: application/json' -d "$create_body" 2>/dev/null)"
+# FlightDeck not running, connection refused, non-2xx: fail open immediately.
+[ -z "$create_resp" ] && allow
+
+did="$(printf '%s' "$create_resp" | jq -r '.id // empty' 2>/dev/null)"
+[ -z "$did" ] && allow
+
+notify-send "FlightDeck approval needed" "${tool_name}: ${command_text}" 2>/dev/null || true
+
+# --- 3. poll for a human answer, capped at TIMEOUT_SECONDS ------------------
+elapsed=0
+while [ "$elapsed" -lt "$TIMEOUT_SECONDS" ]; do
+  sleep "$POLL_SECONDS"
+  elapsed=$((elapsed + POLL_SECONDS))
+
+  poll_resp="$(curl -sf --max-time 3 "$BASE_URL/api/decisions/$did" 2>/dev/null)"
+  [ -z "$poll_resp" ] && allow   # the server died mid-wait: fail open
+
+  state="$(printf '%s' "$poll_resp" | jq -r '.state // empty' 2>/dev/null)"
+  case "$state" in
+    approved|edited|auto_released)
+      allow
+      ;;
+    rejected)
+      note="$(printf '%s' "$poll_resp" | jq -r '.note // "Rejected from the FlightDeck approval dock."' 2>/dev/null)"
+      [ -z "$note" ] && note="Rejected from the FlightDeck approval dock."
+      deny "$note"
+      ;;
+    pending)
+      continue
+      ;;
+    *)
+      allow   # unrecognized response shape: fail open rather than block
+      ;;
+  esac
+done
+
+# Local budget spent without the server having flipped the row yet (a race
+# with its own auto-release, or a slow response). Fail open either way.
+allow
