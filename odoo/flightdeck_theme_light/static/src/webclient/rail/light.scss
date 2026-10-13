@@ -1,0 +1,458 @@
+// The rail, white, floating, and the whole navigation.
+//
+// It is a card, not an edge: a few pixels off the left, as tall as its own
+// contents and no taller than 80vh, centred in what is left of the viewport.
+// It opens at icon width and grows sideways on hover; the growth never moves
+// the screen behind it, because the grid column is sized from the variable
+// rather than from the panel, and the panel is out of the flow anyway.
+//
+// Everything in it is drawn at 1.25x. `zoom` is what does that: it scales the
+// box and the layout together, where `transform: scale` would leave the
+// layout at 1x and let the rail overlap the content. The cost is that lengths
+// written here are in pre-zoom units — hence the division by --fd-zoom on
+// anything that has to land on a real viewport measurement.
+//
+// One rule holds the whole thing together: every row in the rail, whatever it
+// is, is one $fd-rail-row tall and opens with a glyph centred in a slot one
+// collapsed-rail wide. Narrow, the slot is the row. Wide, the label follows
+// the slot. Nothing about the glyph is expressed in terms of the rail's width,
+// so nothing about the glyph moves when the rail's width changes.
+
+// The row, and the slot the glyph sits in. The slot is exactly what the rail
+// is when it is narrow, less its margins, which is what puts the glyph's
+// centre in the same place in both states without arithmetic.
+$fd-rail-gutter: 6px;
+$fd-rail-slot: $mk-sidebar-small-width - $fd-rail-gutter * 2;
+$fd-rail-glyph: 22px;
+$fd-rail-row: 36px;
+$fd-rail-radius: .375rem;
+
+:root {
+    --fd-gap: 5px;
+    --fd-zoom: 1.25;
+}
+
+.o_web_client {
+    grid-template-columns:
+        calc(var(--mk-sidebar-width, 0px) * var(--fd-zoom) + var(--fd-gap) * 2)
+        1fr;
+    // White, the same white as the card and as the content. What separates
+    // the card is its shadow and its border, not a change of tone, so the
+    // strip behind it has no reason to be a different colour from the screen
+    // it sits on.
+    background: $o-white;
+}
+
+.mk_apps_sidebar_panel {
+    position: fixed;
+    left: calc(var(--fd-gap) / var(--fd-zoom));
+    top: 50%;
+    transform: translateY(-50%);
+    width: var(--mk-sidebar-width, 0px);
+    // A fixed height, not a ceiling: the card is the same object on every
+    // screen and in every app, and its two ends stay where a person left
+    // them instead of moving with however many sections the open app has.
+    height: calc(80vh / var(--fd-zoom));
+    zoom: var(--fd-zoom);
+    z-index: 1035;
+    // Only the list of apps scrolls. The systray at the head and the two
+    // controls at the foot are fixed ends of the card, so the card itself
+    // must not scroll and must clip to its own corners.
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    color: $o-gray-700;
+    border: 1px solid $o-gray-200;
+    border-radius: 14px;
+    box-shadow:
+        0 10px 30px rgba($o-black, .10),
+        0 2px 6px rgba($o-black, .06);
+
+    .mk_apps_sidebar {
+        // The card is 80vh whatever it holds, so the list of apps is what
+        // takes up the slack and what gives way. min-height: 0 is what lets a
+        // flex child shrink below its content — without it the list keeps its
+        // full height and pushes the foot out of the card.
+        flex: 1 1 auto;
+        min-height: 0;
+        height: auto;
+
+        .mk_apps_sidebar_menu {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            // No scrollbar: 44px of row is the whole width here, and a
+            // scrollbar would take some of it and move every icon off the
+            // centre the rail is built around.
+            scrollbar-width: none;
+
+            &::-webkit-scrollbar {
+                display: none;
+            }
+        }
+
+        .fd_rail_systray,
+        .fd_rail_foot,
+        .mk_apps_sidebar_logo {
+            flex: 0 0 auto;
+        }
+
+        // Written at the depth the dark theme writes its own row geometry at,
+        // so the two selectors are identical and source order decides: this
+        // module depends on that one and compiles after it.
+        .mk_apps_sidebar_menu > li > a {
+            min-height: $fd-rail-row;
+            margin: 1px $fd-rail-gutter;
+            padding: 0;
+            border-radius: $fd-rail-radius;
+            color: $o-gray-700;
+
+            // The slot. MuK takes the icon's right margin away when the rail
+            // is narrow, with !important, so keeping it has to as well.
+            .mk_apps_sidebar_icon {
+                flex: 0 0 $fd-rail-glyph;
+                width: $fd-rail-glyph;
+                height: $fd-rail-glyph;
+                margin: 0 ($fd-rail-slot - $fd-rail-glyph) * 0.5 !important;
+            }
+        }
+        .mk_apps_sidebar_menu > li:hover > a {
+            background: $o-gray-100;
+            color: $o-gray-900;
+        }
+        // The current app is a tint, not a block of colour: on white, a solid
+        // accent shouts over the six rows next to it.
+        .mk_apps_sidebar_menu > li.active > a,
+        .mk_apps_sidebar_menu > li.active:hover > a {
+            background: mix($o-action, $o-white, 10%);
+            color: $o-action;
+        }
+    }
+}
+
+// With the bar shown, the card centres in what the bar leaves rather than in
+// the viewport, so it does not slide under it.
+html:not(.fd_no_navbar) .mk_apps_sidebar_panel {
+    top: calc(50% + #{$o-navbar-height} / 2 / var(--fd-zoom));
+    height: calc((80vh - #{$o-navbar-height}) / var(--fd-zoom));
+}
+
+// Each app's own sections, under the app. Indented to the slot's width so the
+// column of section names lines up with the column of app names.
+.fd_rail_sections {
+    list-style: none;
+    margin: 0 0 6px;
+    padding: 0;
+
+    > li > a {
+        display: block;
+        margin: 1px $fd-rail-gutter 1px $fd-rail-slot;
+        padding: 5px 6px;
+        border-radius: $fd-rail-radius;
+        font-size: 12px;
+        color: $o-gray-600;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+
+        &:hover {
+            background: $o-gray-100;
+            color: $o-gray-900;
+        }
+    }
+
+    .fd_rail_heading {
+        display: block;
+        padding: 6px 8px 2px ($fd-rail-slot + $fd-rail-gutter);
+        color: $o-gray-500;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+    }
+}
+
+// The systray, at the head of the rail, one item per row. Its own sizing and
+// colours live under .o_main_navbar, so out here the items arrive with none
+// at all — the user avatar renders at its full 180px. What follows gives them
+// the rail's row instead.
+.fd_rail_systray {
+    display: flex;
+    flex-direction: column;
+    // The dark rail lets these wrap, which is only ever a column because 56px
+    // fits one. At 208 they would line up in a row.
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: 0;
+    margin-top: 0;
+    padding: 4px $fd-rail-gutter 6px;
+    border-top: 0;
+    border-bottom: 1px solid $o-gray-200;
+    color: $o-gray-700;
+
+    // Each item's own root: a bare button for some, a wrapper div for others.
+    > * {
+        display: block;
+    }
+
+    .btn,
+    button,
+    .dropdown-toggle {
+        position: relative;
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: $fd-rail-row;
+        margin: 1px 0;
+        padding: 0;
+        border-radius: $fd-rail-radius;
+        color: inherit;
+        font-size: 13px;
+        text-align: left;
+
+        &:hover {
+            background: $o-gray-100 !important;
+            color: $o-gray-900;
+        }
+    }
+
+    // The slot, for a glyph that is a font icon and for one that is an image.
+    // Direct children of the button only: the presence dot on the avatar is
+    // an .fa too, and a 44px-wide dot is a white disc over the face.
+    button > i.fa,
+    .dropdown-toggle > i.fa {
+        flex: 0 0 $fd-rail-slot;
+        width: $fd-rail-slot;
+        text-align: center;
+    }
+
+    // The presence dot, back on the avatar's corner. Odoo hangs it two pixels
+    // off the wrapper, which here is the whole slot rather than the face.
+    .o-web-UserMenu-imStatus {
+        right: ($fd-rail-slot - $fd-rail-glyph) * 0.5 - 2px;
+        bottom: -2px;
+    }
+
+    .o_avatar,
+    button > img {
+        flex: 0 0 $fd-rail-glyph;
+        width: $fd-rail-glyph !important;
+        height: $fd-rail-glyph !important;
+        min-width: $fd-rail-glyph;
+        margin: 0 ($fd-rail-slot - $fd-rail-glyph) * 0.5;
+        border-radius: .25rem;
+        object-fit: cover;
+    }
+
+    // The counter, as the top bar draws it — the same padding, size, colour
+    // and shadow, from the same variables. What differs is that here it is
+    // taken out of the flow: in the bar it is an inline sibling nudged left,
+    // and inline it would push the glyph off the centre the whole rail is
+    // built around the moment a count appeared.
+    .badge {
+        position: absolute;
+        left: $fd-rail-slot * 0.5 + 4px;
+        top: 3px;
+        border: 0;
+        padding: ($o-navbar-badge-padding * .5) $o-navbar-badge-padding;
+        background-color: var(--o-navbar-badge-bg, #{$o-navbar-badge-bg});
+        font-size: $o-navbar-badge-size;
+        color: var(--o-navbar-badge-color, #{$o-navbar-badge-color});
+        text-shadow: var(--o-navbar-badge-text-shadow, #{$o-navbar-badge-text-shadow});
+        // A ring in the card's own colour, so a count that lands on the glyph
+        // still reads as a separate thing.
+        box-shadow: 0 0 0 2px $o-white;
+    }
+
+    .oe_topbar_name {
+        max-width: none;
+        color: inherit;
+    }
+
+    // The company switcher stays out. There is one company here, and a row
+    // that switches between one thing is a row that does nothing. It is still
+    // in the top bar, which is where it goes when zen is off.
+    .o_switch_company_menu {
+        display: none !important;
+    }
+
+    // A menu opened from here would be cut off by the card's own scrolling,
+    // so it is drawn against the viewport instead.
+    .o-dropdown--menu {
+        position: fixed;
+    }
+}
+
+// The label each systray item now carries. It belongs to the wide rail and to
+// nothing else: in the top bar, where these same components are also drawn,
+// it stays away.
+.fd_rail_syslabel {
+    display: none;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding-right: 8px;
+}
+
+// The two controls, at the foot, a row each and in the row every other thing
+// in the rail wears.
+.fd_rail_foot {
+    margin-top: 4px;
+    padding: 4px $fd-rail-gutter 6px;
+    border-top: 1px solid $o-gray-200;
+
+    .fd_rail_btn {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        min-height: $fd-rail-row;
+        margin: 1px 0;
+        padding: 0;
+        border: 0;
+        border-radius: $fd-rail-radius;
+        background: transparent;
+        color: $o-gray-600;
+        font-size: 13px;
+        text-align: left;
+
+        > i.fa {
+            flex: 0 0 $fd-rail-slot;
+            width: $fd-rail-slot;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        &:hover {
+            background: $o-gray-100;
+            color: $o-gray-900;
+        }
+
+        // On, and tinted the way the open app is tinted: one convention for
+        // "this is the state you are in", not a second one for buttons.
+        &.fd_rail_btn_on {
+            background: mix($o-action, $o-white, 10%);
+            color: $o-action;
+        }
+    }
+}
+
+.fd_rail_btn_label {
+    display: none;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    padding-right: 8px;
+}
+
+// Everything that appears only when there is width to read it. Two states
+// reach it: the rail pinned open, and the narrow rail under the pointer.
+@mixin fd-rail-wide {
+    .mk_apps_sidebar_name,
+    .fd_rail_btn_label,
+    .fd_rail_syslabel {
+        display: block !important;
+    }
+    .fd_rail_sections {
+        display: block;
+    }
+    // The company switcher is a name and nothing else, so narrow it is an
+    // empty row. It arrives with the width to hold it.
+}
+
+.mk_sidebar_type_large .mk_apps_sidebar_panel {
+    @include fd-rail-wide;
+}
+
+// Narrow: glyphs and nothing else. This is the state the rail is in almost
+// all the time, so it is the one that has to be quiet.
+.mk_sidebar_type_small .mk_apps_sidebar_panel {
+    .fd_rail_sections {
+        display: none;
+    }
+
+    // Hovered, it widens, and grows downward as far as the sections and the
+    // company row it reveals need. It keeps its centre, its distance from the
+    // edge and the 80vh cap — a pill that snapped to full height the moment
+    // the pointer touched it would read as a different object arriving.
+    &:hover {
+        width: $mk-sidebar-large-width;
+        box-shadow:
+            0 14px 40px rgba($o-black, .14),
+            0 2px 8px rgba($o-black, .08);
+
+        @include fd-rail-wide;
+    }
+}
+
+// The dark rail pulls the systray's side padding in to 2px when the rail is
+// narrow. Here that would put the systray glyphs on a different centre from
+// the app icons below them, which is the one thing this layout promises not
+// to do. Same two classes, so source order decides, and this file is later.
+.mk_sidebar_type_small .fd_rail_systray {
+    padding: 4px $fd-rail-gutter 6px;
+}
+
+// The systray stopped being the last thing in the rail, so the logo takes the
+// free space back. Written at the depth the rule it reverses was written at,
+// which is what decides between two selectors that both match.
+// The card is only as tall as its contents, so there is no free space for the
+// logo to be pushed into. It simply follows the apps.
+.mk_apps_sidebar_panel .mk_apps_sidebar .fd_rail_systray ~ .mk_apps_sidebar_logo {
+    margin-top: 0;
+}
+
+// The work area, given the rail's own surface. One card, not one per zone:
+// the rail is the object that floats on this screen, and a second, a third
+// and a fourth would each take an edge and a gap out of a list that wants the
+// height. The zones inside it are told apart by a rule and by their padding.
+//
+// No left margin: the grid column already reserves the rail's width plus a
+// gap on each side, so a margin here would double the gap on that side alone.
+//
+// Written under `html .o_web_client >`, which is the selector web uses for
+// this element's `height: 100%`. Same specificity, so source order decides,
+// and this module compiles after web.
+html .o_web_client > .o_action_manager {
+    margin: var(--fd-gap) var(--fd-gap) var(--fd-gap) 0;
+    // The grid row is sized from this element, so a margin alone pushes the
+    // card's bottom past the viewport instead of shrinking it. The height has
+    // to come off explicitly — web sets 100% here.
+    height: calc(100% - var(--fd-gap) * 2);
+    background: $o-white;
+    border: 1px solid $o-gray-200;
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow:
+        0 10px 30px rgba($o-black, .10),
+        0 2px 6px rgba($o-black, .06);
+
+    // The zone rules. Odoo already draws both of these; they only need to be
+    // the same grey as the card's own edge, or the inside of the card reads
+    // as a darker grid than the card is drawn with.
+    .o_control_panel {
+        border-bottom-color: $o-gray-200 !important;
+    }
+
+    // The chatter is a zone, told apart by a rule like every other zone in
+    // the card. Odoo tints it instead, which inside a white card reads as a
+    // panel that arrived from somewhere else.
+    .o-mail-Form-chatter {
+        background: $o-white !important;
+        border-left: 1px solid $o-gray-200 !important;
+    }
+
+    // The sheet's own border and shadow go: inside a card, a second card
+    // around the same fields is an edge that separates nothing.
+    .o_form_sheet {
+        border: 0;
+        box-shadow: none;
+        background: transparent;
+    }
+}
+
+// Shown, the bar needs a line under it: white over white says nothing. MuK
+// takes the line away with !important, so putting it back has to as well.
+.o_main_navbar {
+    border-bottom: 1px solid $o-gray-200 !important;
+}

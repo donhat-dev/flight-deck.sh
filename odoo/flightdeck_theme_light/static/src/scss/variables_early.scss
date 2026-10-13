@@ -1,0 +1,14 @@
+// The navbar colours that have to be set before web's own variables load.
+//
+// navbar.variables.scss does not only declare these — it bakes them into the
+// %-main-navbar-entry-base placeholder with #{}, and a placeholder keeps the
+// value it was written with. Assigning them after that file, where the rest of
+// this theme's navbar tokens live, is too late: the entries would still be
+// white text, now on a white bar.
+//
+// Only the grey ramp is available this early, which is the other half of why
+// the file is split: $o-action does not exist yet.
+
+$o-navbar-entry-color: $o-gray-700;
+$o-navbar-entry-color--hover: $o-gray-900;
+$o-navbar-brand-color: $o-gray-900;

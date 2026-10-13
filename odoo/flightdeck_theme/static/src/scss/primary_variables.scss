@@ -1,0 +1,35 @@
+// The palette Enterprise styles its backend with, read from
+// web_enterprise/static/src/scss/primary_variables.scss. Community ships a
+// flatter grey ramp, and most of what reads as "the Enterprise look" is this
+// ramp plus the shadows turned on next door.
+//
+// Every line carries !default and this file is loaded before the ones it
+// overrides, which is the direction Odoo's own variable bundles run in: the
+// first assignment wins and every later !default is a no-op.
+//
+// The accent is not here. MuK's colour editor owns it, and hooks.py writes the
+// house azure through that editor on install.
+
+$o-white: #fff !default;
+$o-black: #000 !default;
+
+$o-gray-100: #f9fafb !default;
+$o-gray-200: #e7e9ed !default;
+$o-gray-300: #d8dadd !default;
+$o-gray-400: #9a9ca5 !default;
+$o-gray-500: #7c7f89 !default;
+$o-gray-600: #5f636f !default;
+$o-gray-700: #374151 !default;
+$o-gray-800: #1f2937 !default;
+$o-gray-900: #111827 !default;
+
+$o-brand-secondary: #8f8f8f !default;
+$o-brand-lightsecondary: $o-gray-100 !default;
+
+// The rail. MuK's own background default is already $o-gray-900; the widths
+// below are what makes the narrow state read as a rail of icons rather than a
+// column with the labels cut off.
+$mk-appbar-background: $o-gray-900 !default;
+$mk-appbar-color: $o-gray-300 !default;
+$mk-sidebar-large-width: 208px !default;
+$mk-sidebar-small-width: 56px !default;

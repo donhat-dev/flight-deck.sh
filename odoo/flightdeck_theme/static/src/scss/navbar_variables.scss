@@ -1,0 +1,15 @@
+// The top bar, once it shares the rail's surface.
+//
+// These sit at the end of the variables bundle rather than with the palette,
+// because they are plain assignments: every one of them is declared !default
+// somewhere in web/static/src/webclient/navbar/navbar.variables.scss, and the
+// last plain assignment before the stylesheets compile is the one that stands
+// wherever in the bundle that file happens to land.
+
+// A line under the bar would draw a seam across a surface meant to read as one.
+$o-navbar-border-bottom: 0;
+
+// Odoo lifts an entry on hover by darkening it, which is how a mid-tone bar
+// shows depth. This bar is near black, so the same rule shows nothing.
+$o-navbar-entry-bg--hover: rgba($o-white, .08);
+$o-navbar-entry-bg--active: rgba($o-white, .12);

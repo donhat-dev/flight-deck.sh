@@ -1,0 +1,18 @@
+// The dark surface, turned white.
+//
+// One token does it: the module below paints the rail from
+// $o-navbar-background, so setting that here moves the top bar and the rail
+// together.
+//
+// Plain assignments at the end of the bundle, for the reason the file next
+// door states: these are declared !default in web's own navbar variables and
+// the last plain assignment is the one that stands. The entry colours cannot
+// wait this long — see variables_early.scss.
+
+$o-navbar-background: $o-white;
+
+$o-navbar-entry-bg--hover: $o-gray-100;
+$o-navbar-entry-bg--active: mix($o-action, $o-white, 12%);
+
+$o-navbar-badge-color: $o-white;
+$o-navbar-badge-text-shadow: none;
