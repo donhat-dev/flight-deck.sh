@@ -17,7 +17,7 @@
 - **Timestamps are TEXT, ISO-8601 UTC, set in Python** — matching the existing `messages.ts` / `tool_calls.ts` columns. This is a deliberate amendment to the spec's `timestamptz`: it keeps one portable DDL and one code path for both engines. Format: `datetime.now(timezone.utc).isoformat(timespec="seconds")`.
 - **Filestore root:** `TREASURES_STORE` env, default `~/.flightdeck/treasures`. Never inside the repo (artifacts are data, some internal).
 - **pandoc:** resolve in this order — `TREASURES_PANDOC` env, `~/.flightdeck/bin/pandoc`, then `shutil.which("pandoc")`. Pinned version **3.10.1**.
-- **Artifact fonts are Space Grotesk + Playfair Display with the `vietnamese`+`latin` subsets** (per `ARTIFACT_STYLE.md`). Measured empirically during planning: the app's Outfit/IBM-Plex `latin-ext` subsets are **missing** ế ộ ữ ợ ạ (U+1EA0–1EF9), so they must not be used for artifacts.
+- **Artifact fonts are Space Grotesk + Playfair Display with the `vietnamese`+`latin` subsets** (per `ARTIFACT_STYLE.md`, now `nakivo-artifact:style`). Measured empirically during planning: the app's Outfit/IBM-Plex `latin-ext` subsets are **missing** ế ộ ữ ợ ạ (U+1EA0–1EF9), so they must not be used for artifacts.
 - **Self-contained output is the contract:** zero non-`data:` external references in the rendered HTML, except the `http://www.w3.org/2000/svg` XML *namespace* inside the favicon data URI (a namespace identifier, not a fetch).
 - All code comments and docs in English.
 
