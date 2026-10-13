@@ -1,0 +1,4 @@
+[submodule "vendor/open-workflow-studio"]
+	path = vendor/open-workflow-studio
+	url = https://github.com/donhat-dev/open-workflow-studio.git
+	branch = 19.0

@@ -1,3 +1,0 @@
-subscription_monthly_usd = 200.0
-projects_dir = "~/.claude/projects"
-db_path = "audit.db"

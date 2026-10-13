@@ -228,3 +228,6 @@ __pycache__/
 .superpowers/
 .worktrees/
 frontend/dist/
+
+# Third-party Odoo addons, pinned in docker/odoo19/README.md rather than vendored.
+docker/odoo19/addons/

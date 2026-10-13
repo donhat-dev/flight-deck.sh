@@ -90,7 +90,9 @@ func (m *Manager) ask(s *session, req controlRequest) {
 	m.pmu.Lock()
 	m.pending[p.ID] = p
 	m.pmu.Unlock()
-	m.shareTranscript(s)
+	// Flush before the event that parks the turn on a person's answer, so a
+	// reader never sees the permission prompt ahead of the text that led to it.
+	m.deltas.FlushSession(s.id)
 	m.sp.Emit(Event{Kind: "permission", SessionID: s.id, Payload: map[string]any{
 		"request_id":   p.ID,
 		"tool_name":    p.ToolName,
