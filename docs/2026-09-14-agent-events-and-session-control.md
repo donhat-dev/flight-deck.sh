@@ -10,7 +10,7 @@ Ba nguồn không thay thế nhau, chúng trả lời ba câu hỏi khác nhau:
 
 | Nguồn | Trả lời câu hỏi | Vai trong hệ |
 |---|---|---|
-| File transcript (byte offset) | *Agent đã nói và làm gì?* | sự thật, đọc lại được, đã chạy |
+| File transcript (byte offset) | *Agent đã nói và làm gì?* | sự thật, đọc lại được — **nếu đọc từ byte 0**, xem §2.3 |
 | Hook | *Vừa có chuyện gì xảy ra, ngay lúc này?* | chuyển trạng thái, và là chỗ chặn được |
 | CLI (`claude agents`, `stop`, …) | *Session nào còn sống? Dừng nó thế nào?* | điểm danh **tiến trình cấp trên cùng** và hành động |
 
@@ -127,6 +127,74 @@ Dấu vết của chúng nằm ở ba chỗ, đều đo được:
 
 Agent con **không** ghi lẫn vào transcript cha: đếm được `isSidechain:true` = **0 dòng** trên
 113.458 dòng của `395a72f8`. Muốn đọc nội dung agent con thì phải mở file riêng của nó.
+
+### 2.3 Đường thứ tư: bộ event `task_*` mà VS Code extension đang dùng
+
+Agent map trong extension VS Code (bản `anthropic.claude-code-2.1.270`) là một hiện thực có sẵn
+của đúng bài toán §6 đặt ra, nên đáng đọc kỹ. Nó nạp dữ liệu bằng **hai đường tách rời**.
+
+**Đường live — event có cấu trúc đẩy từ CLI, không đọc file.** Tất cả là `type: "system"` với
+`subtype` riêng:
+
+| `subtype` | Mang theo |
+|---|---|
+| `task_started` | `task_id`, `tool_use_id`, `parent_tool_use_id`, `description`, `prompt`, `subagent_type`, `is_backgrounded` |
+| `task_progress` | `usage.total_tokens`, `usage.tool_uses`, `usage.duration_ms`, `last_tool_name`, `summary` |
+| `task_updated` | `status`, `error`, `end_time`, `is_backgrounded` |
+| `task_notification` | `status`, `summary`, `usage`, `output_file` |
+| `background_tasks_changed` | danh sách `task_id` còn sống, để đối chiếu |
+
+Đây là **nguồn chính thức, có cấu trúc** cho đúng thứ sổ hai cột ở §6 đang dựng bằng cách suy luận.
+Một runner chạy claude ở chế độ stream-json nhận được nguyên bộ này, khỏi phải bóc
+`<task-notification>` bằng regex. `task_progress` còn cho token và thời lượng theo thời gian thực —
+thứ mà cả hook lẫn transcript đều không cho rẻ như vậy.
+
+**Đường replay — suy ngược từ transcript.** Quét message `user` mang origin task-notification để lấy
+`taskId`/`status`/`usage`, rồi ghép với các block `tool_use` tên Agent. Khi chưa có notification thì
+`taskId` được bóc ngay từ tool_result bằng regex
+
+```
+/^Async agent launched successfully\.[^\n]*\nagentId: ([A-Za-z0-9_-]+) /
+```
+
+không có thì đặt id tạm `call:<tool_use_id>`, và event live đầu tiên sẽ thay id tạm bằng `task_id` thật.
+
+**Trạng thái.** Năm giá trị, ánh xạ thẳng từ `<task-notification>`: `completed→finished`,
+`failed→failed`, `killed|stopped→stopped`. Hai giá trị còn lại là suy ra, và cách suy đáng chép lại:
+
+- `waiting` **không được lưu**; nó tính tại chỗ bằng cách giao `agentId` của agent đang `working`
+  với tập permission request đang mở. Đúng cách §5 đã chọn.
+- Khi process chết, mọi entry `working` bị hạ xuống `stopped` kèm cờ `processEnded`; nếu sau đó có
+  `task_progress` tới thì entry được **hồi sinh** về `working`. Một máy trạng thái đọc file thuần
+  không làm được việc này, nên nó là lý do nữa để nhận event thay vì chỉ đọc byte.
+
+**Cây cha–con** dựng bằng `parent_tool_use_id`, thiếu thì suy ngược trong danh sách message
+(`sdkParentToolUseId ?? parentToolUseId`), có kiểm tra chu trình. Chi tiết một agent thì gọi
+`getSubagentTranscript(sessionId, agentId)` — host mở đúng file
+`<session_id>/subagents/agent-<id>.jsonl` ở §2.2.
+
+#### Bẫy quan trọng nhất: loader của CLI bỏ qua phần trước compact boundary
+
+File transcript **không phải lúc nào cũng được đọc trọn** — tuỳ ai đọc. Loader của extension:
+
+```js
+if (fileSize > 5242880 && !env.CLAUDE_CODE_DISABLE_PRECOMPACT_SKIP)
+    return postBoundaryBuf   // chỉ byte sau lần "compact_boundary" cuối cùng
+```
+
+Ngưỡng là **5 MB**; nó stream cả file nhưng chỉ giữ phần sau boundary cuối. Vì Agent map dựng trên
+đúng mảng rút gọn đó, cái người dùng thấy là "chỉ agent mới đây" — mà thật ra luật là **mọi agent
+gọi sau lần compact gần nhất**, không phải N agent cuối. Đo trên file thật:
+
+| Session | Kích thước | Boundary cuối | Agent calls tổng | Sau boundary | Bị ẩn |
+|---|---|---|---|---|---|
+| `395a72f8` | 418,3 MB | ở 99,7% file | 153 | **0** | 153 |
+| `7d3a622b` | 29,3 MB | ở 93,4% file | 1 | 1 | 0 |
+
+Hệ quả cho FlightDeck và Odoo: **bộ đọc theo byte offset đọc từ 0 nên không dính giới hạn này** —
+đó là một lợi thế thật của hướng hiện tại, không phải sự trùng hợp. Nhưng cũng là lời cảnh báo:
+đừng lấy lại loader của CLI làm thư viện, vì nó được thiết kế cho cửa sổ ngữ cảnh chứ không phải
+cho sổ ghi chép.
 
 ## 3. CLI cho biết gì — đo thật
 
@@ -247,6 +315,9 @@ session `395a72f8`. `Bash` chạy nền và `Monitor` kết thúc theo đúng kh
 - Không có hook: hai cột mở ở trên, tính lại từ transcript. Tính được cả với session đã đóng, nên
   đây là nguồn kiểm chứng cho hook.
 - Tool nào thuộc agent con nào: `agent_id` có sẵn trong `PreToolUse`/`PostToolUse` của agent con.
+- Có stream-json: bộ event `task_started`/`task_progress`/`task_updated`/`task_notification` (§2.3)
+  cho thẳng cùng câu trả lời ở dạng có cấu trúc, kèm token và thời lượng. Đây là nguồn nên dùng
+  khi runner mở session; sổ hai cột vẫn giữ vai kiểm chứng và phủ session runner không mở.
 
 Ghi chú một thứ thấy nhưng không dùng: `sessions/<pid>.json` có `messagingSocketPath`
 (`/run/user/1000/cc-socks/<pid>.sock`) — một socket riêng có khoá, không có tài liệu. Không xây gì
@@ -286,6 +357,9 @@ trên đó; transcript là bề mặt ổn định.
 - **Điểm danh không thấy con cháu.** `claude agents` chỉ liệt kê tiến trình cấp trên cùng.
 - **`workflows/wf_*.json` chưa chắc ghi liên tục** — xem §2.2; đừng dựng bảng tiến độ trên nó
   trước khi đo.
+- **"Đọc transcript" không có nghĩa duy nhất.** Loader của CLI bỏ qua mọi thứ trước compact
+  boundary khi file > 5 MB (§2.3). Bộ đọc của ta đọc từ byte 0 nên đầy đủ — nhưng đừng so kết quả
+  của hai bên rồi kết luận một bên sai.
 - **Session interactive không có `state`.** Với chúng, "đang bận hay không" phải suy từ hook
   hoặc từ byte cuối của transcript, không hỏi được CLI.
 
@@ -300,7 +374,10 @@ trên đó; transcript là bề mặt ổn định.
 2b. Sổ hai cột ở §6 trong bộ đọc transcript, cộng bảng agent con lấy từ
    `<session_id>/subagents/*.meta.json`. Đây là bước làm cho form trả lời được "đang chạy gì",
    không chỉ "đang bận hay rảnh" — và nó chạy được cả khi chưa có hook nào.
-3. Mở rộng sang session người dùng: bật hook ở cấu hình cấp máy, Odoo nhìn thấy cả những phiên
+3. Nhận bộ event `task_*` từ stream-json của chính runner (§2.3) và đổ vào
+   `flightdeck.session.agent`. Rẻ hơn hẳn việc suy từ transcript, và cho token/thời lượng theo
+   thời gian thực mà hai nguồn kia không có.
+4. Mở rộng sang session người dùng: bật hook ở cấu hình cấp máy, Odoo nhìn thấy cả những phiên
    nó không mở. Đây là bước biến Odoo từ "nơi chạy agent" thành "nơi quan sát mọi agent".
 
 ## 10. Không làm

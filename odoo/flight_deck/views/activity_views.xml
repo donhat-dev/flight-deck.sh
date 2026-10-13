@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Agent work-hours -->
+    <record id="view_agent_activity_list" model="ir.ui.view">
+        <field name="name">flightdeck.agent.activity.list</field>
+        <field name="model">flightdeck.agent.activity</field>
+        <field name="arch" type="xml">
+            <list string="Work-hours" create="0" edit="0">
+                <field name="hour"/>
+                <field name="session_ref_id"/>
+                <field name="project_id" optional="show"/>
+                <field name="agent_key" optional="show"/>
+                <field name="is_subagent" optional="hide"/>
+                <field name="busy_hours" sum="Work-hours" widget="float_time"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_agent_activity_graph" model="ir.ui.view">
+        <field name="name">flightdeck.agent.activity.graph</field>
+        <field name="model">flightdeck.agent.activity</field>
+        <field name="arch" type="xml">
+            <graph string="Work-hours" type="bar" stacked="1" sample="1">
+                <field name="hour" interval="day"/>
+                <field name="is_subagent"/>
+                <field name="busy_hours" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_agent_activity_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.agent.activity.pivot</field>
+        <field name="model">flightdeck.agent.activity</field>
+        <field name="arch" type="xml">
+            <pivot string="Work-hours" sample="1">
+                <field name="hour" interval="day" type="row"/>
+                <field name="is_subagent" type="col"/>
+                <field name="busy_hours" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_agent_activity_search" model="ir.ui.view">
+        <field name="name">flightdeck.agent.activity.search</field>
+        <field name="model">flightdeck.agent.activity</field>
+        <field name="arch" type="xml">
+            <search string="Work-hours">
+                <field name="session_ref_id"/>
+                <field name="project_id"/>
+                <field name="agent_key"/>
+                <filter name="main" string="Main agents" domain="[('is_subagent','=',False)]"/>
+                <filter name="sub" string="Subagents" domain="[('is_subagent','=',True)]"/>
+                <separator/>
+                <filter name="this_month" string="This month" date="hour"/>
+                <group>
+                    <filter name="g_day" string="Day" domain="[]" context="{'group_by':'hour:day'}"/>
+                    <filter name="g_session" string="Session" domain="[]" context="{'group_by':'session_ref_id'}"/>
+                    <filter name="g_project" string="Project" domain="[]" context="{'group_by':'project_id'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_agent_activity" model="ir.actions.act_window">
+        <field name="name">Work-hours</field>
+        <field name="res_model">flightdeck.agent.activity</field>
+        <field name="view_mode">graph,pivot,list</field>
+        <field name="search_view_id" ref="view_agent_activity_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No busy time read yet</p>
+            <p>The work-hours cron reads it from the transcripts every ten minutes.</p>
+        </field>
+    </record>
+
+    <!-- Quota reports -->
+    <record id="view_quota_snapshot_list" model="ir.ui.view">
+        <field name="name">flightdeck.quota.snapshot.list</field>
+        <field name="model">flightdeck.quota.snapshot</field>
+        <field name="arch" type="xml">
+            <list string="Quota reports" create="0" edit="0">
+                <field name="captured_at"/>
+                <field name="session_pct"/>
+                <field name="session_resets_at"/>
+                <field name="week_pct"/>
+                <field name="week_resets_at"/>
+                <field name="runner_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_quota_snapshot_graph" model="ir.ui.view">
+        <field name="name">flightdeck.quota.snapshot.graph</field>
+        <field name="model">flightdeck.quota.snapshot</field>
+        <field name="arch" type="xml">
+            <graph string="Quota" type="line" sample="1">
+                <field name="captured_at" interval="hour"/>
+                <field name="week_pct" type="measure"/>
+                <field name="session_pct" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_quota_snapshot_form" model="ir.ui.view">
+        <field name="name">flightdeck.quota.snapshot.form</field>
+        <field name="model">flightdeck.quota.snapshot</field>
+        <field name="arch" type="xml">
+            <form string="Quota report" create="0" edit="0">
+                <sheet>
+                    <group>
+                        <group>
+                            <field name="captured_at"/>
+                            <field name="runner_id"/>
+                        </group>
+                        <group>
+                            <field name="session_pct"/>
+                            <field name="session_resets_at"/>
+                            <field name="week_pct"/>
+                            <field name="week_resets_at"/>
+                        </group>
+                    </group>
+                    <separator string="As the CLI printed it"/>
+                    <field name="raw" nolabel="1" class="font-monospace"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_quota_snapshot" model="ir.actions.act_window">
+        <field name="name">Quota reports</field>
+        <field name="res_model">flightdeck.quota.snapshot</field>
+        <field name="view_mode">list,graph,form</field>
+    </record>
+
+    <!-- The trend charts -->
+    <record id="action_trends" model="ir.actions.client">
+        <field name="name">Trends</field>
+        <field name="tag">flight_deck.trends</field>
+    </record>
+
+    <menuitem id="menu_trends_root" name="Trends" parent="menu_root" sequence="35"/>
+    <menuitem id="menu_trends" name="Charts" parent="menu_trends_root" action="action_trends" sequence="10"/>
+    <menuitem id="menu_agent_activity" name="Work-hours" parent="menu_trends_root"
+              action="action_agent_activity" sequence="20"/>
+    <menuitem id="menu_quota_snapshot" name="Quota reports" parent="menu_trends_root"
+              action="action_quota_snapshot" sequence="30"/>
+</odoo>

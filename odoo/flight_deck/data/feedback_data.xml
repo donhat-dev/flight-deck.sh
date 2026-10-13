@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Queues the feedback pass; the job labels turns and steers without feedback. -->
+    <record id="cron_label_feedback" model="ir.cron">
+        <field name="name">FlightDeck: label feedback</field>
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="state">code</field>
+        <field name="code">model._cron_label_feedback()</field>
+        <field name="interval_number">10</field>
+        <field name="interval_type">minutes</field>
+        <field name="active" eval="True"/>
+    </record>
+    <!-- The job commits between its engine calls and its writes, as the label jobs do. -->
+    <record id="job_function_label_feedback" model="queue.job.function">
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="method">_label_feedback_pass</field>
+        <field name="allow_commit" eval="True"/>
+    </record>
+    <record id="job_function_compare_label_check" model="queue.job.function">
+        <field name="model_id" ref="model_flightdeck_turn"/>
+        <field name="method">_compare_label_check</field>
+        <field name="allow_commit" eval="True"/>
+    </record>
+
+    <!-- The criteria are what Jev and Luna read; a person tunes them in Tasks > Feedback labels. -->
+    <data noupdate="1">
+        <record id="feedback_defect" model="flightdeck.feedback.kind">
+            <field name="code">defect</field>
+            <field name="name">Defect</field>
+            <field name="family">wrong</field>
+            <field name="sequence">1</field>
+            <field name="color">1</field>
+            <field name="description">It says the delivered result does not work or behaves wrongly.</field>
+            <field name="fix_layer">Verification: a check before reporting done</field>
+        </record>
+        <record id="feedback_convention" model="flightdeck.feedback.kind">
+            <field name="code">convention</field>
+            <field name="name">Convention miss</field>
+            <field name="family">wrong</field>
+            <field name="sequence">2</field>
+            <field name="color">1</field>
+            <field name="description">It fixes something a written rule, a convention or an earlier instruction of the person already covered: naming, wording, style, process.</field>
+            <field name="fix_layer">Instructions, skill, lint</field>
+        </record>
+        <record id="feedback_context" model="flightdeck.feedback.kind">
+            <field name="code">context</field>
+            <field name="name">Missing context</field>
+            <field name="family">wrong</field>
+            <field name="sequence">3</field>
+            <field name="color">1</field>
+            <field name="description">It states a fact the agent did not know or got wrong (how the business works, who does what, how a system behaves), and the change follows from that fact.</field>
+            <field name="fix_layer">Knowledge: DEFINITIONS.MD, facts docs</field>
+        </record>
+        <record id="feedback_approach" model="flightdeck.feedback.kind">
+            <field name="code">approach</field>
+            <field name="name">Approach change</field>
+            <field name="family">wrong</field>
+            <field name="sequence">4</field>
+            <field name="color">1</field>
+            <field name="description">It rejects the way the agent solved it and names another way, without giving a new fact: revert, or do it differently.</field>
+            <field name="fix_layer">Planning: options before building</field>
+        </record>
+        <record id="feedback_check" model="flightdeck.feedback.kind">
+            <field name="code">check</field>
+            <field name="name">Check request</field>
+            <field name="family">wrong</field>
+            <field name="sequence">5</field>
+            <field name="color">1</field>
+            <field name="description">It asks the agent to test or verify work it reported as done.</field>
+            <field name="fix_layer">Verification</field>
+        </record>
+        <record id="feedback_edit" model="flightdeck.feedback.kind">
+            <field name="code">edit</field>
+            <field name="name">Content edit</field>
+            <field name="family">revise</field>
+            <field name="sequence">6</field>
+            <field name="color">3</field>
+            <field name="description">It changes the wording, length or structure of a text the agent wrote, whose content was right.</field>
+            <field name="fix_layer">Writing rules, when it repeats</field>
+        </record>
+        <record id="feedback_look" model="flightdeck.feedback.kind">
+            <field name="code">look</field>
+            <field name="name">Look and feel</field>
+            <field name="family">revise</field>
+            <field name="sequence">7</field>
+            <field name="color">3</field>
+            <field name="description">It changes how a screen or picture looks: layout, size, colour, order.</field>
+            <field name="fix_layer">Design profile, when it repeats</field>
+        </record>
+        <record id="feedback_scope" model="flightdeck.feedback.kind">
+            <field name="code">scope</field>
+            <field name="name">Added scope</field>
+            <field name="family">revise</field>
+            <field name="sequence">8</field>
+            <field name="color">3</field>
+            <field name="description">It adds a requirement or a next step to the work the agent just delivered, without saying the delivered part is wrong. A new piece of work, even in the same session or project, is not added scope.</field>
+            <field name="fix_layer">Prompt, if it was knowable at the start</field>
+        </record>
+        <record id="feedback_decision" model="flightdeck.feedback.kind">
+            <field name="code">decision</field>
+            <field name="name">Decision</field>
+            <field name="family">control</field>
+            <field name="sequence">9</field>
+            <field name="color">4</field>
+            <field name="description">It answers a question the agent asked, approves what it proposed, or picks one of its options.</field>
+            <field name="fix_layer">Fewer or clearer questions</field>
+        </record>
+        <record id="feedback_explain" model="flightdeck.feedback.kind">
+            <field name="code">explain</field>
+            <field name="name">Explanation request</field>
+            <field name="family">control</field>
+            <field name="sequence">10</field>
+            <field name="color">4</field>
+            <field name="description">It asks why, how or what about the result the agent just delivered, to understand it. A question about something the agent did not just deliver is not an explanation request.</field>
+            <field name="fix_layer">How replies explain</field>
+        </record>
+        <record id="feedback_status" model="flightdeck.feedback.kind">
+            <field name="code">status</field>
+            <field name="name">Status request</field>
+            <field name="family">control</field>
+            <field name="sequence">11</field>
+            <field name="color">4</field>
+            <field name="description">It asks what state the work is in or what has been done.</field>
+            <field name="fix_layer">FlightDeck views</field>
+        </record>
+        <record id="feedback_redirect" model="flightdeck.feedback.kind">
+            <field name="code">redirect</field>
+            <field name="name">Redirect</field>
+            <field name="family">control</field>
+            <field name="sequence">12</field>
+            <field name="color">4</field>
+            <field name="description">It stops, pauses or switches the agent's work, or limits what it may do.</field>
+            <field name="fix_layer">Orchestration</field>
+        </record>
+        <record id="feedback_handback" model="flightdeck.feedback.kind">
+            <field name="code">handback</field>
+            <field name="name">Person's action</field>
+            <field name="family">control</field>
+            <field name="sequence">13</field>
+            <field name="color">4</field>
+            <field name="description">It reports something the person did or saw outside the agent: restarted, deployed, it is live.</field>
+            <field name="fix_layer">Harness: what the agent could not do itself</field>
+        </record>
+        <record id="feedback_teach" model="flightdeck.feedback.kind">
+            <field name="code">teach</field>
+            <field name="name">Standing rule</field>
+            <field name="family">control</field>
+            <field name="sequence">14</field>
+            <field name="color">4</field>
+            <field name="description">It asks the agent to remember a rule, or to add it to memory, a skill or the instructions.</field>
+            <field name="fix_layer">Check the rule landed in the right place</field>
+        </record>
+    </data>
+</odoo>

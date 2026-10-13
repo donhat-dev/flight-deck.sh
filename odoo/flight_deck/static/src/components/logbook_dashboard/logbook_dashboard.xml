@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.LogbookListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_list_renderer')]" position="before">
+            <LogbookDashboard/>
+        </xpath>
+    </t>
+
+    <t t-name="flight_deck.LogbookDashboard">
+        <div class="fd_dash border-bottom bg-view" t-att-class="'fd_dash_' + state.mode">
+            <div t-if="state.data and state.data.queue and state.data.queue.stalled"
+                 class="alert alert-warning small py-1 px-2 m-2 mb-0" role="alert">
+                <i class="fa fa-exclamation-triangle me-1"/>
+                Background jobs have stopped: <t t-out="state.data.queue.waiting"/> waiting, the oldest
+                for <t t-out="state.data.queue.oldest_minutes"/> min (<t t-out="state.data.queue.oldest"/>).
+                Labels, spend and work-hours are not updated until it moves.
+                <t t-if="state.data.queue.running">Running now: <t t-out="state.data.queue.running"/>.</t>
+                <t t-else="">Nothing of this database is running: the one slot may be held by another database on the same runner.</t>
+            </div>
+            <div class="fd_dash_bar">
+                <t t-if="state.mode === 'compact' and ready">
+                    <span class="fd_strip_item"><i class="fa fa-usd" style="color: #1668e3"/> <t t-out="strip.cost"/></span>
+                    <span class="fd_strip_item"><i class="fa fa-clock-o" style="color: #d97706"/> <t t-out="strip.hours"/></span>
+                    <span class="fd_strip_item"><i class="fa fa-tachometer"/> <t t-out="strip.quota"/></span>
+                </t>
+                <span class="flex-grow-1"/>
+                <span t-if="state.error" class="text-warning small me-2" title="The last refresh failed; these figures are from the one before.">
+                    <i class="fa fa-exclamation-triangle"/> not refreshed
+                </span>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Display">
+                    <t t-foreach="modes" t-as="m" t-key="m.key">
+                        <button type="button" class="btn" t-att-title="m.label" t-att-aria-label="m.label"
+                                t-att-class="state.mode === m.key ? 'btn-secondary' : 'btn-outline-secondary'"
+                                t-on-click="() => this.setMode(m.key)">
+                            <i t-attf-class="fa {{ m.icon }}"/>
+                        </button>
+                    </t>
+                </div>
+            </div>
+
+            <div t-if="!ready" class="text-muted small px-3 pb-3">Reading the ledger…</div>
+
+            <div t-if="ready and state.mode !== 'compact'" class="fd_cards">
+                <!-- API-equivalent value -->
+                <section class="fd_card">
+                    <header>
+                        <span class="fd_card_name"><i class="fa fa-usd" style="color: #1668e3"/> API-equivalent value</span>
+                        <svg class="fd_spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                            <polyline t-att-points="spark('cost')" fill="none" stroke="#1668e3" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+                        </svg>
+                    </header>
+                    <div class="fd_periods">
+                        <t t-foreach="periods" t-as="p" t-key="p.key">
+                            <t t-set="c" t-value="cell(p.key)"/>
+                            <button type="button" class="fd_period" t-on-click="() => this.applyPeriod(p)"
+                                    t-att-title="'Show the sessions written ' + p.label.toLowerCase()">
+                                <span class="fd_period_label" t-out="p.label"/>
+                                <span class="fd_period_value" t-out="c.cost"/>
+                                <span class="fd_period_delta" t-att-class="deltaClass(c.costDelta)"
+                                      t-out="deltaText(c.costDelta, p.against)"/>
+                                <span class="fd_period_sub"><t t-out="c.output"/> output · <t t-out="c.calls"/> calls</span>
+                            </button>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- Agent work-hours -->
+                <section class="fd_card">
+                    <header>
+                        <span class="fd_card_name"><i class="fa fa-clock-o" style="color: #d97706"/> Agent work-hours</span>
+                        <svg class="fd_spark" viewBox="0 0 100 28" preserveAspectRatio="none" aria-hidden="true">
+                            <polyline t-att-points="spark('hours')" fill="none" stroke="#d97706" stroke-width="1.5" vector-effect="non-scaling-stroke"/>
+                        </svg>
+                    </header>
+                    <div class="fd_periods">
+                        <t t-foreach="periods" t-as="p" t-key="p.key">
+                            <t t-set="c" t-value="cell(p.key)"/>
+                            <button type="button" class="fd_period" t-on-click="() => this.applyPeriod(p)"
+                                    t-att-title="'Show the sessions written ' + p.label.toLowerCase()">
+                                <span class="fd_period_label" t-out="p.label"/>
+                                <span class="fd_period_value" t-out="c.hours"/>
+                                <span class="fd_period_delta" t-att-class="deltaClass(c.hoursDelta)"
+                                      t-out="deltaText(c.hoursDelta, p.against)"/>
+                                <span class="fd_period_sub">
+                                    <t t-out="Math.round(c.subShare * 100)"/>% by subagents
+                                </span>
+                            </button>
+                        </t>
+                    </div>
+                </section>
+
+                <!-- Quota -->
+                <section class="fd_card fd_card_quota">
+                    <header>
+                        <span class="fd_card_name"><i class="fa fa-tachometer"/> Subscription quota</span>
+                        <span class="flex-grow-1"/>
+                        <t t-if="quota">
+                            <span class="small" t-att-class="quota.stale ? 'text-warning' : 'text-muted'"
+                                  t-att-title="quota.stale ? 'The runner has not reported for a while.' : ''">
+                                <i t-if="quota.stale" class="fa fa-exclamation-triangle me-1"/><t t-out="quota.age"/>
+                            </span>
+                        </t>
+                        <button type="button" class="btn btn-sm btn-link p-0 ms-2" title="Ask the runner for a new report"
+                                t-att-disabled="state.refreshing" t-on-click="refreshQuota">
+                            <i class="fa fa-refresh" t-att-class="state.refreshing ? 'fa-spin' : ''"/>
+                        </button>
+                    </header>
+                    <div t-if="!quota" class="text-muted small">
+                        No report yet. The container runner sends one every ten minutes.
+                    </div>
+                    <div t-else="" class="fd_quota_bars">
+                        <t t-foreach="quota.bars" t-as="b" t-key="b.label">
+                            <div class="fd_quota_row">
+                                <div class="fd_quota_head">
+                                    <span t-out="b.label"/>
+                                    <span class="flex-grow-1"/>
+                                    <span class="fw-semibold"><t t-out="Math.round(b.pct)"/>%</span>
+                                    <span t-if="b.resets" class="text-muted ms-2">resets <t t-out="b.resets"/></span>
+                                </div>
+                                <div class="progress" role="progressbar" t-att-aria-valuenow="b.pct" aria-valuemin="0" aria-valuemax="100">
+                                    <div class="progress-bar" t-att-class="b.level" t-attf-style="width: {{ b.pct }}%"/>
+                                </div>
+                            </div>
+                        </t>
+                    </div>
+                </section>
+            </div>
+
+            <div t-if="ready and state.mode === 'charts'" class="px-3 pb-3">
+                <TrendPanel series="state.data.series" days="state.days"
+                            onDays.bind="setDays" hoursSince="state.data.hours_since"/>
+            </div>
+        </div>
+    </t>
+</templates>

@@ -1,0 +1,161 @@
+// The logbook panel and the trend charts. Colours come from Bootstrap's
+// variables so the panel follows the light and dark themes; the three accent
+// colours name the three measures and stay the same in both.
+$fd-dash-radius: .5rem;
+
+.fd_dash {
+    padding: .5rem 1rem .75rem;
+
+    .fd_dash_bar {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        min-height: 2rem;
+        font-size: .8125rem;
+    }
+    .fd_strip_item {
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+        i { margin-right: .25rem; }
+    }
+    &.fd_dash_compact { padding-bottom: .5rem; }
+}
+
+.fd_cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+    gap: .75rem;
+    margin-top: .5rem;
+}
+
+.fd_card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: $fd-dash-radius;
+    background: var(--bs-body-bg);
+    padding: .625rem .75rem .75rem;
+    min-width: 0;
+
+    > header {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        margin-bottom: .5rem;
+    }
+    .fd_card_name {
+        font-size: .8125rem;
+        font-weight: 600;
+        white-space: nowrap;
+        i { margin-right: .25rem; }
+    }
+    .fd_spark {
+        flex: 1 1 auto;
+        height: 1.5rem;
+        min-width: 3rem;
+        max-width: 9rem;
+        margin-left: auto;
+        opacity: .9;
+    }
+}
+
+.fd_periods {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .375rem;
+}
+
+.fd_period {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: .125rem;
+    padding: .375rem .5rem;
+    border: 1px solid transparent;
+    border-radius: .375rem;
+    background: var(--bs-tertiary-bg);
+    color: inherit;
+    text-align: left;
+    min-width: 0;
+    cursor: pointer;
+
+    &:hover { border-color: var(--bs-border-color); }
+    &:focus-visible { outline: 2px solid #1668e3; outline-offset: 1px; }
+
+    .fd_period_label { font-size: .6875rem; text-transform: uppercase; letter-spacing: .04em; color: var(--bs-secondary-color); }
+    .fd_period_value { font-size: 1.25rem; font-weight: 600; line-height: 1.2; font-variant-numeric: tabular-nums; }
+    .fd_period_delta, .fd_period_sub {
+        font-size: .6875rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 100%;
+    }
+    .fd_period_sub { color: var(--bs-secondary-color); }
+    // More spend or more hours is not good or bad by itself, so the change is
+    // told apart by weight, not by a red/green judgement.
+    .fd_up { color: var(--bs-emphasis-color); font-weight: 600; }
+    .fd_down { color: var(--bs-secondary-color); font-weight: 600; }
+}
+
+.fd_quota_bars {
+    display: flex;
+    flex-direction: column;
+    gap: .5rem;
+}
+.fd_quota_row {
+    .fd_quota_head {
+        display: flex;
+        align-items: baseline;
+        font-size: .75rem;
+        margin-bottom: .1875rem;
+        font-variant-numeric: tabular-nums;
+    }
+    .progress { height: .375rem; }
+}
+
+// --- the trend charts --------------------------------------------------------
+.fd_trends {
+    .fd_trends_bar {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin: .75rem 0 .5rem;
+    }
+    .fd_trends_title { font-weight: 600; }
+}
+
+.fd_trends_grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+    gap: .75rem;
+
+    // Above the width auto-fit would otherwise open a 4th column, cap it at
+    // 3 so the six charts always land 3+3, never an uneven 4+2. libsass (no
+    // CSS min()/max()) can't express this as one rule, hence the breakpoint.
+    @media (min-width: 78rem) {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+.fd_trend {
+    border: 1px solid var(--bs-border-color);
+    border-radius: $fd-dash-radius;
+    background: var(--bs-body-bg);
+    padding: .625rem .75rem .5rem;
+    min-width: 0;
+
+    > header {
+        display: flex;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: .5rem;
+        margin-bottom: .375rem;
+    }
+    .fd_trend_name { font-weight: 600; font-size: .875rem; }
+    .fd_trend_total { font-variant-numeric: tabular-nums; font-size: .8125rem; }
+    .fd_trend_hint { flex-basis: 100%; font-size: .6875rem; color: var(--bs-secondary-color); }
+    .fd_trend_measure { width: auto; margin-left: auto; }
+}
+
+.fd_trend_canvas { position: relative; width: 100%; }
+
+.fd_trends_page .fd_trend_canvas { height: 240px !important; }

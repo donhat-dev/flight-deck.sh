@@ -5,6 +5,33 @@ from odoo import api, fields, models
 
 from .transcript_reader import IMAGE_TYPES
 
+# What a file a call wrote can be shown as, by the name it was written to.
+PREVIEW_TYPES = {
+    "svg": "image/svg+xml",
+    "html": "text/html",
+    "htm": "text/html",
+    "md": "text/markdown",
+    "markdown": "text/markdown",
+}
+# Markdown carrying markup is shown as the document, not as prose: a file named
+# `.svg.md` is a drawing with a caption around it, and escaping it shows neither.
+MARKUP_EXT = ("svg", "html", "htm")
+# A preview is a page, not a download: enough for any drawing, bounded so one
+# call cannot hand the browser a hundred megabytes.
+MAX_PREVIEW_BYTES = 2 * 1024 * 1024
+MAX_LINE_BYTES = 8 * 1024 * 1024
+
+
+def preview_type(file_path):
+    """The media type a written file is previewed as, or None."""
+    names = (file_path or "").rsplit("/", 1)[-1].lower().split(".")[1:]
+    if not names:
+        return None
+    media = PREVIEW_TYPES.get(names[-1])
+    if media == "text/markdown" and any(name in MARKUP_EXT for name in names[:-1]):
+        return "text/html"
+    return media
+
 
 class FlightdeckMessageText(models.Model):
     """One transcript line. `seq` is the only reliable order inside a session."""
@@ -17,6 +44,11 @@ class FlightdeckMessageText(models.Model):
     uuid = fields.Char(required=True, index=True)
     session_ref_id = fields.Many2one("flightdeck.session", "Session", index=True, ondelete="cascade")
     project_id = fields.Many2one("flightdeck.project", index=True, ondelete="set null")
+    # Set when the line came from an agent's own transcript rather than the
+    # session's. The session stays filled in either way, so a session still
+    # lists everything that happened under it.
+    agent_ref_id = fields.Many2one(
+        "flightdeck.session.agent", "Agent", index=True, ondelete="cascade")
     role = fields.Char(index=True)
     ts = fields.Datetime("When")
     seq = fields.Integer(index=True)
@@ -32,6 +64,17 @@ class FlightdeckMessageText(models.Model):
     # the file that already holds them is mounted here anyway.
     tool_images = fields.Text("Images returned")
     tool_result_offset = fields.Integer()
+    # Where this line itself starts in the file. `tool_input` is capped at a few
+    # thousand characters, which is most of a written file missing, so a preview
+    # reads the call back from the transcript instead of from the column.
+    tool_call_offset = fields.Integer()
+    # A message another Claude session sent, on a line of role `peer`.
+    peer_name = fields.Char("From session", help="The name the sending session had when it sent.")
+    peer_from = fields.Char("From socket")
+    peer_mode = fields.Selection(
+        [("turn", "Started a turn"), ("queued", "Queued into a turn")], "Arrived",
+        help="Started a turn: the session was idle. Queued: it was working, and read it mid-turn.")
+    peer_msg_id = fields.Char("Message id", index=True)
 
     _uuid_uniq = models.Constraint("unique(uuid)", "Transcript line already imported.")
 
@@ -67,6 +110,10 @@ class FlightdeckMessageText(models.Model):
             "tool_input": self.tool_input,
             "tool_output": self.tool_output,
             "tool_images": self.tool_images,
+            "tool_call_offset": self.tool_call_offset,
+            "agent_id": self.agent_ref_id.id or False,
+            "peer_name": self.peer_name or False,
+            "peer_mode": self.peer_mode or False,
         }
 
     def _image_block(self, index):
@@ -83,7 +130,7 @@ class FlightdeckMessageText(models.Model):
             return None
         if not any(image.get("index") == index for image in wanted):
             return None
-        path = self.session_ref_id._transcript_path()
+        path = self.agent_ref_id.transcript_path or self.session_ref_id._transcript_path()
         if not path:
             return None
         try:
@@ -108,6 +155,39 @@ class FlightdeckMessageText(models.Model):
                     source["media_type"]
             except (ValueError, TypeError):
                 return None
+        return None
+
+    def _call_content(self):
+        """The whole file one tool call wrote, read back from the transcript.
+
+        Returns `(data, media_type)`, or None when the call wrote nothing that
+        can be shown. The line found at the offset has to name this same call:
+        a transcript that was rewritten leaves every offset on the wrong line.
+        """
+        self.ensure_one()
+        if not self.tool_use_id:
+            return None
+        path = self.agent_ref_id.transcript_path or self.session_ref_id._transcript_path()
+        if not path:
+            return None
+        try:
+            with open(path, "rb") as fh:
+                fh.seek(self.tool_call_offset or 0)
+                raw = fh.readline(MAX_LINE_BYTES)
+            blocks = (json.loads(raw).get("message") or {}).get("content") or []
+        except (OSError, ValueError):
+            return None
+        for block in blocks:
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            if block.get("id") != self.tool_use_id:
+                continue
+            written = block.get("input") or {}
+            media = preview_type(written.get("file_path"))
+            content = written.get("content")
+            if not media or not isinstance(content, str):
+                return None
+            return content.encode("utf-8")[:MAX_PREVIEW_BYTES], media
         return None
 
     def _bus_update(self):

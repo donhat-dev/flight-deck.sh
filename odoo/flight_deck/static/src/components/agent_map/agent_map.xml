@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flight_deck.AgentMapField">
+        <AgentMap resId="resId"/>
+    </t>
+
+    <t t-name="flight_deck.AgentMap">
+        <div class="fd_org">
+            <div class="fd_org_head">
+                <span class="fd_org_count">
+                    <t t-esc="state.agents.length"/> agents
+                </span>
+                <span t-if="counts" class="fd_org_states" t-esc="counts"/>
+                <span class="fd_org_hint">since the last compact</span>
+            </div>
+            <div t-if="state.loading" class="fd_org_empty">Loading…</div>
+            <div t-elif="!state.agents.length" class="fd_org_empty">
+                No agent has run in this session since its last compact.
+            </div>
+            <div t-else="" class="fd_org_tree">
+                <!-- The session is the root, and it is the one card that opens
+                     nothing: its transcript is the page this sits on. -->
+                <div class="fd_org_card fd_org_card_root" t-att-data-status="root.status">
+                    <span t-attf-class="fd_org_dot fd_org_dot_{{root.status}}"/>
+                    <span class="fd_org_text">
+                        <span class="fd_org_name" t-esc="root.title"/>
+                        <span t-if="root.meta" class="fd_org_meta" t-esc="root.meta"/>
+                    </span>
+                </div>
+                <div class="fd_org_kids">
+                    <t t-foreach="roots" t-as="node" t-key="node.id">
+                        <t t-call="flight_deck.AgentNode">
+                            <t t-set="agent" t-value="node"/>
+                        </t>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.AgentNode">
+        <div class="fd_org_node">
+            <button type="button" class="fd_org_card"
+                    t-att-data-status="agent.status"
+                    t-att-disabled="!agent.has_transcript"
+                    t-att-title="titleOf(agent)"
+                    t-on-click="() => this.open(agent)">
+                <span t-attf-class="fd_org_dot fd_org_dot_{{agent.status}}"/>
+                <span class="fd_org_text">
+                    <span class="fd_org_name" t-esc="agent.description"/>
+                    <span class="fd_org_meta" t-esc="meta(agent)"/>
+                </span>
+            </button>
+            <div t-if="agent.children.length" class="fd_org_kids">
+                <t t-foreach="agent.children" t-as="child" t-key="child.id">
+                    <t t-call="flight_deck.AgentNode">
+                        <t t-set="agent" t-value="child"/>
+                    </t>
+                </t>
+            </div>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.AgentTranscriptDialog">
+        <Dialog title="props.title or 'Agent'" size="'xl'" contentClass="'fd_org_dialog'">
+            <TranscriptBox resId="props.sessionId" agentId="props.agentId"
+                           class="'fd_box_inline'"/>
+        </Dialog>
+    </t>
+
+</templates>

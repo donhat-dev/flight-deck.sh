@@ -44,6 +44,8 @@ the entrypoint that turns them into `--db_user` / `--db_password`.
 | `docs/2026-09-10-odoo-harness-control-plane.md` | the direction after the experiment: Odoo as the harness control plane |
 | `docs/2026-09-14-agent-events-and-session-control.md` | three event sources — hooks, transcript bytes, the CLI's own session commands — and how they fit together |
 | `TODO.MD` | the embed MVP checklist, with the numbers behind each choice |
+| `odoo/flight_deck/models/session_agent.py` | one row per agent a session spawned; the map starts at the last compact boundary, and an agent's own transcript is read only when someone opens it |
+| `odoo/flight_deck/static/src/components/agent_map/` | the agent tree on the session form: status dots, spawn hierarchy, click for that agent's transcript in a dialog |
 
 ## What it found
 
@@ -93,9 +95,11 @@ The long version is in the findings document. The short version:
 - **Following is opt-in per session, and it has to stay that way.** The transcript tree is 1,927
   files and 873 MB, with a single session file reaching 380 MB. Watching all of them is not a
   configuration choice, it is a different program.
-- **The host grants read access by ACL.** `setfacl -R -m u:100:rX ~/.claude/projects` plus the
-  same with `-d`. The default ACL is what keeps new session files readable; without it this
-  stops working tomorrow, silently.
+- **The container runs as the uid that owns the transcripts.** `user: "${FD_UID}:101"` in
+  `docker/odoo19/compose.yml`: read identity from the host user, write identity from the odoo
+  group the data directory belongs to, and the transcript mount read-only so nothing can be
+  written back. Granting a second uid access instead does not hold — claude creates every file
+  0600 and a default ACL never reaches one, because the mask follows the group bits.
 - **The live-reload levers in `static/src/dev/live_reload.js` are for development.** They
   reload any open page as soon as a bundle changes and re-render a form whenever a view is
   written. That is right for one developer and wrong for anyone else on the instance.

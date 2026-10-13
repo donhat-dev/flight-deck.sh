@@ -1,0 +1,73 @@
+// One task's transcript: prompts, replies and collapsed tool calls.
+.fd_task_transcript {
+    .fd_tt_bar {
+        display: flex;
+        align-items: center;
+        gap: .75rem;
+        margin-bottom: .5rem;
+    }
+    .fd_tt_lines {
+        display: flex;
+        flex-direction: column;
+        gap: .375rem;
+        max-height: 70vh;
+        overflow-y: auto;
+    }
+    .fd_tt_when {
+        font-size: .6875rem;
+        color: var(--bs-secondary-color);
+    }
+    .fd_tt_prompt {
+        align-self: flex-end;
+        max-width: 85%;
+        background: var(--bs-primary-bg-subtle);
+        border-radius: .5rem;
+        padding: .375rem .625rem;
+        .fd_tt_text { white-space: pre-wrap; }
+        &.fd_tt_machine {
+            background: var(--bs-tertiary-bg);
+            font-size: .75rem;
+            color: var(--bs-secondary-color);
+        }
+    }
+    .fd_tt_reply {
+        max-width: 95%;
+        .fd_tt_markdown p:last-child { margin-bottom: 0; }
+    }
+    .fd_tt_tool {
+        border: 1px solid var(--bs-border-color);
+        border-radius: .375rem;
+        font-size: .75rem;
+        .fd_tt_tool_head {
+            display: flex;
+            align-items: baseline;
+            gap: .5rem;
+            width: 100%;
+            border: 0;
+            background: transparent;
+            padding: .25rem .5rem;
+            text-align: left;
+            color: inherit;
+        }
+        .fd_tt_tool_name { font-weight: 600; white-space: nowrap; }
+        .fd_tt_tool_input {
+            font-family: var(--bs-font-monospace);
+            color: var(--bs-secondary-color);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .fd_tt_tool_body {
+            padding: 0 .5rem .5rem;
+            pre {
+                white-space: pre-wrap;
+                word-break: break-word;
+                max-height: 20rem;
+                overflow: auto;
+                margin: .25rem 0 0;
+                font-size: .6875rem;
+            }
+            .fd_tt_output { background: var(--bs-tertiary-bg); padding: .25rem .375rem; }
+        }
+    }
+}

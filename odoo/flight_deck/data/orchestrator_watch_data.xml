@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <!-- What the Orchestrator keeps track of from the start: every main session's
+         finished turns, in the ledger only, so a question to it can be answered
+         from what happened rather than from its own memory. -->
+    <record id="watch_main_turns" model="flightdeck.orchestrator.watch">
+        <field name="name">Main sessions: turns that ended</field>
+        <field name="trigger">turn_ended</field>
+        <field name="scope">main</field>
+        <field name="deliver">ledger</field>
+        <field name="sequence">100</field>
+    </record>
+
+    <record id="watch_main_agent_failed" model="flightdeck.orchestrator.watch">
+        <field name="name">Main sessions: agents that failed</field>
+        <field name="trigger">agent_failed</field>
+        <field name="scope">main</field>
+        <field name="deliver">ledger</field>
+        <field name="sequence">110</field>
+    </record>
+</odoo>

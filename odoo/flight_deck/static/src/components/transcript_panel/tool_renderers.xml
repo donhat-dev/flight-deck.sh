@@ -29,4 +29,42 @@
         </div>
     </t>
 
+    <t t-name="flight_deck.ToolPreview">
+        <div class="fd_tool_body">
+            <div class="fd_preview" t-if="!state.failed">
+                <div class="fd_preview_head">
+                    <span t-esc="preview.name"/>
+                    <span class="fd_tool_spacer"/>
+                    <button class="fd_preview_open" t-on-click="() => this.onOpen()">Open</button>
+                </div>
+                <img t-if="preview.kind === 'image'" class="fd_preview_img"
+                     t-att-class="{ fd_preview_tall: props.open }"
+                     t-att-src="preview.url" t-att-alt="preview.name" loading="lazy"
+                     t-on-error="() => this.onFrameError()"/>
+                <iframe t-elif="preview.kind === 'frame'" class="fd_preview_frame"
+                        t-att-class="{ fd_preview_tall: props.open }"
+                        t-att-src="preview.url" sandbox="" loading="lazy"
+                        t-att-title="preview.name"
+                        t-on-error="() => this.onFrameError()"/>
+                <div t-elif="state.html" class="fd_md fd_preview_md" t-out="state.html"/>
+            </div>
+            <t t-if="props.open">
+                <div class="fd_tool_label">Output</div>
+                <pre class="fd_tool_out"
+                     t-esc="props.line.tool_output or 'The call wrote the file above and returned no text.'"/>
+            </t>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.ToolPreviewDialog">
+        <Dialog title="props.preview.name" size="'xl'" contentClass="'fd_preview_dialog'">
+            <img t-if="props.preview.kind === 'image'" class="fd_preview_full"
+                 t-att-src="props.preview.url" t-att-alt="props.preview.name"/>
+            <iframe t-elif="props.preview.kind === 'frame'" class="fd_preview_full"
+                    t-att-src="props.preview.url" sandbox=""
+                    t-att-title="props.preview.name"/>
+            <div t-elif="props.html" class="fd_md fd_preview_full" t-out="props.html"/>
+        </Dialog>
+    </t>
+
 </templates>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.TrendChart">
+        <div class="fd_trend_canvas" t-attf-style="height: {{ props.height }}px;">
+            <canvas t-ref="canvas"/>
+        </div>
+    </t>
+
+    <t t-name="flight_deck.TrendPanel">
+        <div class="fd_trends">
+            <div class="fd_trends_bar">
+                <span class="fd_trends_title">Trends</span>
+                <span class="text-muted small">Daily, with a 7-day average</span>
+                <span class="flex-grow-1"/>
+                <div class="btn-group btn-group-sm" role="group" aria-label="Range">
+                    <t t-foreach="ranges" t-as="range" t-key="range">
+                        <button type="button" class="btn"
+                                t-att-class="range === props.days ? 'btn-primary' : 'btn-outline-secondary'"
+                                t-on-click="() => props.onDays(range)">
+                            <t t-out="range"/> days
+                        </button>
+                    </t>
+                </div>
+            </div>
+            <div class="fd_trends_grid">
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Cost</span>
+                        <span class="fd_trend_total" t-out="totals.cost"/>
+                        <span class="fd_trend_hint">API-equivalent value at list price. Falls when prices fall, whatever the work.</span>
+                    </header>
+                    <TrendChart kind="'cost'" series="props.series"/>
+                </section>
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Tokens</span>
+                        <span class="fd_trend_total"><t t-out="totals.output"/> output</span>
+                        <span class="flex-grow-1"/>
+                        <select class="form-select form-select-sm fd_trend_measure"
+                                t-model="state.measure" aria-label="Token kind">
+                            <t t-foreach="measures" t-as="m" t-key="m.key">
+                                <option t-att-value="m.key" t-out="m.label"/>
+                            </t>
+                        </select>
+                    </header>
+                    <TrendChart kind="'tokens'" series="props.series" measure="state.measure"/>
+                </section>
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Work-hours</span>
+                        <span class="fd_trend_total" t-out="totals.hours"/>
+                        <span class="fd_trend_hint" t-out="hoursNote"/>
+                    </header>
+                    <TrendChart kind="'hours'" series="props.series"/>
+                </section>
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Cost per work-hour</span>
+                        <span class="fd_trend_total" t-out="totals.costPerHour"/>
+                        <span class="fd_trend_hint">API-equivalent value per agent work-hour. Days without busy time are left out.</span>
+                    </header>
+                    <TrendChart kind="'cost_per_hour'" series="props.series"/>
+                </section>
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Output per work-hour</span>
+                        <span class="fd_trend_total" t-out="totals.outputPerHour"/>
+                        <span class="fd_trend_hint">Output tokens per agent work-hour.</span>
+                    </header>
+                    <TrendChart kind="'output_per_hour'" series="props.series"/>
+                </section>
+                <section class="fd_trend">
+                    <header>
+                        <span class="fd_trend_name">Tasks per week</span>
+                        <span class="fd_trend_total" t-out="totals.tasks"/>
+                        <span class="fd_trend_hint">Root tasks started each day; the line is the last 7 days' total.</span>
+                    </header>
+                    <TrendChart kind="'tasks'" series="props.series"/>
+                </section>
+            </div>
+        </div>
+    </t>
+</templates>

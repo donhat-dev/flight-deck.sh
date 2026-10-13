@@ -1,0 +1,685 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Cost per task: the root turns, with the review queue above them -->
+    <record id="view_task_list" model="ir.ui.view">
+        <field name="name">flightdeck.turn.task.list</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="priority">10</field>
+        <field name="arch" type="xml">
+            <list string="Cost per task" js_class="flight_deck_task_list" create="0"
+                  default_order="started_at desc">
+                <header>
+                    <button name="action_pick_work_tag" type="object" string="Pick work tag"/>
+                </header>
+                <field name="display_name" string="Task"/>
+                <field name="task_tag_ids" widget="many2many_tags" options="{'color_field': 'color'}"
+                       optional="show"/>
+                <field name="model" optional="show"/>
+                <field name="project_id" optional="show"/>
+                <field name="started_at" optional="show"/>
+                <field name="turn_count" sum="Turns"/>
+                <field name="wrong_results" optional="show" sum="Agent wrong"/>
+                <field name="revisions" optional="show" sum="Revisions"/>
+                <field name="decisions" optional="hide" sum="Decisions"/>
+                <field name="pulls" optional="hide" sum="Pulls"/>
+                <field name="steers" optional="show" sum="Steers"/>
+                <field name="follow_ups" optional="hide" sum="Follow-ups"/>
+                <field name="hours" widget="float_time" sum="Agent-hours"/>
+                <field name="output" optional="hide" sum="Output"/>
+                <field name="calls" optional="hide" sum="Calls"/>
+                <field name="cost" sum="Cost"/>
+                <field name="label_source" optional="show"/>
+                <field name="needs_review" optional="hide"/>
+                <field name="session_ref_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <!-- Every turn -->
+    <record id="view_turn_list" model="ir.ui.view">
+        <field name="name">flightdeck.turn.list</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="priority">20</field>
+        <field name="arch" type="xml">
+            <list string="Turns" create="0">
+                <header>
+                    <button name="action_pick_work_tag" type="object" string="Pick work tag"/>
+                    <button name="action_classify_again" type="object" string="Classify again"
+                            confirm="Ask the rules, Jev and Luna again for the selected turns? Labels you set are replaced."/>
+                </header>
+                <field name="task_id" string="Task"/>
+                <field name="started_at" string="Start"/>
+                <field name="ended_at" string="End"/>
+                <field name="intent" widget="badge" decoration-info="intent == 'task'"
+                       decoration-warning="intent == 'side'"
+                       decoration-muted="intent == 'no_work'"/>
+                <field name="tags_of_task" string="Tags" widget="many2many_tags"
+                       options="{'color_field': 'color'}"/>
+                <field name="duration" widget="float_time" sum="Duration"/>
+                <field name="own_cost" string="Cost" sum="Cost"/>
+                <field name="prompt_head" string="Prompt" optional="hide"/>
+                <field name="own_steers" string="Steers" optional="hide" sum="Steers"/>
+                <field name="kind" optional="hide"/>
+                <field name="label_source" optional="hide"/>
+                <field name="label_confidence" optional="hide"/>
+                <field name="jev_kind" optional="hide"/>
+                <field name="llm_kind" optional="hide"/>
+                <field name="review_reason" optional="hide"/>
+                <field name="session_ref_id" optional="hide"/>
+                <field name="own_hours" widget="float_time" sum="Agent-hours" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_turn_form" model="ir.ui.view">
+        <field name="name">flightdeck.turn.form</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <form string="Task" create="0">
+                <header>
+                    <button name="action_classify_again" type="object" string="Classify again"
+                            class="btn-secondary"
+                            confirm="Ask the rules, Jev and Luna again? A label you set is replaced."/>
+                </header>
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_session" type="object" class="oe_stat_button"
+                                icon="fa-book" string="Logbook"/>
+                        <button name="action_open_workflow_runs" type="object"
+                                class="oe_stat_button" icon="fa-sitemap"
+                                groups="workflow_studio.group_workflow_user">
+                            <field name="workflow_run_count" widget="statinfo" string="Flow runs"/>
+                        </button>
+                    </div>
+                    <widget name="web_ribbon" title="Review" bg_color="text-bg-warning"
+                            invisible="not needs_review or label_source == 'human'"/>
+                    <div class="oe_title">
+                        <h1><field name="title" placeholder="What this task is about"/></h1>
+                        <div class="text-muted"><field name="prompt_head" readonly="1"/></div>
+                    </div>
+                    <group>
+                        <group string="Task">
+                            <field name="intent" widget="selection_badge"/>
+                            <field name="task_id" invisible="task_id == id"/>
+                            <field name="parent_id" invisible="intent not in ('follow_up', 'ask')"
+                                   domain="[('session_ref_id', '=', session_ref_id), ('id', '!=', id)]"/>
+                            <field name="tag_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color', 'no_create_edit': True}"/>
+                            <field name="task_tag_ids" widget="many2many_tags"
+                                   options="{'color_field': 'color'}" invisible="task_id != id"/>
+                            <field name="label_source"/>
+                            <field name="label_confidence"/>
+                            <field name="review_reason" invisible="not review_reason"/>
+                            <field name="label_queue_note" invisible="not label_queue_note"/>
+                            <field name="labeled_at"/>
+                        </group>
+                        <group string="Where">
+                            <field name="session_ref_id" string="Session"/>
+                            <field name="project_id"/>
+                            <field name="cwd"/>
+                            <field name="git_branch"/>
+                            <field name="started_at"/>
+                            <field name="ended_at"/>
+                            <field name="prompt_id" groups="base.group_no_one"/>
+                        </group>
+                    </group>
+                    <group>
+                        <group string="This task, its turns included" invisible="task_id != id">
+                            <field name="model"/>
+                            <field name="turn_count"/>
+                            <field name="follow_ups"/>
+                            <field name="wrong_results"/>
+                            <field name="revisions"/>
+                            <field name="decisions"/>
+                            <field name="pulls"/>
+                            <field name="steers"/>
+                            <field name="hours" widget="float_time"/>
+                            <field name="calls"/>
+                            <field name="output"/>
+                            <field name="cost"/>
+                        </group>
+                        <group string="This turn">
+                            <field name="duration" widget="float_time"/>
+                            <field name="own_steers"/>
+                            <field name="own_hours" widget="float_time"/>
+                            <field name="own_calls"/>
+                            <field name="own_output"/>
+                            <field name="own_cost"/>
+                        </group>
+                    </group>
+                    <notebook>
+                        <page string="Transcript" name="transcript">
+                            <widget name="fd_task_transcript"/>
+                        </page>
+                        <page string="Turns" name="turns" invisible="task_id != id or turn_count &lt; 2">
+                            <field name="turn_ids" readonly="1">
+                                <list>
+                                    <field name="started_at"/>
+                                    <field name="prompt_head" string="Prompt"/>
+                                    <field name="intent"/>
+                                    <field name="own_steers" sum="Steers"/>
+                                    <field name="label_source"/>
+                                    <field name="own_hours" widget="float_time" sum="Agent-hours"/>
+                                    <field name="own_cost" sum="Cost"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Steer messages" name="steers" invisible="not own_steers">
+                            <field name="steer_ids" readonly="1">
+                                <list>
+                                    <field name="sent_at"/>
+                                    <field name="text"/>
+                                </list>
+                            </field>
+                        </page>
+                        <page string="Prompt" name="prompt">
+                            <field name="prompt_text" readonly="1"/>
+                            <separator string="The agent's last message"/>
+                            <field name="final_head" readonly="1"/>
+                        </page>
+                        <page string="Classification" name="classification">
+                            <group>
+                                <group string="Jev">
+                                    <field name="jev_kind"/>
+                                    <field name="jev_top1"/>
+                                    <field name="jev_margin"/>
+                                </group>
+                                <group string="Luna">
+                                    <field name="llm_kind"/>
+                                    <field name="llm_confidence"/>
+                                </group>
+                            </group>
+                            <field name="run_ids" readonly="1">
+                                <list>
+                                    <field name="create_date" string="When"/>
+                                    <field name="engine"/>
+                                    <field name="probe"/>
+                                    <field name="kind"/>
+                                    <field name="top1"/>
+                                    <field name="margin"/>
+                                    <field name="confidence"/>
+                                    <field name="work_tag"/>
+                                    <field name="accepted"/>
+                                    <field name="latency_ms"/>
+                                    <field name="error"/>
+                                </list>
+                            </field>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_turn_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.turn.pivot</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <pivot string="Cost per task" sample="1">
+                <field name="started_at" interval="week" type="row"/>
+                <field name="task_tag_ids" type="col"/>
+                <field name="cost" type="measure"/>
+                <field name="hours" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_turn_graph" model="ir.ui.view">
+        <field name="name">flightdeck.turn.graph</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <graph string="Cost per task" type="bar" stacked="1" sample="1">
+                <field name="started_at" interval="week"/>
+                <field name="task_tag_ids"/>
+                <field name="cost" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_turn_search" model="ir.ui.view">
+        <field name="name">flightdeck.turn.search</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <search string="Tasks">
+                <field name="title" string="Task" filter_domain="['|', ('title', 'ilike', self), ('prompt_text', 'ilike', self)]"/>
+                <field name="tag_ids"/>
+                <field name="task_tag_ids"/>
+                <field name="session_ref_id"/>
+                <field name="project_id"/>
+                <field name="cwd"/>
+                <filter name="review" string="Needs review"
+                        domain="[('needs_review', '=', True), ('label_source', '!=', 'human')]"/>
+                <filter name="unlabeled" string="Not labelled" domain="[('label_source', '=', False)]"/>
+                <filter name="sample" string="Sample check" domain="[('review_reason', 'ilike', 'Sample check')]"/>
+                <separator/>
+                <filter name="intent_task" string="Tasks" domain="[('intent', '=', 'task')]"/>
+                <filter name="intent_follow_up" string="Follow-ups" domain="[('intent', '=', 'follow_up')]"/>
+                <filter name="intent_ask" string="Questions about the work" domain="[('intent', '=', 'ask')]"/>
+                <filter name="intent_side" string="Side questions" domain="[('intent', '=', 'side')]"/>
+                <filter name="intent_no_work" string="No work" domain="[('intent', '=', 'no_work')]"/>
+                <separator/>
+                <filter name="steered" string="With steer messages" domain="[('own_steers', '>', 0)]"/>
+                <separator/>
+                <filter name="by_human" string="Labelled by a person" domain="[('label_source', '=', 'human')]"/>
+                <filter name="by_engine" string="Labelled by Jev or Luna" domain="[('label_source', 'in', ('jev', 'llm'))]"/>
+                <separator/>
+                <filter name="last_30" string="Last 30 days"
+                        domain="[('started_at', '>=', (context_today() - relativedelta(days=30)).strftime('%Y-%m-%d'))]"/>
+                <filter name="started" string="Started" date="started_at"/>
+                <group>
+                    <filter name="g_intent" string="Type" context="{'group_by': 'intent'}"/>
+                    <filter name="g_model" string="Model" context="{'group_by': 'model'}"/>
+                    <filter name="g_session" string="Session" context="{'group_by': 'session_ref_id'}"/>
+                    <filter name="g_tag" string="Tag" context="{'group_by': 'task_tag_ids'}"/>
+                    <filter name="g_project" string="Project" context="{'group_by': 'project_id'}"/>
+                    <filter name="g_source" string="Labelled by" context="{'group_by': 'label_source'}"/>
+                    <filter name="g_week" string="Week" context="{'group_by': 'started_at:week'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_cost_per_task" model="ir.actions.act_window">
+        <field name="name">Cost per task</field>
+        <field name="res_model">flightdeck.turn</field>
+        <field name="view_mode">list,pivot,graph,form</field>
+        <field name="domain">[('is_task', '=', True)]</field>
+        <field name="context">{'search_default_last_30': 1}</field>
+        <field name="search_view_id" ref="view_turn_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_task_list')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_turn_pivot')}),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_turn_graph')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_turn_form')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No task yet</p>
+            <p>The work-hours cron reads turns from the transcripts; the label cron sorts them into tasks every fifteen minutes.</p>
+        </field>
+    </record>
+
+    <record id="action_turns" model="ir.actions.act_window">
+        <field name="name">Turns</field>
+        <field name="res_model">flightdeck.turn</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_turn_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_turn_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_turn_form')})]"/>
+    </record>
+
+    <record id="action_review_queue" model="ir.actions.act_window">
+        <field name="name">Review queue</field>
+        <field name="res_model">flightdeck.turn</field>
+        <field name="view_mode">list,form</field>
+        <field name="domain">[('needs_review', '=', True), ('label_source', '!=', 'human')]</field>
+        <field name="search_view_id" ref="view_turn_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_turn_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_turn_form')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">Nothing to review</p>
+            <p>A turn lands here when Luna was unsure, when it disagreed with a clear Jev answer, or when it named a turn it was not offered.</p>
+        </field>
+    </record>
+
+    <!-- Adjustments per task, by model: fewer means the agent got it right sooner -->
+    <record id="view_turn_adjust_graph" model="ir.ui.view">
+        <field name="name">flightdeck.turn.adjust.graph</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <graph string="Adjustments per task" type="line" sample="1">
+                <field name="started_at" interval="week"/>
+                <field name="model"/>
+                <field name="adjustments" type="measure"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_turn_adjust_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.turn.adjust.pivot</field>
+        <field name="model">flightdeck.turn</field>
+        <field name="arch" type="xml">
+            <pivot string="Adjustments per task" sample="1">
+                <field name="started_at" interval="week" type="row"/>
+                <field name="model" type="col"/>
+                <field name="adjustments" type="measure"/>
+                <field name="wrong_results" type="measure"/>
+                <field name="steers" type="measure"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="action_adjustments" model="ir.actions.act_window">
+        <field name="name">Adjustments per task</field>
+        <field name="res_model">flightdeck.turn</field>
+        <field name="view_mode">graph,pivot,list,form</field>
+        <field name="domain">[('is_task', '=', True)]</field>
+        <field name="search_view_id" ref="view_turn_search"/>
+        <field name="view_ids" eval="[(5, 0, 0),
+            (0, 0, {'view_mode': 'graph', 'view_id': ref('view_turn_adjust_graph')}),
+            (0, 0, {'view_mode': 'pivot', 'view_id': ref('view_turn_adjust_pivot')}),
+            (0, 0, {'view_mode': 'list', 'view_id': ref('view_task_list')}),
+            (0, 0, {'view_mode': 'form', 'view_id': ref('view_turn_form')})]"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No task yet</p>
+            <p>An adjustment is a Feedback label of the Agent wrong group, or a redirect, on a task's results: a time a person had to fix or redirect the agent. Revisions and decisions are the normal work of steering and are shown apart. Averaged per task, by the main agent's model, week by week.</p>
+        </field>
+    </record>
+
+    <!-- The by-model page; the graph and pivot above stay one click away from it -->
+    <record id="action_model_stats" model="ir.actions.client">
+        <field name="name">Adjustments per task</field>
+        <field name="tag">flight_deck.model_stats</field>
+    </record>
+
+    <!-- Tags -->
+    <record id="view_task_tag_list" model="ir.ui.view">
+        <field name="name">flightdeck.task.tag.list</field>
+        <field name="model">flightdeck.task.tag</field>
+        <field name="arch" type="xml">
+            <list string="Tags" editable="bottom">
+                <field name="name"/>
+                <field name="kind"/>
+                <field name="code"/>
+                <field name="path_pattern" optional="show"/>
+                <field name="description"/>
+                <field name="color" widget="color_picker"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="action_task_tag" model="ir.actions.act_window">
+        <field name="name">Tags</field>
+        <field name="res_model">flightdeck.task.tag</field>
+        <field name="view_mode">list</field>
+        <field name="context">{'active_test': False}</field>
+    </record>
+
+    <!-- Engine calls -->
+    <record id="view_label_run_list" model="ir.ui.view">
+        <field name="name">flightdeck.label.run.list</field>
+        <field name="model">flightdeck.label.run</field>
+        <field name="arch" type="xml">
+            <list string="Engine calls" create="0" edit="0">
+                <field name="create_date" string="When"/>
+                <field name="engine"/>
+                <field name="turn_id"/>
+                <field name="probe" optional="show"/>
+                <field name="kind"/>
+                <field name="human_kind" optional="show"/>
+                <field name="top1" optional="show"/>
+                <field name="margin" optional="show"/>
+                <field name="confidence" optional="show"/>
+                <field name="work_tag" optional="show"/>
+                <field name="accepted"/>
+                <field name="latency_ms" optional="show"/>
+                <field name="error" optional="show"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_label_run_form" model="ir.ui.view">
+        <field name="name">flightdeck.label.run.form</field>
+        <field name="model">flightdeck.label.run</field>
+        <field name="arch" type="xml">
+            <form string="Engine call" create="0" edit="0">
+                <sheet>
+                    <div class="oe_button_box" name="button_box">
+                        <button name="action_open_workflow_runs" type="object"
+                                class="oe_stat_button" icon="fa-sitemap"
+                                groups="workflow_studio.group_workflow_user">
+                            <field name="workflow_run_count" widget="statinfo" string="Flow runs"/>
+                        </button>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="engine"/>
+                            <field name="turn_id"/>
+                            <field name="probe"/>
+                            <field name="create_date" string="When"/>
+                            <field name="latency_ms"/>
+                            <field name="error"/>
+                        </group>
+                        <group>
+                            <field name="kind"/>
+                            <field name="human_kind"/>
+                            <field name="top1"/>
+                            <field name="margin"/>
+                            <field name="confidence"/>
+                            <field name="work_tag"/>
+                            <field name="accepted"/>
+                        </group>
+                    </group>
+                    <separator string="Sent"/>
+                    <field name="sent" class="font-monospace"/>
+                    <separator string="Answer"/>
+                    <field name="answer" class="font-monospace"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_label_run_graph" model="ir.ui.view">
+        <field name="name">flightdeck.label.run.graph</field>
+        <field name="model">flightdeck.label.run</field>
+        <field name="arch" type="xml">
+            <graph string="Engine calls" type="bar" stacked="1" sample="1">
+                <field name="create_date" interval="day"/>
+                <field name="kind"/>
+            </graph>
+        </field>
+    </record>
+
+    <record id="view_label_run_pivot" model="ir.ui.view">
+        <field name="name">flightdeck.label.run.pivot</field>
+        <field name="model">flightdeck.label.run</field>
+        <field name="arch" type="xml">
+            <pivot string="Engine calls" sample="1">
+                <field name="kind" type="row"/>
+                <field name="human_kind" type="col"/>
+            </pivot>
+        </field>
+    </record>
+
+    <record id="view_label_run_search" model="ir.ui.view">
+        <field name="name">flightdeck.label.run.search</field>
+        <field name="model">flightdeck.label.run</field>
+        <field name="arch" type="xml">
+            <search string="Engine calls">
+                <field name="turn_id"/>
+                <field name="kind"/>
+                <filter name="jev" string="Jev" domain="[('engine', '=', 'jev')]"/>
+                <filter name="llm" string="Luna" domain="[('engine', '=', 'llm')]"/>
+                <separator/>
+                <filter name="not_probe" string="Label pass" domain="[('probe', '=', False)]"/>
+                <filter name="probe" string="Tried by hand" domain="[('probe', '=', True)]"/>
+                <separator/>
+                <filter name="accepted" string="Accepted" domain="[('accepted', '=', True)]"/>
+                <filter name="failed" string="Failed" domain="[('error', '!=', False)]"/>
+                <group>
+                    <filter name="g_engine" string="Engine" context="{'group_by': 'engine'}"/>
+                    <filter name="g_kind" string="Answer" context="{'group_by': 'kind'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_label_run" model="ir.actions.act_window">
+        <field name="name">Engine calls</field>
+        <field name="res_model">flightdeck.label.run</field>
+        <field name="view_mode">list,graph,pivot,form</field>
+        <field name="search_view_id" ref="view_label_run_search"/>
+    </record>
+
+    <!-- Jev analytics and LLM analytics -->
+    <record id="view_label_probe_form" model="ir.ui.view">
+        <field name="name">flightdeck.label.probe.form</field>
+        <field name="model">flightdeck.label.probe</field>
+        <field name="arch" type="xml">
+            <form string="Analytics" create="0">
+                <sheet>
+                    <field name="engine" invisible="1"/>
+                    <div class="oe_title">
+                        <h1 invisible="engine != 'jev'">Jev analytics</h1>
+                        <h1 invisible="engine != 'llm'">LLM analytics</h1>
+                        <div class="text-muted">The last 30 days of label passes. Calls made from this page are left out.</div>
+                    </div>
+                    <group>
+                        <group string="Calls">
+                            <field name="calls"/>
+                            <field name="error_count"/>
+                            <field name="accepted_share" widget="percentage"/>
+                            <field name="unsure_share" widget="percentage"
+                                   string="Flat spread" invisible="engine != 'jev'"/>
+                            <field name="unsure_share" widget="percentage"
+                                   string="Below the review line" invisible="engine != 'llm'"/>
+                            <field name="latency_median"/>
+                            <field name="kind_mix" string="Answers" readonly="1"/>
+                        </group>
+                        <group string="Agreement">
+                            <field name="other_agree" widget="percentage"
+                                   string="Same kind as Luna" invisible="engine != 'jev'"/>
+                            <field name="other_agree" widget="percentage"
+                                   string="Same kind as Jev" invisible="engine != 'llm'"/>
+                            <field name="other_pairs" string="Turns both answered"/>
+                            <field name="human_agree" widget="percentage" string="Same as a person's label"/>
+                            <field name="human_pairs" string="Turns a person labelled"/>
+                        </group>
+                    </group>
+                    <separator string="Try it"/>
+                    <div class="text-muted mb-2">Runs the engine and shows its answer here. Nothing is written onto a turn.</div>
+                    <group>
+                        <group>
+                            <field name="source" widget="radio" options="{'horizontal': true}"/>
+                            <field name="turn_id" invisible="source != 'turn'"
+                                   options="{'no_create': True}"/>
+                            <field name="custom_cwd" invisible="source != 'custom'"/>
+                        </group>
+                        <group>
+                            <button name="action_run" type="object" string="Run" class="btn-primary"/>
+                        </group>
+                    </group>
+                    <group invisible="source != 'custom'">
+                        <field name="custom_prompt" placeholder="The new prompt"/>
+                        <field name="custom_previous" placeholder="Earlier prompts, one per paragraph"/>
+                        <field name="custom_state" invisible="engine != 'jev'"
+                               placeholder="Optional: the whole state text Jev reads"/>
+                    </group>
+                    <group string="Result" invisible="not result_kind and not result_error">
+                        <group>
+                            <field name="result_kind"/>
+                            <field name="result_latency"/>
+                            <field name="result_error" invisible="not result_error"/>
+                        </group>
+                        <group>
+                            <field name="result_html" nolabel="1" colspan="2"/>
+                        </group>
+                    </group>
+                    <notebook invisible="not result_sent">
+                        <page string="What was sent" name="sent">
+                            <field name="result_sent" class="font-monospace"/>
+                        </page>
+                        <page string="Raw answer" name="raw">
+                            <field name="result_raw" class="font-monospace"/>
+                        </page>
+                    </notebook>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_jev_analytics" model="ir.actions.act_window">
+        <field name="name">Jev analytics</field>
+        <field name="res_model">flightdeck.label.probe</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="context">{'default_engine': 'jev'}</field>
+    </record>
+
+    <record id="action_llm_analytics" model="ir.actions.act_window">
+        <field name="name">LLM analytics</field>
+        <field name="res_model">flightdeck.label.probe</field>
+        <field name="view_mode">form</field>
+        <field name="target">current</field>
+        <field name="context">{'default_engine': 'llm'}</field>
+    </record>
+
+    <!-- The session form: a way to its turns, and its tasks on a tab -->
+    <record id="view_session_form_tasks" model="ir.ui.view">
+        <field name="name">flightdeck.session.form.tasks</field>
+        <field name="model">flightdeck.session</field>
+        <field name="inherit_id" ref="view_session_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@name='button_box']" position="inside">
+                <!-- Before Turns: the box shows six buttons, and a seventh goes under More. -->
+                <button name="action_open_workflow_runs" type="object"
+                        class="oe_stat_button" icon="fa-sitemap"
+                        groups="workflow_studio.group_workflow_user">
+                    <field name="workflow_run_count" widget="statinfo" string="Flow runs"/>
+                </button>
+                <button name="action_open_tasks" type="object" class="oe_stat_button"
+                        icon="fa-tasks" string="Turns"/>
+            </xpath>
+            <xpath expr="//notebook/page[@name='agents']" position="after">
+                <page string="Tasks" name="tasks">
+                    <!-- Newest task first, each followed by its own turns in time
+                         order: a follow-up sits under its own task even when a side
+                         question or another task came between. Ordering on the link
+                         uses the turn model's newest-first order. -->
+                    <field name="turn_ids" mode="kanban" readonly="1" nolabel="1">
+                        <kanban class="o_fd_turn_kanban" default_order="task_id, started_at, id"
+                                limit="80">
+                            <field name="parent_id"/>
+                            <field name="intent"/>
+                            <field name="title"/>
+                            <field name="prompt_text"/>
+                            <field name="prompt_head"/>
+                            <field name="workflow_run_count" groups="workflow_studio.group_workflow_user"/>
+                            <templates>
+                                <t t-name="card" class="flex-column">
+                                    <div t-att-class="record.parent_id.raw_value ? 'fd_turn_card fd_turn_child' : 'fd_turn_card'">
+                                        <div class="d-flex align-items-baseline gap-2">
+                                            <span class="fw-bold text-truncate"
+                                                  t-out="record.title.raw_value or record.intent.value or 'Not labelled'"/>
+                                            <span class="flex-grow-1"/>
+                                            <field name="started_at" widget="datetime"
+                                                   class="text-muted small text-nowrap"/>
+                                            <span class="text-muted small text-nowrap">
+                                                $<field name="own_cost" digits="[12, 2]"/>
+                                            </span>
+                                            <a t-if="record.workflow_run_count.raw_value"
+                                               name="action_open_workflow_runs" type="object"
+                                               class="text-muted small text-nowrap" title="Flow runs"
+                                               groups="workflow_studio.group_workflow_user">
+                                                <i class="fa fa-sitemap"/> <t t-out="record.workflow_run_count.raw_value"/>
+                                            </a>
+                                        </div>
+                                        <div class="fd_turn_prompt text-muted"
+                                             t-out="record.prompt_text.raw_value or record.prompt_head.raw_value"/>
+                                    </div>
+                                </t>
+                            </templates>
+                        </kanban>
+                    </field>
+                </page>
+            </xpath>
+        </field>
+    </record>
+
+    <menuitem id="menu_tasks_root" name="Tasks" parent="menu_root" sequence="33"/>
+    <menuitem id="menu_cost_per_task" name="Cost per task" parent="menu_tasks_root"
+              action="action_cost_per_task" sequence="10"/>
+    <menuitem id="menu_review_queue" name="Review queue" parent="menu_tasks_root"
+              action="action_review_queue" sequence="20"/>
+    <menuitem id="menu_turns" name="Turns" parent="menu_tasks_root" action="action_turns" sequence="30"/>
+    <menuitem id="menu_adjustments" name="Adjustments per task" parent="menu_tasks_root"
+              action="action_model_stats" sequence="35"/>
+    <menuitem id="menu_task_tag" name="Tags" parent="menu_tasks_root" action="action_task_tag" sequence="40"/>
+    <menuitem id="menu_jev_analytics" name="Jev analytics" parent="menu_tasks_root"
+              action="action_jev_analytics" sequence="50"/>
+    <menuitem id="menu_llm_analytics" name="LLM analytics" parent="menu_tasks_root"
+              action="action_llm_analytics" sequence="60"/>
+    <menuitem id="menu_label_run" name="Engine calls" parent="menu_tasks_root"
+              action="action_label_run" sequence="70"/>
+</odoo>

@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="flight_deck.TaskListRenderer" t-inherit="web.ListRenderer" t-inherit-mode="primary">
+        <xpath expr="//div[hasclass('o_list_renderer')]" position="before">
+            <TaskPanel domain="props.list.domain"/>
+        </xpath>
+    </t>
+
+    <t t-name="flight_deck.TaskPanel">
+        <div class="fd_task_panel border-bottom bg-view">
+            <div class="fd_task_summary">
+                <t t-if="state.data">
+                    <span><b t-out="state.data.tasks"/> tasks</span>
+                    <span>total <b t-out="usd(state.data.cost)"/></span>
+                    <span>median <b t-out="usd(state.data.median)"/></span>
+                    <span>p90 <b t-out="usd(state.data.p90)"/></span>
+                    <span t-if="state.data.unlabeled" class="text-muted"><t t-out="state.data.unlabeled"/> not labelled</span>
+                </t>
+                <span class="flex-grow-1"/>
+                <button type="button" class="btn btn-sm btn-link" t-on-click="toggle"
+                        t-att-aria-expanded="state.open ? 'true' : 'false'">
+                    <i t-attf-class="fa {{ state.open ? 'fa-chevron-up' : 'fa-chevron-down' }} me-1"/>
+                    Review queue
+                    <span t-if="state.data" class="badge rounded-pill"
+                          t-att-class="state.data.review_count ? 'text-bg-warning' : 'text-bg-light'"
+                          t-out="state.data.review_count"/>
+                </button>
+            </div>
+            <div t-if="state.open and state.data" class="fd_review">
+                <div t-if="!state.data.review.length" class="text-muted small py-2">
+                    Nothing to review. A turn lands here when Luna was unsure of its Type or Feedback, or the two engines disagreed.
+                </div>
+                <div t-else="" class="fd_review_cards">
+                    <t t-foreach="state.data.review" t-as="card" t-key="card.id">
+                        <section class="fd_review_card" t-att-class="state.busy === card.id ? 'opacity-50' : ''">
+                            <a href="#" class="fd_review_prompt" t-on-click.prevent="() => this.openTurn(card)"
+                               t-att-title="card.reason" t-out="card.prompt or '(no prompt text)'"/>
+                            <div class="fd_review_meta">
+                                <t t-out="when(card.started_at)"/>
+                                <t t-if="card.project"> · <t t-out="card.project"/></t>
+                                <t t-if="card.cost"> · <t t-out="usd(card.cost)"/></t>
+                            </div>
+                            <div class="fd_review_meta" t-out="said(card)"/>
+                            <div t-if="card.parent" class="fd_review_meta text-truncate"
+                                 t-att-title="card.parent">continues: <t t-out="card.parent"/></div>
+                            <div t-if="card.reason" class="fd_review_reason" t-out="card.reason"/>
+                            <div t-if="!card.type_review" class="fd_review_meta">
+                                Type: <t t-out="typeLabel(card)"/>, set
+                            </div>
+                            <div t-else="" class="fd_review_actions">
+                                <t t-foreach="labels" t-as="l" t-key="l.kind">
+                                    <button type="button" class="btn btn-sm"
+                                            t-att-class="card.kind === l.kind ? 'btn-outline-warning' : 'btn-outline-secondary'"
+                                            t-att-disabled="state.busy === card.id"
+                                            t-on-click="() => this.setLabel(card, l.kind)"
+                                            t-out="l.label"/>
+                                </t>
+                            </div>
+                            <t t-if="card.feedback_review">
+                                <div class="fd_review_meta">Feedback<t t-if="card.feedback_reason">: <t t-out="card.feedback_reason"/></t></div>
+                                <div class="fd_review_actions">
+                                    <t t-foreach="state.data.feedback_kinds" t-as="k" t-key="k.code">
+                                        <button type="button" class="btn btn-sm"
+                                                t-att-class="picked(card).includes(k.code) ? 'btn-primary' : 'btn-outline-secondary'"
+                                                t-att-aria-pressed="picked(card).includes(k.code) ? 'true' : 'false'"
+                                                t-att-disabled="state.busy === card.id"
+                                                t-on-click="() => this.toggleFeedback(card, k.code)"
+                                                t-out="k.name"/>
+                                    </t>
+                                    <button type="button" class="btn btn-sm btn-warning"
+                                            t-att-disabled="state.busy === card.id"
+                                            t-on-click="() => this.saveFeedback(card)">Save feedback</button>
+                                </div>
+                            </t>
+                        </section>
+                    </t>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

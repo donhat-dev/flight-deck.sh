@@ -5,26 +5,107 @@
         <div class="fd_box" t-att-class="props.class">
             <div class="fd_box_head">
                 <span class="fd_box_count">
-                    <t t-esc="shown.length"/> of <t t-esc="state.total"/> turns
+                    <t t-esc="shown.length"/> of <t t-esc="state.total"/> lines
                 </span>
-                <span t-if="state.runtime" t-attf-class="fd_box_state fd_box_state_{{state.runtime}}"
+                <span t-if="state.runtime and !watching" t-attf-class="fd_box_state fd_box_state_{{state.runtime}}"
                       t-att-title="state.runtimeError" t-esc="state.runtime"/>
+                <select class="fd_box_turn" t-if="state.turns.length and !state.peersOnly"
+                        t-on-focus="() => this.loadTurns()"
+                        t-on-change="(ev) => this.pickTurn(ev.target.value)">
+                    <option value="0">All turns</option>
+                    <!-- Not `turn`: a loop name that matches a getter on this
+                         component resolves to the getter, and every option came
+                         out carrying the current turn's number. -->
+                    <option t-foreach="state.turns" t-as="listed" t-key="listed.index"
+                            t-att-value="listed.index"
+                            t-att-selected="listed.index === state.turnIndex"
+                            t-esc="turnLabel(listed)"/>
+                </select>
                 <span class="fd_box_spacer"/>
-                <button class="fd_box_chip" t-att-class="{ 'fd_off': !roles.user }"
+                <button class="fd_box_chip" t-att-class="{ 'fd_off': state.view !== 'transcript' }"
+                        t-on-click="() => this.showView('transcript')">Transcript</button>
+                <button class="fd_box_chip" t-att-class="{ 'fd_off': state.view !== 'gantt' }"
+                        t-att-disabled="!turn"
+                        t-on-click="() => this.showView('gantt')">Gantt</button>
+                <button class="fd_box_chip" t-if="state.view === 'transcript'"
+                        t-att-class="{ 'fd_off': !roles.user }"
                         t-on-click="() => this.toggleRole('user')">User</button>
-                <button class="fd_box_chip" t-att-class="{ 'fd_off': !roles.assistant }"
+                <button class="fd_box_chip" t-if="state.view === 'transcript'"
+                        t-att-class="{ 'fd_off': !roles.assistant }"
                         t-on-click="() => this.toggleRole('assistant')">Claude</button>
+                <button class="fd_box_chip" t-if="state.view === 'transcript'"
+                        t-att-class="{ 'fd_off': !state.peersOnly }"
+                        title="Only the messages exchanged with other sessions, across every turn"
+                        t-on-click="() => this.togglePeers()">Sessions</button>
             </div>
 
-            <div class="fd_box_scroll" t-ref="scroller" t-on-scroll="onScroll">
+            <!-- Where the turn spent its time. Laid out on the gap between one
+                 line and the next, which is what the transcript records. The
+                 solid part of a bar is the tool itself, known once the turn's
+                 tool calls are read. -->
+            <div t-if="state.view === 'gantt'" class="fd_gantt">
+                <t t-set="counts" t-value="chartCounts"/>
+                <div class="fd_gantt_head">
+                    <span t-esc="chart.length"/> steps ·
+                    <span t-esc="chartTotal"/> ·
+                    <span t-esc="counts.errors"/> errors ·
+                    <span t-esc="counts.blocked"/> blocked ·
+                    <span t-esc="counts.repeats"/> exact repeats
+                    <span class="fd_gantt_legend">
+                        <span t-if="counts.read"><i class="fd_gantt_key fd_gantt_key_tool"/>tool</span>
+                        <span><i class="fd_gantt_key"/><t t-if="counts.read">thinking or waiting</t><t t-else="">until the next line</t></span>
+                        <span><i class="fd_gantt_key fd_gantt_key_error"/>error</span>
+                        <span><i class="fd_gantt_key fd_gantt_key_guard"/>blocked</span>
+                        <span>↻ repeat</span>
+                    </span>
+                    <div t-if="!counts.read and chart.length" class="fd_gantt_note">
+                        This turn's tool calls are not read yet, so errors and tool time are missing.
+                    </div>
+                </div>
+                <div t-if="state.stepsLoading" class="fd_box_empty">Loading…</div>
+                <div t-elif="!chart.length" class="fd_box_empty">
+                    This turn wrote nothing with a timestamp to lay out.
+                </div>
+                <div t-else="" class="fd_gantt_rows">
+                    <div t-foreach="chart" t-as="step" t-key="step.seq"
+                         t-attf-class="fd_gantt_row {{step.family ? 'fd_gantt_f_' + step.family : ''}}">
+                        <span class="fd_gantt_name" t-att-title="step.title">
+                            <t t-esc="step.tool_name"/><span t-if="step.repeat" class="fd_gantt_rep"> ↻</span>
+                        </span>
+                        <span class="fd_gantt_track">
+                            <span t-attf-class="fd_gantt_bar {{step.heavy ? 'fd_gantt_heavy' : ''}}"
+                                  t-attf-style="left: {{step.left}}%; width: {{step.width}}%"
+                                  t-att-title="step.title">
+                                <span t-if="step.toolPct != null" class="fd_gantt_tool"
+                                      t-attf-style="width: {{step.toolPct}}%"/>
+                            </span>
+                        </span>
+                        <span class="fd_gantt_spent" t-esc="step.spent"/>
+                    </div>
+                </div>
+            </div>
+
+            <div t-if="state.view === 'transcript'" class="fd_box_scroll"
+                 t-ref="scroller" t-on-scroll="onScroll">
                 <div t-if="state.loading" class="fd_box_empty">Loading…</div>
                 <t t-else="">
+                    <!-- The newest thing on screen: not yet a real row, so no
+                         id and no buttons. The scroller is column-reverse, so
+                         this has to sit before the real rows in DOM order to
+                         land below the newest of them. -->
+                    <div t-if="!watching and state.streamDraft" class="fd_bubble fd_bubble_assistant fd_bubble_draft">
+                        <div class="fd_bubble_head">
+                            <span class="fd_bubble_role">assistant</span>
+                        </div>
+                        <div class="fd_bubble_text fd_md" t-out="streamDraftBody"/>
+                    </div>
                     <div t-foreach="shown" t-as="line" t-key="line.id"
                          t-attf-class="fd_bubble fd_bubble_{{line.role}}">
                         <div class="fd_bubble_head">
                             <span class="fd_bubble_role" t-esc="line.role"/>
+                            <span t-if="line.role === 'peer'" class="fd_bubble_from" t-esc="peerLabel(line)"/>
                             <span class="fd_bubble_seq" t-esc="line.seq"/>
-                            <span class="fd_bubble_ts" t-esc="line.ts"/>
+                            <span class="fd_bubble_ts" t-esc="stamp(line.ts)"/>
                         </div>
                         <div t-if="line.text" class="fd_bubble_text fd_md" t-out="bodyOf(line)"/>
 
@@ -54,7 +135,7 @@
             <!-- The process is parked while this is on screen: the runner is
                  holding the CLI's request open until one of these buttons
                  answers it, or its own timeout does. -->
-            <div t-if="ask" class="fd_ask" tabindex="0" t-ref="ask" t-on-keydown="onAskKeydown">
+            <div t-if="ask and !watching" class="fd_ask" tabindex="0" t-ref="ask" t-on-keydown="onAskKeydown">
                 <div class="fd_ask_head">
                     <span class="fd_ask_badge">Permission</span>
                     <span class="fd_ask_tool" t-esc="ask.tool_name"/>
@@ -87,7 +168,7 @@
             <!-- Sending only queues the turn for the runner; the reply arrives
                  over the bus like any other turn, and the state chip above says
                  what the process is doing meanwhile. -->
-            <div class="fd_box_compose">
+            <div t-if="!watching" class="fd_box_compose">
                 <div t-if="state.error" class="fd_box_error" t-esc="state.error"/>
                 <div t-if="!state.error and state.runtimeError" class="fd_box_error" t-esc="state.runtimeError"/>
                 <textarea class="fd_box_input" rows="1" t-ref="draft"

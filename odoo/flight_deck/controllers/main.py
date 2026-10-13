@@ -80,3 +80,35 @@ class FlightDeckToolImage(http.Controller):
             # Bytes at a byte offset in an append-only file do not change.
             ("Cache-Control", "private, max-age=604800"),
         ])
+
+
+class FlightDeckToolContent(http.Controller):
+    """The file a tool call wrote, served as its own document.
+
+    It is served rather than handed to the page as text for one reason: an
+    iframe pointing here gets an opaque origin and the response's own
+    Content-Security-Policy, so a drawing can be shown without any of it ever
+    becoming markup inside FlightDeck.
+    """
+
+    # Two fences, neither trusting the other: the sandbox attribute on the
+    # iframe, and a policy that allows nothing but the styles the file spells
+    # out and the images it inlines.
+    POLICY = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; form-action 'none'"
+
+    @http.route("/flight_deck/tool_content/<int:line_id>", type="http", auth="user")
+    def tool_content(self, line_id, **kw):
+        line = request.env["flightdeck.message.text"].browse(line_id).exists()
+        if not line:
+            return request.not_found()
+        found = line._call_content()
+        if not found:
+            return request.not_found()
+        data, media_type = found
+        return request.make_response(data, headers=[
+            ("Content-Type", "%s; charset=utf-8" % media_type),
+            ("Content-Length", str(len(data))),
+            ("X-Content-Type-Options", "nosniff"),
+            ("Content-Security-Policy", self.POLICY),
+            ("Cache-Control", "private, max-age=604800"),
+        ])

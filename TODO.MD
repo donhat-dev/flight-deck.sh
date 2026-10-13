@@ -13,7 +13,64 @@ login set up by hand, on production too; Odoo never manages that credential.
 | container | `odoo:19.0`, uid 100, HOME `/var/lib/odoo` (volume `odoo-data`), no CPU/RAM limit, entrypoint env carries the DB role and password; the odoo command line itself carries `--db_password`, readable by any process in the container through /proc |
 | one process, many turns | `claude -p --input-format stream-json` served two turns on one process; `system/init` comes with each turn, `result` closes each turn; haiku in a bare cwd: 0.078 USD a turn |
 | composer → reply on screen (zone B, resume of a stopped session) | stopped → busy 0.3 s → idle with the reply drawn at 4.3 s (`devtools_mcp_trace/2026-09-10-runner-send/`) |
-| claude writes the transcript 0600 | a default ACL never reaches it (the mask follows the group bits), so the host runner chmods it 0640 after each turn (`-transcript-mode 0640`) |
+| claude writes every transcript 0600 | a default ACL never reaches one (the mask follows the group bits): a directory with `setfacl -d -m u:100:r` gives a file created 0600 `mask::---` and a file created 0644 `mask::r--` |
+| reading them instead by identity | the container runs `user: "1000:101"`; 0 of 238 agent transcripts unreadable, filestore and spool still writable, transcript mount refuses writes |
+
+- [x] Turns in the transcript box. A turn is a prompt somebody wrote and everything the
+      session did about it, split on the lines rather than stored: `models/session_turn.py`
+      adds `fd_turns` and `fd_turn_steps` to `flightdeck.session`, both scoped to a session or
+      to one agent. The rule for "a person's prompt" was measured, not guessed — a user line
+      with no tool name, not starting with `<` (task notifications, editor state, slash
+      commands, reminders), not `[Request interrupted`, `[Image:` or `Caveat:`. Session 580:
+      13,653 assistant lines, 1,424 raw user lines, 965 turns. The box gained a picker that
+      opens on the last turn and bounds what it reads to that turn's lines, and a Gantt tab.
+      Because it lives in the box, the form, the agent dialog and every column of the wall get
+      it at once. Measured: 61 options, default #966, picking #909 narrows the box to seq
+      124864-124914, the chart lays 15 steps across 100% with 2 called out as where the time
+      went and 1 marked as a repeat (`devtools_mcp_trace/turn-gantt.png`, `turn-picked.png`).
+      Not doing: a stored turn model, analysis across turns, agent sub-rows inside a chart.
+- [x] A bar is laid on the gap from one line to the next, which is not how long a tool ran: a
+      result is written back onto the line that called it, so no line carries an end of its
+      own. Said in the method docstring and in the chart's own header.
+- [x] Two OWL traps, both silent. A `t-foreach` variable named `turn` resolved to the
+      component's `turn` getter, so all 60 options carried the current turn's number; renaming
+      the loop variable fixed it. And `.find((a) => a.id === x)` inside a `t-on-change`
+      expression fails to compile (`v19 is not a function`) — arrow functions nested in a
+      template expression belong in a method.
+- [x] Transcripts side by side, as a client action (`flight_deck.transcript_wall`, menu
+      **Side by side**). Rows of columns. A column takes an equal share of its row unless it
+      has been dragged, so the count decides the width and nobody sets a size; a row holds at
+      most three, because a fourth is narrower than a tool call. A row with fewer than two
+      columns ends in a dashed square with a `+` in it, and that square is gone as soon as the
+      row is a comparison — the third column comes from the button beside the row. One row
+      fills the page; two or more are 80vh each, so the next one shows. The column is the same
+      `TranscriptBox` the form uses, so nothing about a turn renders twice. The layout lives in
+      `localStorage` (the flat list an older browser holds still opens, as one row), and the
+      action reads `context.fd_panes` so a form can seed one later. Measured at 1600x1000: one
+      column and the square split the row 697/713 px, the square disappears at two columns, the
+      third is refused a fourth (rail button disabled, clone button gone), rows are 800 px
+      against 80vh = 800, a drag clamps at the 320 px reading width, evening out restores the
+      share, and a reload brings back 2 rows and 4 columns with 0 console errors
+      (`devtools_mcp_trace/wall-rows.png`, `wall-rows-restored.png`).
+      Not doing: dragging a column to reorder, tabs inside a column, scroll kept in step.
+- [x] Dragging a divider moved one column, not the boundary. The left column gave up pixels
+      and the right one kept its own, so the row came up short by exactly what was dragged and
+      the shortfall showed as a gap at the end. A drag now takes from one side and gives to the
+      other, and the last column of a row grows from its width rather than sitting at it, so a
+      closed column or a resized window is absorbed as well. Measured at 1600x1000, two columns
+      then three: every drag, every over-drag against the 320 px floor, closing the third
+      column, and narrowing the window to 1200 and back all leave the row exactly full
+      (`GAP 0` throughout, `devtools_mcp_trace/wall-resize-no-gap.png`).
+- [x] A resized column rendered 28,906 px wide while its own style said 525. A flex item
+      defaults to `min-width: auto`, which is its widest unbreakable content, and one long line
+      in a tool call is wider than any screen. Both branches of the column style now state a
+      min-width; the pinned one says 0 and the drag does the clamping.
+- [x] One bus channel, many boxes. `deleteChannel` is unconditional in the bus worker, so the
+      second box to leave a session took the channel away from the first — two columns on one
+      session, or an agent dialog over a form. The boxes now count themselves onto a channel.
+      Negative test, same script both ways: with the count disabled the surviving column
+      missed the state message (`RECEIVED_BUS false`), with it restored it got it
+      (`RECEIVED_BUS true`, `devtools_mcp_trace/wall-shared-channel.png`).
 
 ## Container (this branch)
 
@@ -30,7 +87,7 @@ login set up by hand, on production too; Odoo never manages that credential.
 Description=fd-runner (host zone)
 
 [Service]
-ExecStart=%h/.flightdeck/bin/fd-runner -spool %h/.flightdeck/spool/host -claude %h/.nvm/versions/node/v22.23.0/bin/claude -idle 15m -transcript-mode 0640
+ExecStart=%h/.flightdeck/bin/fd-runner -spool %h/.flightdeck/spool/host -claude %h/.nvm/versions/node/v22.23.0/bin/claude -idle 15m
 WorkingDirectory=%h/.flightdeck/runner-home
 Restart=on-failure
 
@@ -81,3 +138,66 @@ WantedBy=default.target
 - addons mount `rw`, scratch DB, `--test-tags /flight_deck` gate (loop D)
 - terminal in Odoo (`ttyd`) — dropped
 - watching all sessions
+- [x] Agent map in Odoo — `flightdeck.session.agent`, built from the last compact boundary the
+      way the CLI's own reader builds it. Measured: session 208f6493 gives 5 agents, the tree
+      renders 5 rows with status dots, a click loads that agent's own JSONL (84 lines) into a
+      dialog with no composer. Screenshots `devtools_mcp_trace/agentmap-01-tab.png`,
+      `agentmap-02-popup.png`.
+- [ ] An agent stays `working` when nothing ever reports its end: the parent transcript carries
+      no "the process died" line, which is what the extension gets from its own process. The
+      hook path (`SubagentStop`, `Stop.background_tasks`) is what closes this.
+- [x] Subagent transcripts are readable from the container. The ACL could not do it — its mask
+      is empty on a 0600 file — so the container runs as the uid that owns them
+      (`user: "${FD_UID}:101"`) and the runner's `-transcript-mode` chmod is gone. Measured:
+      0 of 238 agent transcripts unreadable, 48 of them 0600; agent 228 loaded 186 rows from a
+      0600 file through the map dialog (`devtools_mcp_trace/agent-transcript-0600.png`).
+- [x] Nested agents on the map. An agent can spawn its own agent: measured 1 of 231 agent
+      metadata files at `spawnDepth: 2`, its Agent call living in the parent agent's own JSONL
+      and never in the session's. The map now adopts those from `parentAgentId` in the metadata.
+      Session 395a72f8 → 114 rows, 1 nested block rendered (`agentmap-03-nested.png`).
+- [x] Workflow agents on the map. The `Workflow` call is now scanned beside `Agent`: its
+      answer names the directory it will write into, which becomes the row's `workflow_id`,
+      and the `journal.jsonl` beside the transcripts names every agent the workflow started,
+      with the phase and label the script gave it. The workflow itself is a card that opens
+      nothing — it has no transcript of its own. A workflow launched before a resume writes
+      under the session id current at the time, so the directory is searched across the
+      project when the session's own tree does not hold it. Measured on session 395a72f8:
+      journal `started` 8 / 7 / 10 → rows 8 / 7 / 10, two rebuilds keep 145 rows, and one
+      fourth workflow whose session transcripts are gone reads `stopped` rather than running
+      forever (`devtools_mcp_trace/workflow-map.png`, `workflow-child-transcript.png`).
+- [x] Agent map drawn the way the terminal draws it: the session is the root card on the left,
+      generations grow right with elbow connectors, each card carries a status dot and a
+      `3m 8s · 62.1k tokens` line. The root opens nothing — its transcript is the page the map
+      sits on; only an agent card opens a dialog. Usage comes from the `<usage>` block in the
+      task notification. Measured on session 7d3a622b: 1 root, 5 agent cards, 2 generations,
+      root is not a button, 0 console errors (`agentmap-04-tree.png`, `agentmap-05-page.png`).
+- [x] A nested agent carries its own numbers. Two sources, because neither covers both cases:
+      `_read_outcomes` now opens the parent's own transcript by its `transcript_path` and runs on
+      every rebuild rather than only at adoption, and `_read_usage` sums the agent's own file from
+      a stored offset for the agents nobody reports on at all — a workflow's agents, whose journal
+      carries no usage, and a child that outlived the parent whose file would have named it.
+      Cache reads are left out to match what a notification reports: counting them put a 39-turn
+      agent at 2.6M against the 120k its notification gave, and what is left still runs 10 to 25
+      per cent above that figure. Measured on session 395a72f8: 26 of 26 nested rows had no
+      tokens, 26 of 26 have them now (118k-288k, the same order as the top-level cards), two
+      rebuilds in a row drift by 0, rebuild takes 1.5 s, and a child adopted before its first
+      write no longer stays `stopped` once its file appears
+      (`devtools_mcp_trace/nested-agent-tokens.png`).
+- [x] Three map bugs fixed. Rebuild was deleting and recreating every row, so the browser merged
+      the new ids on top of the old ones it still held — 5 agents became 20 after four rebuilds.
+      Rebuild now matches rows on the call that made them and prunes what the file no longer names;
+      a boundary sitting at the offset the read starts from is no longer treated as a new one.
+      Measured: three rebuilds in a row keep 5 rows with the same ids, and two rebuilds in the
+      browser keep 5 cards.
+- [x] Map redrawn down the page like Odoo's own org chart — it shares the form with the transcript
+      pane and a left-to-right tree spent that narrow column on connectors.
+- [x] A card whose transcript cannot be read is clickable again and says why: the click raises a
+      UserError naming the file instead of the card sitting dead.
+- [x] Session form: notebook moved under the session id, tabs Agents / General / Usage / Treasures
+      / Settings, Tool calls and Tokens and cost merged into Usage, Following turned into a smart
+      button. Measured: tab order as listed, Agents opens first, the button toggles
+      Following -> Not following -> Following. `agentmap-08-vertical.png`.
+- [x] Every node on the map is the same width. A generation gives back the inset it took
+      (`margin-right: calc(-1.875rem - 1px)`, the two insets plus the rail), and the tree is pulled
+      in by what its deepest branch sticks out, from a `--fd-org-depth` variable the component sets.
+      Measured: all six cards 288px wide, nothing clipped.
