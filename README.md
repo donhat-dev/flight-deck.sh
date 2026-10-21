@@ -56,7 +56,7 @@ Both start:
 | Backend API | http://127.0.0.1:8010 |
 
 `Ctrl+C` in the runner terminal stops both. The backend reads Claude Code data
-from `~/.claude/projects` and keeps its cache in `backend/audit.local.db`.
+from `~/.claude/projects` and keeps its cache in `python/audit.local.db`.
 
 <details>
 <summary>Persistent Linux host install (systemd)</summary>
@@ -64,7 +64,7 @@ from `~/.claude/projects` and keeps its cache in `backend/audit.local.db`.
 The `Makefile` drives a host install with a built frontend and a systemd unit:
 
 ```bash
-make venv build     # .venv + frontend/dist
+make venv build     # .venv + clients/web/dist
 make serve          # run in the foreground
 make service enable # install and start the systemd service
 ```
@@ -99,7 +99,7 @@ board updates live — each hold shows which session is flying the card.
 
 ![Missions kanban](docs/screenshots/missions.jpg)
 
-Run the FastMCP server from `backend/` (it shares the web UI's store):
+Run the FastMCP server from `python/` (it shares the web UI's store):
 
 ```bash
 ../.venv/bin/python -m flightdeck.mcp_server
@@ -115,12 +115,12 @@ Contract and state machine: [MISSIONS_MVP_CONTRACT.md](MISSIONS_MVP_CONTRACT.md)
 ~/.claude/projects (transcripts)          ~/.claude/jobs, roster
         │  watch / reingest                        │
         ▼                                          ▼
-backend/flightdeck  ── FastAPI, single process ── SQLite (WAL) or PostgreSQL
+python/flightdeck  ── FastAPI, single process ── SQLite (WAL) or PostgreSQL
   routers: core sessions missions charts diff hub stream systems agui
   SSE /api/stream pushes updates; snapshot cache serves warm reads
         ▲                                          ▲
         │ /api (vite proxy)                        │ same store
-frontend/ ── React 18 + Vite ──────────────  flightdeck.mcp_server (FastMCP)
+clients/web/ ── React 18 + Vite ──────────────  flightdeck.mcp_server (FastMCP)
   entries: index.html · radar.html · radio.html · component-lab.html
            radar-lab.html (radar geometry workbench) · home-concept{,-v2}.html
 ```
@@ -136,20 +136,21 @@ frontend/ ── React 18 + Vite ──────────────  fli
 
 ## ⚙️ Configuration
 
-`backend/config.toml` plus environment overrides (env wins):
+`python/config.toml` plus environment overrides (env wins):
 
 | Variable | Meaning | Default |
 | --- | --- | --- |
-| `TOKEN_AUDIT_CONFIG` | Path to config.toml | `backend/config.toml` |
+| `TOKEN_AUDIT_CONFIG` | Path to config.toml | `python/config.toml` |
 | `TOKEN_AUDIT_PROJECTS_DIR` | Claude Code transcripts dir | `~/.claude/projects` |
 | `TOKEN_AUDIT_DB_PATH` | SQLite cache path | `audit.db` |
 | `TOKEN_AUDIT_DATABASE_URL` | Use PostgreSQL instead of SQLite | unset |
 | `TOKEN_AUDIT_SUBSCRIPTION_USD` | Flat-plan price for the “versus subscription” card | `0` |
 | `TOKEN_AUDIT_WATCH` | `1` = watch transcripts and ingest live | `1` in demo |
 | `TOKEN_AUDIT_REINGEST_INTERVAL` | Periodic full-sweep seconds | `120` in demo |
-| `TOKEN_AUDIT_FLOWS_DIR` | Hub flow files | `backend/flows` |
+| `TOKEN_AUDIT_FLOWS_DIR` | Hub flow files | `python/flows` |
 | `TOKEN_AUDIT_GRAPH_FILE` | Dependency graph JSON for Charts | unset |
 | `FLIGHTDECK_WORKSPACE` | Workspace root for the Diff tool | repo parent |
+| `FLIGHTDECK_WEB_DIST` | Built web client to serve at `/` | `clients/web/dist` |
 
 ## 🎨 Design system
 
@@ -157,7 +158,7 @@ FlightDeck ships its own visual contract — warm paper, charcoal ink, one coral
 signal, and a three-layer face/frame/depth grammar for every tactile control.
 The contract lives in [DESIGN.md](DESIGN.md), the 18-component reference
 implementation in
-[frontend/src/ui/FlightComponents.jsx](frontend/src/ui/FlightComponents.jsx)
+[clients/web/src/ui/FlightComponents.jsx](clients/web/src/ui/FlightComponents.jsx)
 (documented in
 [docs/flightdeck-component-system.md](docs/flightdeck-component-system.md)),
 and everything is showcased live at `/component-lab.html`:
@@ -170,8 +171,9 @@ Home-layout explorations ship as separate Vite entries: `/home-concept.html`
 ## 🗂️ Repository layout
 
 ```
-backend/        FastAPI app (flightdeck package), config.toml, requirements
-frontend/       React + Vite app and the standalone concept/lab entries
+python/         FastAPI app (flightdeck package), config.toml, requirements
+clients/web/    React + Vite app and the standalone concept/lab entries
+clients/odoo/   Flightdoo Odoo modules (mounted into docker/odoo19)
 warp-fleet/     experimental: drive Warp terminal panes from an orchestrator
 docs/           design docs, component system, screenshots (+ capture script)
 docker/ deploy/ container and deployment assets
@@ -182,12 +184,12 @@ Makefile        Linux host runner (venv, build, systemd service)
 ## 🛠️ Development
 
 ```bash
-npm --prefix frontend run dev     # frontend on :5190 (proxies /api to :8010)
-npm --prefix frontend run build   # production bundle into frontend/dist
-npm --prefix frontend test        # vitest (component contract tests)
+npm --prefix clients/web run dev     # frontend on :5190 (proxies /api to :8010)
+npm --prefix clients/web run build   # production bundle into clients/web/dist
+npm --prefix clients/web test        # vitest (component contract tests)
 ```
 
-The backend runs alone from `backend/` with
+The backend runs alone from `python/` with
 `../.venv/Scripts/python -m uvicorn flightdeck.server:app --port 8010`
 (`bin` instead of `Scripts` on Linux).
 

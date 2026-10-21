@@ -16,7 +16,7 @@ docker compose up -d
 docker exec flightdeck-odoo19 /entrypoint.sh odoo -c /etc/odoo/odoo.conf \
     -d flightdeck_odoo -i flight_deck --stop-after-init
 docker exec -i flightdeck-odoo19 /entrypoint.sh odoo shell -c /etc/odoo/odoo.conf \
-    -d flightdeck_odoo --no-http < ../../odoo/migration/import_ledger.py
+    -d flightdeck_odoo --no-http < ../../clients/odoo/migration/import_ledger.py
 ```
 
 http://flightdoo.localhost or http://localhost:8029, `admin` / `admin`. The host name is served
@@ -29,23 +29,23 @@ the entrypoint that turns them into `--db_user` / `--db_password`.
 
 | | |
 |---|---|
-| `odoo/flight_deck` | the module: 7 models, native views, a transcript chat box, a live reader |
-| `odoo/migration/import_ledger.py` | one pass over the FlightDeck Postgres ledger, idempotent |
-| `odoo/migration/transcript_to_chatter.py` | one session's transcript as `mail.message` |
-| `odoo/migration/session_to_channel.py` | the same session as a `discuss.channel` |
-| `odoo/migration/inject_turn.py` | append one turn, to watch it arrive live |
+| `clients/odoo/flight_deck` | the module: 7 models, native views, a transcript chat box, a live reader |
+| `clients/odoo/migration/import_ledger.py` | one pass over the FlightDeck Postgres ledger, idempotent |
+| `clients/odoo/migration/transcript_to_chatter.py` | one session's transcript as `mail.message` |
+| `clients/odoo/migration/session_to_channel.py` | the same session as a `discuss.channel` |
+| `clients/odoo/migration/inject_turn.py` | append one turn, to watch it arrive live |
 | `runner/` | fd-runner: a Go binary that keeps `claude -p` processes alive for Odoo, driven by files in a spool directory |
-| `odoo/flight_deck/connectors` | how Odoo reaches a runner; `spool` is the one carrier written |
+| `clients/odoo/flight_deck/connectors` | how Odoo reaches a runner; `spool` is the one carrier written |
 | `runner/control.go` | the permission control channel: the CLI asks, a person in Odoo answers |
-| `odoo/flight_deck/static/src/components/transcript_panel/tool_renderers.js` | which component draws a tool call's output; a registry, so a new output shape is a new entry |
+| `clients/odoo/flight_deck/static/src/components/transcript_panel/tool_renderers.js` | which component draws a tool call's output; a registry, so a new output shape is a new entry |
 | `docker/odoo19` | its own compose, database and port; shares nothing with the NAKIVO tracks |
 | `docs/2026-09-08-odoo-base-app-experiment.md` | the spec this was built to |
 | `docs/2026-09-08-odoo-base-app-findings.md` | every measurement, and what each one settled |
 | `docs/2026-09-10-odoo-harness-control-plane.md` | the direction after the experiment: Odoo as the harness control plane |
 | `docs/2026-09-14-agent-events-and-session-control.md` | three event sources — hooks, transcript bytes, the CLI's own session commands — and how they fit together |
 | `TODO.MD` | the embed MVP checklist, with the numbers behind each choice |
-| `odoo/flight_deck/models/session_agent.py` | one row per agent a session spawned; the map starts at the last compact boundary, and an agent's own transcript is read only when someone opens it |
-| `odoo/flight_deck/static/src/components/agent_map/` | the agent tree on the session form: status dots, spawn hierarchy, click for that agent's transcript in a dialog |
+| `clients/odoo/flight_deck/models/session_agent.py` | one row per agent a session spawned; the map starts at the last compact boundary, and an agent's own transcript is read only when someone opens it |
+| `clients/odoo/flight_deck/static/src/components/agent_map/` | the agent tree on the session form: status dots, spawn hierarchy, click for that agent's transcript in a dialog |
 
 ## What it found
 
@@ -89,7 +89,7 @@ The long version is in the findings document. The short version:
   each keeps its own byte gate and its own `seq`. They will disagree, silently. Decide who
   reads: the two are safe today only because Odoo follows a small set of sessions.
 - **`session_send.py` has no counterpart here.** It calls `POST /api/session/<id>/send` on the
-  FlightDeck backend, which lives in `backend/flightdeck/routers/send.py` — deliberately not in
+  FlightDeck backend, which lives in `python/flightdeck/routers/send.py` — deliberately not in
   this commit, because that tree carries unrelated uncommitted work. Until that side is
   committed the model raises a clear error instead of sending, and no view exposes it.
 - **Following is opt-in per session, and it has to stay that way.** The transcript tree is 1,927

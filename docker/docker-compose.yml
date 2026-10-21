@@ -24,7 +24,7 @@ services:
     # panel works without this.)
     # pid: host
     environment:
-      TOKEN_AUDIT_CONFIG: /app/backend/config.toml
+      TOKEN_AUDIT_CONFIG: /app/python/config.toml
       # container-local paths (override config.toml, which has host paths)
       TOKEN_AUDIT_PROJECTS_DIR: /data/claude/projects
       TOKEN_AUDIT_DB_PATH: /app/data/audit.db
@@ -55,7 +55,7 @@ services:
       # workspace root for the Diff tool's repo discovery (matches the mount below)
       FLIGHTDECK_WORKSPACE: /workspace
       # Integration Hub: saved flows live here (JSON files, git-tracked, no secrets)
-      TOKEN_AUDIT_FLOWS_DIR: /app/backend/flows
+      TOKEN_AUDIT_FLOWS_DIR: /app/python/flows
       # Systems views (Comms/Manuals/Hangar) — container paths of the mounts below
       TOKEN_AUDIT_CLAUDE_JSON: /data/claude/.claude.json
       TOKEN_AUDIT_SKILLS_DIR: /data/claude/skills
@@ -63,16 +63,16 @@ services:
       TOKEN_AUDIT_DOCKER_SOCK: /var/run/docker.sock
     volumes:
       # live source mount so uvicorn --reload picks up backend edits
-      - ../backend/flightdeck:/app/backend/flightdeck
+      - ../python/flightdeck:/app/python/flightdeck
       # test suite, read-only: not COPYed by the Dockerfile, so `docker compose
       # run --rm token-audit pytest ...` needs this to find tests/ at all.
-      - ../backend/tests:/app/backend/tests:ro
+      - ../python/tests:/app/python/tests:ro
       # Integration Hub saved flows (read-WRITE: the API saves flow JSON here)
-      - ../backend/flows:/app/backend/flows
-      # host-built SPA (npm --prefix frontend run build) served as the static
+      - ../python/flows:/app/python/flows
+      # host-built SPA (npm --prefix clients/web run build) served as the static
       # frontend; overrides the dist baked into the image so UI changes ship
       # with a `docker compose up -d` recreate, no image rebuild needed.
-      - ../frontend/dist:/app/frontend/dist:ro
+      - ../clients/web/dist:/app/clients/web/dist:ro
       # Claude Code logs, read-only (Linux bind mounts pass inotify -> watcher works)
       # mounted under .../claude/projects so ccusage's CLAUDE_CONFIG_DIR resolves
       - ${HOME}/.claude/projects:/data/claude/projects:ro
@@ -120,7 +120,7 @@ services:
     command: >
       uvicorn flightdeck.server:app
       --host 0.0.0.0 --port 8010
-      --reload --reload-dir /app/backend/flightdeck
+      --reload --reload-dir /app/python/flightdeck
       --timeout-graceful-shutdown 2
     restart: unless-stopped
 

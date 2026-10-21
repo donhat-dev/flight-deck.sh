@@ -2,12 +2,12 @@
 
 Version: 1.0  
 Scope: FlightDeck product surfaces and the 18-component Interface Kit  
-Reference implementation: `frontend/src/index.css`, `frontend/src/ui/FlightComponents.jsx`  
+Reference implementation: `clients/web/src/index.css`, `clients/web/src/ui/FlightComponents.jsx`  
 Behavior and accessibility contract: `docs/flightdeck-component-system.md`
 
 This file is the visual source of truth for humans, coding agents, and screen-generation tools. New screens must feel native to FlightDeck before they feel novel. If a token value changes in code, update this file in the same change.
 
-**Single source, as of 2026-09-07. Flat since the same day** — the four-rung offset ladder was written, trialled for an afternoon and reverted. The Night Ops tokens are the baseline, depth is gone, §5 is now the flat state contract and §4 carries the radius split. The ladder is preserved in `showcases/flightdeck-depth-unification.html` and `OUTDATED_CHOICES.md`, not in the code. The parallel `design-system-flightdeck-night` skill is retired and moved to `orphans/`; its Night Ops direction (Outfit, `#050505`, double-bezel, glow, pill radii) is recorded in `OUTDATED_CHOICES.md` for reading older artifacts and the `pencil-new.pen` canvas history. Nothing else describes FlightDeck's visual language. Where this file and the code disagree, **the code wins and this file gets corrected** — `frontend/src/ui/compositionLint.test.jsx` is the executable half of this contract, and its rule ids are cited below.
+**Single source, as of 2026-09-07. Flat since the same day** — the four-rung offset ladder was written, trialled for an afternoon and reverted. The Night Ops tokens are the baseline, depth is gone, §5 is now the flat state contract and §4 carries the radius split. The ladder is preserved in `showcases/flightdeck-depth-unification.html` and `OUTDATED_CHOICES.md`, not in the code. The parallel `design-system-flightdeck-night` skill is retired and moved to `orphans/`; its Night Ops direction (Outfit, `#050505`, double-bezel, glow, pill radii) is recorded in `OUTDATED_CHOICES.md` for reading older artifacts and the `pencil-new.pen` canvas history. Nothing else describes FlightDeck's visual language. Where this file and the code disagree, **the code wins and this file gets corrected** — `clients/web/src/ui/compositionLint.test.jsx` is the executable half of this contract, and its rule ids are cited below.
 
 ## 1. Visual Theme and Atmosphere
 
@@ -180,7 +180,7 @@ The public contract contains exactly 19 components. New primitives require an im
 #### PixelMark
 
 - Navigation and mode marks are 8x8 filled grids drawn at 16px, so one cell is exactly two device pixels and the edges stay crisp (`shapeRendering: crispEdges`).
-- Authored as an ASCII grid and compiled to a single `<path>` at module load, so a mistyped grid throws on import instead of drawing a wrong-but-plausible shape. Reference: `frontend/src/ui/PixelMark.jsx`.
+- Authored as an ASCII grid and compiled to a single `<path>` at module load, so a mistyped grid throws on import instead of drawing a wrong-but-plausible shape. Reference: `clients/web/src/ui/PixelMark.jsx`.
 - No icon font and no icon dependency. A mark that cannot be read at 16px does not belong in the set.
 - The mark sits in a `5px` chip carrying its own fill and rule, no shadow. A chip is a mark, not an action; the nav row around it is the action and takes the pill. The chip is what survives a rail collapsing to 76px, because the label does not.
 

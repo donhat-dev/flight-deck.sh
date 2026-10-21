@@ -4,7 +4,7 @@ The oracle for the Go core: the same transcripts, read in the same order (birth
 time, then mtime, then path, as `fd` does), into a throwaway SQLite file, then
 the four spend answers for every range. Never touches the live Postgres ledger.
 
-    PYTHONPATH=backend .venv/bin/python scripts/go-parity/python_metrics.py \
+    PYTHONPATH=python .venv/bin/python scripts/go-parity/python_metrics.py \
         --projects ~/.cache/fd-parity/projects --db "$SCRATCH/py.db" \
         --subscription-usd 200 > "$SCRATCH/py.json"
 """

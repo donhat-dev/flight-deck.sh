@@ -88,7 +88,7 @@ List order: by status then updated_at desc. All timestamps UTC iso8601 (`Z`).
 ## 5. Missions MCP (greenfield, shares `audit.db`)
 Tools (names snake_case): `missions_list(status?)` · `mission_get(id)` · `mission_create(title, note?, tags?, priority?, status?, claim_session?)` · `mission_claim(id, session_id)` · `mission_release(id)` · `mission_land(id)` · `sessions_list()`.
 Each returns the same JSON as the REST layer. The MCP process opens the same SQLite file (path from
-env `TOKEN_AUDIT_DB_PATH`, default `backend/audit.db`) in WAL mode. Reuse the backend service module if
+env `TOKEN_AUDIT_DB_PATH`, default `python/audit.db`) in WAL mode. Reuse the backend service module if
 importable; otherwise a thin sqlite duplicate of the same SQL is fine for MVP. Framework: `fastmcp`.
 
 ## 6. Seed (backend init, only if `missions` table empty)

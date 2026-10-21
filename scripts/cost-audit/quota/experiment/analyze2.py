@@ -8,7 +8,7 @@ H1: the quota is API-equivalent cost at each model's list price ($1.22 per sessi
 H0: same tokens priced as Opus 5.5, i.e. the published price gap is not applied.
 """
 import glob, json, sys
-sys.path.insert(0, "/home/nathando/Documents/Projects/flight-deck.sh/backend")
+sys.path.insert(0, "/home/nathando/Documents/Projects/flight-deck.sh/python")
 from flightdeck import pricing
 
 MARK = {"a": "Print exactly 2000 lines", "b": "Read tiny.txt 30 times",

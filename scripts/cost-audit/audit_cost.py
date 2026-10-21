@@ -1,6 +1,6 @@
 """Audit FlightDeck's API-equivalent cost: pricing table and dedupe. Read-only on the ledger."""
 import os, sys, collections, psycopg
-sys.path.insert(0, "/home/nathando/Documents/Projects/flight-deck.sh/backend")
+sys.path.insert(0, "/home/nathando/Documents/Projects/flight-deck.sh/python")
 from flightdeck import pricing as fd
 # Corrected table, from platform.claude.com/docs/en/about-claude/pricing read 2026-09-23:
 # (input, write5m, write1h, read, output). Sonnet 5 intro price became standard (no Sept 1 rise).

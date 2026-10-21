@@ -7,8 +7,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$backendDir = Join-Path $projectRoot "backend"
-$frontendDir = Join-Path $projectRoot "frontend"
+$backendDir = Join-Path $projectRoot "python"
+$frontendDir = Join-Path $projectRoot "clients\web"
 $venvPython = Join-Path $projectRoot ".venv\Scripts\python.exe"
 
 foreach ($port in @($BackendPort, $FrontendPort)) {

@@ -2,7 +2,7 @@
 
 **Status:** plan, nothing implemented.
 **Inputs:** `DESIGN.md` (token contract), `docs/flightdeck-component-system.md` (component
-contract), `frontend/src/ui/ComponentLab.jsx` (the component-level proposal that
+contract), `clients/web/src/ui/ComponentLab.jsx` (the component-level proposal that
 just landed), and a design critique of ComponentLab against the UI SFX reference.
 
 ---
@@ -165,7 +165,7 @@ accent" written as prose did not stop the drift the critique observed.
 
 ### Where this lives — stage 2, implemented
 
-`frontend/src/ui/compositionLint.js` + `compositionLint.test.jsx` (35 tests, part
+`clients/web/src/ui/compositionLint.js` + `compositionLint.test.jsx` (35 tests, part
 of `npm test`). It reads the stylesheets by glob, so a sheet added later —
 `radio.css` — is covered without touching the lint.
 

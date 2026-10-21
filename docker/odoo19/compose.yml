@@ -54,7 +54,7 @@ services:
       HARNESS_SECRET_KEYS: ${HARNESS_SECRET_KEYS:?set it in docker/odoo19/.env}
     volumes:
       - ./odoo.conf:/etc/odoo/odoo.conf:ro
-      - ../../odoo:/mnt/flightdeck-addons:ro
+      - ../../clients/odoo:/mnt/flightdeck-addons:ro
       # Third-party addons, kept apart from ours: they are somebody
       # else's code at a pinned commit, not part of this repository.
       - ./addons:/mnt/vendor-addons:ro

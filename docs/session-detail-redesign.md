@@ -1,6 +1,6 @@
 # Session detail, rebuilt around reading
 
-Status: **built** (2026-08-25). Code under `frontend/src/session/`. Mock:
+Status: **built** (2026-08-25). Code under `clients/web/src/session/`. Mock:
 `~/.pencil/documents/34cfd228-b0b9-43de-83ab-012b50ed839a/pencil-new.pen`
 (screens `S1 Reading view`, `S2 System`, `S3 Focus`, `S4/S5 typography`).
 
@@ -163,7 +163,7 @@ built yet.
 
 ## Component inventory to build
 
-Leaves first, each in its own file under `frontend/src/session/`:
+Leaves first, each in its own file under `clients/web/src/session/`:
 
 `Prose` `Prompt` `Thinking` `ToolHeader` `StatusDot` `ToolChip` `ResultBadge`
 `Fold` `AnsiLine` `Terminal` `Diff` `Tree` `ImageBox` `DataTable` `JsonTree`

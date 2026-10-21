@@ -17,7 +17,7 @@ audit_cost.py): those may bill one response twice. They are reported, not remove
     docker exec -i pgcore-17 pg_restore -f - --data-only --table=messages \
         < ~/.flightdeck/backups/flightdeck-2026-09-23-pre-idefix.dump > messages.copy
     set -a; . ./.env; set +a
-    PYTHONPATH=backend .venv/bin/python scripts/cost-audit/merge_dump_rows.py messages.copy [--apply]
+    PYTHONPATH=python .venv/bin/python scripts/cost-audit/merge_dump_rows.py messages.copy [--apply]
 
 Without --apply the transaction is rolled back.
 """

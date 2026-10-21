@@ -64,7 +64,7 @@ DB-access sweep is shared with the SQLite→Postgres swap, so both are done once
 HOST
   app (no container)
     dev  : uvicorn --reload  +  vite HMR (:5190, proxy /api → :8010)
-    prod : systemd --user → uvicorn serving frontend/dist (:8010)
+    prod : systemd --user → uvicorn serving clients/web/dist (:8010)
     supervisor.py → tmux 3.4 native  (agent sessions, Tier 2)
         │ psycopg3 (sync) + pool
         ▼
@@ -179,7 +179,7 @@ _Exit check for Phase 0: pytest green + UI drive identical, on SQLite still._
       always-on shared PG (not spun up per session).
 - [ ] Confirm the vite dev **proxy** forwards `/api` → `:8010` (api.js uses
       relative fetch).
-- [ ] `make build` → `vite build` → `frontend/dist`; prod = systemd uvicorn
+- [ ] `make build` → `vite build` → `clients/web/dist`; prod = systemd uvicorn
       serving `dist` (single process, no vite).
 - [ ] `~/.config/systemd/user/flightdeck.service` with explicit
       `Environment=PATH=…/.nvm/…/v22/bin:/usr/bin:/bin`, `WorkingDirectory`,

@@ -221,13 +221,13 @@ __marimo__/
 .venv/
 node_modules/
 audit.db*
-backend/audit.local.db*
+python/audit.local.db*
 *.pyc
 __pycache__/
 .pytest_cache/
 .superpowers/
 .worktrees/
-frontend/dist/
+clients/web/dist/
 
 # Third-party Odoo addons, pinned in docker/odoo19/README.md rather than vendored.
 docker/odoo19/addons/

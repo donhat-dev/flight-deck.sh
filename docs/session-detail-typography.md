@@ -1,7 +1,7 @@
 # Typography for the session transcript: four candidates
 
 Scope: the type system for one surface only, the FlightDeck session detail view.
-Decided: **D-prime**, built in `frontend/src/session/session.css`.
+Decided: **D-prime**, built in `clients/web/src/session/session.css`.
 Mocks: Pencil screens `S4 Typography proposals` and `S5 D-prime after review`.
 
 ## The surface

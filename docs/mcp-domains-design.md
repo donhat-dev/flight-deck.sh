@@ -26,7 +26,7 @@ Ba domain, dựng trong FlightDeck chứ không adopt server ngoài, không tác
 
 ### 1.1 Một domain = một dòng trong registry
 
-`backend/flightdeck/agentsurface/registry.py` giữ bảng `_DOMAINS`: tiền tố tên → module chứa bảng `TOOLS`. Thêm domain là thêm một dòng, cộng một module có `TOOLS = {name: (fn, description, schema_props, required)}`.
+`python/flightdeck/agentsurface/registry.py` giữ bảng `_DOMAINS`: tiền tố tên → module chứa bảng `TOOLS`. Thêm domain là thêm một dòng, cộng một module có `TOOLS = {name: (fn, description, schema_props, required)}`.
 
 Tool viết một lần, hiện ở **ba mặt**: CLI (`flightdeck <tool>`), MCP (wrapper spawn CLI), và HTTP router. Không viết ba lần.
 

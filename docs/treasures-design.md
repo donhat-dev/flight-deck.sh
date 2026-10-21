@@ -38,7 +38,7 @@ Two concrete pains, both measured against how this workspace actually works
 
 | Amendment | Change | Why |
 |---|---|---|
-| Package path | `backend/flightdeck/treasures/` (not repo-root `treasures/`) | The package must import `flightdeck.db`; a subpackage beside `hub/`, `systems/`, `agui/` keeps imports plain and matches the existing layout. |
+| Package path | `python/flightdeck/treasures/` (not repo-root `treasures/`) | The package must import `flightdeck.db`; a subpackage beside `hub/`, `systems/`, `agui/` keeps imports plain and matches the existing layout. |
 | Timestamp type | `text` ISO-8601 UTC, set in Python (not `timestamptz`) | Keeps **one** portable DDL for SQLite (tests) and PostgreSQL (production) — no `now()` vs `CURRENT_TIMESTAMP` split — and matches the existing `messages.ts` / `tool_calls.ts` columns. |
 | MCP registration | Registered in **both** `flight-deck.sh/.mcp.json` **and** the workspace-root `/home/nathando/Documents/Projects/.mcp.json` | Claude Code reads the `.mcp.json` of the session's cwd. Sessions run from the workspace root, so the repo-local file alone would never be loaded. The repo copy keeps the tool self-contained for a fresh clone. MCP config loads at session start, so a **new session** is required after changing it. |
 | Render workdir | pandoc runs in a **temporary** dir, not the version dir | pandoc needs the template/CSS/fonts copied beside the source to resolve relative paths. Writing them into `v{n}/` left ~13 KB of duplicated build inputs in every version forever; the rendered HTML already carries them base64-embedded. Caught by inspecting the filestore after the first live wrap. |

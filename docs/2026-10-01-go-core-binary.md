@@ -17,9 +17,9 @@ replaces its spend path.
 |---|---|
 | Core | Go single binary, `CGO_ENABLED=0`, daemon and CLI in one |
 | Node storage | SQLite through `modernc.org/sqlite` (pure Go). Postgres stays for the team control plane (Odoo 19 CE), not for a node |
-| UI | The React/Vite UI is reused; `fd serve --ui frontend/dist` serves it. An Electron shell comes later |
+| UI | The React/Vite UI is reused; `fd serve --ui clients/web/dist` serves it. An Electron shell comes later |
 | Scope | The slim core: ingest, ledger, spend, quota, burn, thinking, tasks, transcript, runner. Treasures, Radar, the MCP domains, Systems and Charts move out (see the split table of 2026-09-30) |
-| CLI contract | Kept from `backend/flightdeck/cli.py`: with `--json`, one JSON document on stdout and nothing else; exit 0 ok, 2 refusal (`{"error": …}` on stdout), 3 unknown command, 1 crash (stderr) |
+| CLI contract | Kept from `python/flightdeck/cli.py`: with `--json`, one JSON document on stdout and nothing else; exit 0 ok, 2 refusal (`{"error": …}` on stdout), 3 unknown command, 1 crash (stderr) |
 | Build | No Go on the host. `make go-test` / `make go-build` run `golang:1.26-alpine` in Docker as the calling user |
 | Prices | A table in the ledger, seeded from defaults and edited with `fd pricing` (decided 2026-10-01) |
 
@@ -33,7 +33,7 @@ The earlier plan split storage into `derived.db` (rebuildable from transcripts) 
 - Postgres empties UNLOGGED tables after an unclean stop. `pgcore-17` logged crash
   recovery on 2026-08-25 and on 2026-09-29. After the 2026-09-29 one the live
   ledger dropped to 12 sessions; `agent_activity` (a LOGGED table) still lists 221.
-  The ledger now starts on 2026-07-10, while `backend/audit.db` holds rows from
+  The ledger now starts on 2026-07-10, while `python/audit.db` holds rows from
   2026-06-22, which fits the 2026-08-25 recovery having cut June too.
 - The Python reader kept a process-local "file unchanged" cache, so after the
   2026-09-29 truncation it never re-read the 520 files that had not changed since.
@@ -66,7 +66,7 @@ So, for `fd`:
   lower it.
 - Titles: `custom-title` beats `ai-title` whatever the record order.
 
-## Metrics semantics (as `backend/flightdeck/metrics.py`)
+## Metrics semantics (as `python/flightdeck/metrics.py`)
 
 - Pricing as `pricing.py`: longest prefix wins, cache-read overrides (Opus 5.5
   0.05, Fable/Mythos 5.1 0.025, others 0.1), writes 1.25× and 2×, fast-mode rates,
@@ -157,7 +157,7 @@ Each of these gets its own plan, built on the same ledger and ingest contract.
 
 - The binary name for other machines: `fd` is free on this host but collides with
   fd-find elsewhere. Decide in the packaging slice.
-- 2026-06-22 to 2026-07-10 exists only in `backend/audit.db`, keyed by line uuid
+- 2026-06-22 to 2026-07-10 exists only in `python/audit.db`, keyed by line uuid
   and not deduplicated (about 3.7× over). Importing it needs the heuristic key; not
   in slice 1.
 - How much to trust the 14,024 heuristic-deduplicated rows: the import reports

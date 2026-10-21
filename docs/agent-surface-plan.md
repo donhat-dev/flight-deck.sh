@@ -67,7 +67,7 @@ Today no such policy exists.
 ## Target shape
 
 ```
-backend/flightdeck/
+python/flightdeck/
   agentsurface/
     runtime.py      dotenv, db config, connection lifecycle (open-per-call for CLI,
                     reaper-managed for MCP), commit-after-every-call

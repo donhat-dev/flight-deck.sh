@@ -81,7 +81,7 @@ deny() {
 # mtime cache still applies within this one call; the reload-without-restart
 # guarantee that matters is about the long-lived FastAPI process, not this
 # script, which re-reads approve.conf fresh on every tool call anyway.
-decision_json="$(printf '%s' "$input" | PYTHONPATH="$HERE/backend" "$HERE/.venv/bin/python" -c '
+decision_json="$(printf '%s' "$input" | PYTHONPATH="$HERE/python" "$HERE/.venv/bin/python" -c '
 import json, sys
 from flightdeck.decisions import should_escalate, _command_text
 

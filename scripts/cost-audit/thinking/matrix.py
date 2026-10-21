@@ -1,6 +1,6 @@
 """Thinking time and tokens per response, by model and effort, from response_timing.
 
-    PYTHONPATH=backend .venv/bin/python scripts/cost-audit/thinking/matrix.py [since]
+    PYTHONPATH=python .venv/bin/python scripts/cost-audit/thinking/matrix.py [since]
 
 Only responses that thought. Time = request sent -> thinking block written; net
 time subtracts the per-model floor (median time of responses with < 50 thinking
@@ -29,7 +29,7 @@ def summary(v):
             "p75": q[74], "p90": q[89], "p95": q[94], "p99": q[98], "max": v[-1]}
 
 
-cfg = config.load("backend/config.toml")
+cfg = config.load("python/config.toml")
 db.configure(cfg)
 c = db.open_write(cfg["db_path"])
 rows = c.execute(

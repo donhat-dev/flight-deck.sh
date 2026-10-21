@@ -11,7 +11,7 @@ docker compose up -d
 docker exec flightdeck-odoo19 /entrypoint.sh odoo -c /etc/odoo/odoo.conf \
     -d flightdeck_odoo -i flight_deck --stop-after-init
 docker exec -i flightdeck-odoo19 /entrypoint.sh odoo shell -c /etc/odoo/odoo.conf \
-    -d flightdeck_odoo --no-http < ../../odoo/migration/import_ledger.py
+    -d flightdeck_odoo --no-http < ../../clients/odoo/migration/import_ledger.py
 ```
 
 | | |
@@ -19,7 +19,7 @@ docker exec -i flightdeck-odoo19 /entrypoint.sh odoo shell -c /etc/odoo/odoo.con
 | URL | http://localhost:8029, `admin` / `admin` |
 | Database | `flightdeck_odoo` on `pgcore-17`, owned by the `fdodoo` role |
 | Ledger | read through the `fdreader` role, which holds SELECT and nothing else |
-| Module source | `../../odoo/flight_deck`, mounted read only |
+| Module source | `../../clients/odoo/flight_deck`, mounted read only |
 | Artifacts | `~/.flightdeck/treasures`, mounted read only |
 | Transcripts | `~/.claude/projects`, mounted read only |
 | Runs as | `FD_UID` from `.env` with group 101, so it reads transcripts as their owner |
