@@ -34,9 +34,9 @@ the entrypoint that turns them into `--db_user` / `--db_password`.
 | `clients/odoo/migration/transcript_to_chatter.py` | one session's transcript as `mail.message` |
 | `clients/odoo/migration/session_to_channel.py` | the same session as a `discuss.channel` |
 | `clients/odoo/migration/inject_turn.py` | append one turn, to watch it arrive live |
-| `runner/` | fd-runner: a Go binary that keeps `claude -p` processes alive for Odoo, driven by files in a spool directory |
+| `go/runner/` | fd-runner: a Go binary that keeps `claude -p` processes alive for Odoo, driven by files in a spool directory |
 | `clients/odoo/flight_deck/connectors` | how Odoo reaches a runner; `spool` is the one carrier written |
-| `runner/control.go` | the permission control channel: the CLI asks, a person in Odoo answers |
+| `go/runner/control.go` | the permission control channel: the CLI asks, a person in Odoo answers |
 | `clients/odoo/flight_deck/static/src/components/transcript_panel/tool_renderers.js` | which component draws a tool call's output; a registry, so a new output shape is a new entry |
 | `docker/odoo19` | its own compose, database and port; shares nothing with the NAKIVO tracks |
 | `docs/2026-09-08-odoo-base-app-experiment.md` | the spec this was built to |

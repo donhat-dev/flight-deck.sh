@@ -4,8 +4,8 @@
 # CLAUDE_CONFIG_DIR, which sits in the odoo-data volume.
 FROM golang:1.26-alpine AS runner
 WORKDIR /src
-COPY runner/ .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/fd-runner .
+COPY go/ .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/fd-runner ./cmd/fd-runner
 
 FROM odoo:19.0
 

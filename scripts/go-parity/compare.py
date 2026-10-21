@@ -1,6 +1,6 @@
 """Diff the Go core against the Python oracle, field by field.
 
-    python3 scripts/go-parity/compare.py --py "$SCRATCH/py.json" --fd core/bin/fd \
+    python3 scripts/go-parity/compare.py --py "$SCRATCH/py.json" --fd go/bin/fd \
         --db "$SCRATCH/fd.db" --projects ~/.cache/fd-parity/projects --subscription-usd 200
 
 Exit 0 when every compared value agrees (numbers within 1e-9 relative), 1 otherwise.

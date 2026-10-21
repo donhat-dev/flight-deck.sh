@@ -77,7 +77,7 @@ login set up by hand, on production too; Odoo never manages that credential.
 - [x] `docker/odoo19/Dockerfile`: `FROM odoo:19.0`, install `claude` (native installer, 2.1.267 verified in the container), `git`; `ENV CLAUDE_CONFIG_DIR=/var/lib/odoo/.claude`
 - [x] `compose.yml`: `build: .`, image `flightdeck-odoo19:local`, container recreated, Odoo answers 200. Addons mount stays `ro` until loop D
 - [x] **scrub env** (fd-runner drops `PASSWORD`, `PGPASSWORD`, `FD_LEDGER_*`); the odoo command line still shows the password, see Measured
-- [x] `runner/` — fd-runner in Go, stdlib only, static binary; spool transport (`cmd/`, `done/`, `state/`, `events.jsonl`); built in `golang:1.26-alpine`, second process in the container and `~/.flightdeck/bin/fd-runner` on the host
+- [x] `go/runner/` — fd-runner in Go, stdlib only, static binary; spool transport (`cmd/`, `done/`, `state/`, `events.jsonl`); built in `golang:1.26-alpine`, second process in the container and `~/.flightdeck/bin/fd-runner` on the host
 - [x] Odoo `connectors/` package (`base.py` registry + `spool.py`), models `flightdeck.runner` and `flightdeck.runner.command`, session runtime fields and actions, runtime chip in `TranscriptBox`
 - [ ] **manual, owner:** the host runner is only running as a background process of this session. Install it as a user unit (writing under `~/.config` was blocked by `dcg`):
 
