@@ -95,4 +95,7 @@ func TestSessionsListsWithoutIngestWhenAsked(t *testing.T) {
 	if code != 0 || len(rows) != 1 || rows[0]["session_id"] != "s1" {
 		t.Fatalf("exit %d %v", code, rows)
 	}
+	if _, ok := rows[0]["subagents"]; ok {
+		t.Fatal("the CLI contract has no subagents key; it is fd serve's extension")
+	}
 }

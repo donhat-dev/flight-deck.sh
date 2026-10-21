@@ -19,6 +19,7 @@ import (
 	"flightdeck/core/metrics"
 	"flightdeck/core/pricing"
 	"flightdeck/core/rtk"
+	"flightdeck/core/subagents"
 )
 
 type Server struct {
@@ -61,7 +62,19 @@ func (s *Server) Handler() http.Handler {
 			writeJSON(w, 500, map[string]string{"detail": err.Error()})
 			return
 		}
-		writeJSON(w, 200, rows)
+		// The subagent breakdown lives in transcript files, not the ledger
+		// (the parent's totals already include it). One tree walk for the
+		// whole page, then the mtime-cached parse per file.
+		bySession := subagents.FilesBySession(s.Projects)
+		out := make([]sessionRow, len(rows))
+		for i, row := range rows {
+			subs := []subagents.Row{}
+			for _, f := range subagents.Usage(bySession[row.SessionID]) {
+				subs = append(subs, f.Row(p))
+			}
+			out[i] = sessionRow{SessionRow: row, Subagents: subs}
+		}
+		writeJSON(w, 200, out)
 	}))
 	mux.HandleFunc("GET /api/health", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, 200, map[string]any{"ok": true, "version": s.Version, "projects": s.Projects})
@@ -96,6 +109,14 @@ func (s *Server) cells(h func(http.ResponseWriter, *http.Request, *pricing.Table
 		}
 		h(w, r, p, c)
 	}
+}
+
+// sessionRow is the HTTP extension of the CLI's SessionRow: /api/sessions
+// carries the subagent breakdown the CLI contract does not. The embedded
+// fields marshal first, so `subagents` lands last as FastAPI's does.
+type sessionRow struct {
+	metrics.SessionRow
+	Subagents []subagents.Row `json:"subagents"`
 }
 
 func intParam(r *http.Request, k string, def int) int {
