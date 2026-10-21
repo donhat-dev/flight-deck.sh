@@ -44,7 +44,14 @@ type CommandArgs struct {
 	// set_mode: the permission mode to switch the running process to.
 	Mode string `json:"mode,omitempty"`
 	// How hard the model works on a turn: low, medium, high, xhigh, max.
-	Effort string `json:"effort,omitempty"`
+	Effort        string         `json:"effort,omitempty"`
+	ResourceAgent bool           `json:"resource_agent,omitempty"`
+	ActionID      string         `json:"action_id,omitempty"`
+	ActionKind    string         `json:"action_kind,omitempty"`
+	ResourceKey   string         `json:"resource_key,omitempty"`
+	Expected      map[string]any `json:"expected,omitempty"`
+	SessionID     string         `json:"session_ref,omitempty"`
+	ServerName    string         `json:"server_name,omitempty"`
 }
 
 // Event is one line of events.jsonl. Kinds: ack, state, result, permission,

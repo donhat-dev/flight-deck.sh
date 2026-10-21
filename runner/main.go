@@ -26,7 +26,17 @@ func main() {
 	poll := flag.Duration("poll", 200*time.Millisecond, "how often cmd/ is scanned")
 	permTimeout := flag.Duration("permission-timeout", 10*time.Minute, "deny a permission request nobody answered after this long")
 	usageEvery := flag.Duration("usage-every", 0, "report the subscription quota (claude -p /usage) this often; 0 reports only when Odoo asks")
+	resourceMCP := flag.Bool("resource-mcp", false, "run as the management agent's MCP helper instead of the runner")
+	resourceSock := flag.String("resource-sock", "", "unix socket of the runner's resource gateway (helper mode)")
+	resourceToken := flag.String("resource-token", "", "path of the gateway token file (helper mode)")
 	flag.Parse()
+	if *resourceMCP {
+		if *resourceSock == "" || *resourceToken == "" {
+			log.Fatal("-resource-mcp needs -resource-sock and -resource-token")
+		}
+		runResourceHelper(*resourceSock, *resourceToken)
+		return
+	}
 	if *spool == "" {
 		log.Fatal("-spool is required")
 	}
@@ -37,6 +47,8 @@ func main() {
 		log.Fatalf("spool: %v", err)
 	}
 	mgr := NewManager(*claude, sp, *idle, *permTimeout)
+	mgr.res.Run()
+	go mgr.res.RunGateway()
 	go mgr.Reap()
 	if *usageEvery > 0 {
 		go mgr.UsageLoop(*usageEvery)

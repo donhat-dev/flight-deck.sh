@@ -104,16 +104,22 @@ class FlightdeckRunner(models.Model):
             except Exception as e:  # noqa: BLE001 - shown to the person instead
                 runner.status = str(e)
 
-    def _submit(self, op, session, args=None, expires_in=None):
+    def _submit(self, op, session=None, args=None, expires_in=None, command_id=None,
+                defer_submit=False):
         """Write one command and its audit row."""
         self.ensure_one()
+        if command_id:
+            existing = self.env["flightdeck.runner.command"].search(
+                [("runner_id", "=", self.id), ("cmd_id", "=", command_id)], limit=1)
+            if existing:
+                return existing
         seq = self.next_seq
         self.next_seq = seq + 1
         command = {
-            "cmd_id": str(uuid.uuid4()),
+            "cmd_id": command_id or str(uuid.uuid4()),
             "seq": seq,
             "op": op,
-            "session_id": session.session_id,
+            "session_id": session.session_id if session else "",
             "args": args or {},
         }
         if expires_in:
@@ -121,18 +127,43 @@ class FlightdeckRunner(models.Model):
             command["expires_at"] = due.strftime("%Y-%m-%dT%H:%M:%SZ")
         row = self.env["flightdeck.runner.command"].create({
             "runner_id": self.id,
-            "session_ref_id": session.id,
+            "session_ref_id": session.id if session else False,
             "cmd_id": command["cmd_id"],
             "seq": seq,
             "op": op,
             "args": json.dumps(command["args"]),
         })
+        if defer_submit:
+            uid, context = self.env.uid, dict(self.env.context)
+            cmd = dict(command)
+            self.env.cr.postcommit.add(
+                lambda: self._submit_deferred(row.id, cmd, uid, context))
+            return row
         try:
             self._connector().submit(command)
         except OSError as e:
             row.write({"state": "failed", "error": str(e)})
             raise UserError("The runner's spool is not writable: %s" % e) from e
         return row
+
+    def _submit_deferred(self, row_id, command, uid, context):
+        with self.env.registry.cursor() as cr:
+            env = api.Environment(cr, uid, context)
+            row = env["flightdeck.runner.command"].browse(row_id).exists()
+            runner = env["flightdeck.runner"].browse(self.id).exists()
+            if not runner or not row:
+                return
+            try:
+                runner._connector().submit(command)
+            except OSError as e:
+                row.write({"state": "failed", "error": str(e)})
+                action = env["flightdeck.resource.action"].search(
+                    [("runner_id", "=", runner.id),
+                     ("command_uuid", "=", command["cmd_id"])], limit=1)
+                if action:
+                    action.write({"state": "failed",
+                                  "result": "the command could not be published"})
+            cr.commit()
 
     # --- events --------------------------------------------------------------
     @api.model
@@ -277,9 +308,13 @@ class FlightdeckRunnerCommand(models.Model):
     op = fields.Selection([
         ("start", "Start"), ("send", "Send"), ("interrupt", "Interrupt"), ("stop", "Stop"),
         ("decide", "Answer a permission request"), ("set_mode", "Change permission mode"),
+        ("resource_scan", "Scan resources"), ("resource_apply", "Apply a resource action"),
     ], required=True)
     state = fields.Selection([
         ("queued", "Queued"), ("done", "Done"), ("failed", "Failed"),
     ], default="queued", required=True)
     args = fields.Text()
     error = fields.Text()
+
+    _runner_cmd_uniq = models.UniqueIndex(
+        "(runner_id, cmd_id)", "This command id is already recorded for the runner.")

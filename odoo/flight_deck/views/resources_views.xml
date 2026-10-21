@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_resources" model="ir.actions.client">
+        <field name="name">Resources</field>
+        <field name="tag">flight_deck.resources</field>
+    </record>
+
+    <menuitem id="menu_resources" name="Resources" parent="menu_root"
+              action="action_resources" sequence="16" groups="flight_deck.group_user"/>
+</odoo>

@@ -57,3 +57,7 @@ class RunnerConnector:
     def status(self):
         """One line a person can read about whether the runner is reachable."""
         return ""
+
+    def resource_snapshot(self):
+        return {"available": False, "complete": False,
+                "error": "this connector cannot read resource snapshots"}

@@ -1,0 +1,151 @@
+.fd_res {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    padding: 12px;
+    gap: 8px;
+    color: $o-main-text-color;
+}
+.fd_res_head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+.fd_res_runner { margin-left: 6px; }
+.fd_res_taken { color: $o-main-color-muted; font-size: 0.85em; }
+.fd_res_err { color: $danger; }
+.fd_res_warn {
+    padding: 6px 10px;
+    border: 1px solid $warning;
+    border-radius: 4px;
+    background: rgba($warning, 0.08);
+    font-size: 0.9em;
+}
+.fd_res_body {
+    display: flex;
+    gap: 16px;
+    flex: 1;
+    min-height: 0;
+}
+.fd_res_left {
+    flex: 3;
+    min-width: 0;
+    overflow: auto;
+}
+.fd_res_right {
+    flex: 2;
+    min-width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-left: 1px solid $o-gray-200;
+    padding-left: 16px;
+}
+.fd_res_left h2, .fd_res_right h2 {
+    font-size: 0.95rem;
+    margin: 12px 0 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $o-main-color-muted;
+}
+.fd_res_table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.fd_res_table th, .fd_res_table td {
+    text-align: left;
+    padding: 3px 8px;
+    border-bottom: 1px solid $o-gray-200;
+    white-space: nowrap;
+}
+.fd_res_row { cursor: pointer; }
+.fd_res_row:hover { background: rgba($o-action, 0.06); }
+.fd_res_row:focus-visible { outline: 2px solid $o-action; outline-offset: -2px; }
+.fd_res_sel { background: rgba($o-action, 0.12); }
+.fd_res_orphan { font-style: italic; }
+.fd_res_protected { color: $o-main-color-muted; }
+.fd_res_sid, .fd_res_ppid { color: $o-main-color-muted; font-size: 0.85em; }
+.fd_res_tag {
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 8px;
+    font-size: 0.75em;
+    background: rgba($secondary, 0.15);
+}
+.fd_res_tag_prot { background: rgba($success, 0.15); }
+.fd_res_empty { color: $o-main-color-muted; padding: 8px 0; }
+.fd_res_action { padding: 4px 0; font-size: 0.85rem; border-bottom: 1px dashed $o-gray-200; }
+.fd_res_state {
+    display: inline-block;
+    min-width: 72px;
+    font-weight: 600;
+    font-size: 0.8em;
+}
+.fd_res_state_pending { color: $warning; }
+.fd_res_state_completed { color: $success; }
+.fd_res_state_failed, .fd_res_state_uncertain { color: $danger; }
+.fd_res_state_still_running { color: $warning; }
+.fd_res_state_denied, .fd_res_state_expired { color: $o-main-color-muted; }
+.fd_res_state_queued, .fd_res_state_submitted { color: $info; }
+.fd_res_btnrow { display: inline-flex; gap: 6px; margin-left: 8px; }
+.fd_res_detail {
+    border: 1px solid $o-gray-200;
+    border-radius: 6px;
+    padding: 10px;
+    font-size: 0.85rem;
+}
+.fd_res_detail h3 { font-size: 1rem; margin: 0 0 6px; }
+.fd_res_kv { margin: 2px 0; overflow-wrap: anywhere; }
+.fd_res_socks { margin-top: 6px; }
+.fd_res_note { font-size: 0.8rem; color: $o-main-color-muted; margin-top: 6px; }
+.fd_res_agent { font-size: 0.8rem; color: $o-main-color-muted; }
+.fd_res_chat {
+    flex: 1;
+    min-height: 120px;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.fd_res_msg {
+    padding: 6px 10px;
+    border-radius: 8px;
+    max-width: 90%;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 0.85rem;
+}
+.fd_res_msg_user {
+    align-self: flex-end;
+    background: rgba($o-action, 0.12);
+}
+.fd_res_msg_assistant {
+    align-self: flex-start;
+    background: rgba($secondary, 0.12);
+}
+.fd_res_mcp { cursor: pointer; padding: 3px 8px; border-bottom: 1px solid $o-gray-200; }
+.fd_res_composer { display: flex; gap: 8px; }
+.fd_res_composer textarea {
+    flex: 1;
+    min-height: 60px;
+    resize: vertical;
+    background: transparent;
+    color: inherit;
+    border: 1px solid $o-gray-200;
+    border-radius: 6px;
+    padding: 6px;
+}
+@media (max-width: 920px) {
+    .fd_res_body { flex-direction: column; }
+    .fd_res_right {
+        border-left: none;
+        border-top: 1px solid $o-gray-200;
+        padding-left: 0;
+        padding-top: 12px;
+        min-width: 0;
+    }
+    .fd_res_table { display: block; overflow-x: auto; }
+}

@@ -3,6 +3,7 @@ import json
 import os
 import tempfile
 
+from odoo.exceptions import UserError
 from odoo.tests import common, tagged
 
 from odoo.addons.queue_job.tests.common import trap_jobs
@@ -116,6 +117,23 @@ class TestChatBridge(common.TransactionCase):
         session.reply_ids._resume()
         answers = {r.key: r.reply for r in session.reply_ids}
         self.assertEqual(answers, {first: "first answer", second: "second answer"})
+
+    def test_a_model_change_reaches_the_running_session_once(self):
+        Session = self.env["flightdeck.session"]
+        Session.fd_chat_send("test:c-4", "one", runner_id=self.runner.id, model="haiku", effort="low")
+        Session.fd_chat_send("test:c-4", "two", runner_id=self.runner.id, model="haiku", effort="low")
+        Session.fd_chat_send("test:c-4", "three", runner_id=self.runner.id, model="sonnet")
+        ops = [(c["op"], c["args"].get("model")) for c in self.commands()]
+        self.assertEqual(ops, [("start", "haiku"), ("send", None), ("send", None),
+                               ("set_model", "sonnet"), ("send", None)])
+        self.assertEqual(self.commands()[0]["args"]["effort"], "low")
+
+    def test_a_chat_session_never_skips_permissions(self):
+        Session = self.env["flightdeck.session"]
+        with self.assertRaisesRegex(UserError, "bypassPermissions"):
+            Session.fd_chat_send("test:c-6", "one", runner_id=self.runner.id, mode="bypassPermissions")
+        self.assertFalse(Session.search([("chat_key", "=", "test:c-6")]))
+        self.assertFalse(self.commands(), "nothing was sent")
 
     def test_a_tool_call_is_not_part_of_the_answer(self):
         Session = self.env["flightdeck.session"]

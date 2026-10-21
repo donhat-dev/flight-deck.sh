@@ -10,6 +10,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -21,15 +22,33 @@ import (
 var envDeny = []string{"PASSWORD", "PGPASSWORD", "FD_LEDGER_PASSWORD", "FD_LEDGER_USER"}
 
 type session struct {
-	id    string
-	cwd   string
-	cmd   *exec.Cmd
-	stdin io.WriteCloser
-	state string
-	since time.Time
-	last  time.Time
-	done  chan struct{}
-	mu    sync.Mutex
+	id            string
+	cwd           string
+	cmd           *exec.Cmd
+	stdin         io.WriteCloser
+	state         string
+	since         time.Time
+	last          time.Time
+	done          chan struct{}
+	ready         chan struct{}
+	readyOnce     sync.Once
+	mu            sync.Mutex
+	meta          sync.Mutex
+	startTicks    uint64
+	exeIdentity   string
+	resourceAgent bool
+}
+
+func (s *session) runtimeState() string {
+	s.meta.Lock()
+	defer s.meta.Unlock()
+	return s.state
+}
+
+func (s *session) idleFor() time.Duration {
+	s.meta.Lock()
+	defer s.meta.Unlock()
+	return time.Since(s.last)
 }
 
 type Manager struct {
@@ -44,15 +63,18 @@ type Manager struct {
 	pmu         sync.Mutex
 	pending     map[string]*permRequest
 	deltas      *DeltaWriter
+	res         *resourceService
 }
 
 func NewManager(claude string, sp *Spool, idle time.Duration,
 	permTimeout time.Duration) *Manager {
-	return &Manager{claude: claude, sp: sp, idle: idle,
+	m := &Manager{claude: claude, sp: sp, idle: idle,
 		permTimeout: permTimeout,
 		sessions:    map[string]*session{},
 		pending:     map[string]*permRequest{},
 		deltas:      NewDeltaWriter(sp)}
+	m.res = newResourceService(m, sp)
+	return m
 }
 
 // livePID asks claude which sessions are open interactively and returns the
@@ -98,29 +120,49 @@ func (m *Manager) Handle(c Command) {
 		return
 	}
 	var err error
-	switch c.Op {
-	case "start":
-		err = m.start(c)
-	case "send":
-		err = m.send(c)
-	case "interrupt":
-		err = m.signal(c.SessionID, syscall.SIGINT)
-	case "stop":
-		err = m.stop(c.SessionID)
-	case "decide":
-		err = m.Decide(c)
-	case "set_mode":
-		err = m.SetMode(c)
-	case "set_model":
-		err = m.SetModel(c)
-	case "set_effort":
-		err = m.SetEffort(c)
-	case "usage":
-		// Seconds of CLI time; the command loop must not wait on it. The
-		// report arrives as its own `usage` event after this ack.
-		go m.reportUsage(c.ID)
-	default:
-		err = fmt.Errorf("unknown op %q", c.Op)
+	if s := m.get(c.SessionID); s != nil && s.resourceAgent {
+		switch c.Op {
+		case "set_mode", "set_model", "set_effort":
+			err = fmt.Errorf("the resource agent's profile is fixed")
+		case "send":
+			if s.runtimeState() == "busy" {
+				err = fmt.Errorf("the resource agent is mid-turn")
+			}
+		}
+	}
+	if err == nil {
+		switch c.Op {
+		case "start":
+			if c.Args.ResourceAgent {
+				err = m.ensureAgent(c)
+			} else {
+				err = m.start(c)
+			}
+		case "send":
+			err = m.send(c)
+		case "interrupt":
+			err = m.signal(c.SessionID, syscall.SIGINT)
+		case "stop":
+			err = m.stop(c.SessionID)
+		case "decide":
+			err = m.Decide(c)
+		case "set_mode":
+			err = m.SetMode(c)
+		case "set_model":
+			err = m.SetModel(c)
+		case "set_effort":
+			err = m.SetEffort(c)
+		case "usage":
+			// Seconds of CLI time; the command loop must not wait on it. The
+			// report arrives as its own `usage` event after this ack.
+			go m.reportUsage(c.ID)
+		case "resource_scan":
+			m.res.ScanNow(c)
+		case "resource_apply":
+			err = m.res.Apply(c)
+		default:
+			err = fmt.Errorf("unknown op %q", c.Op)
+		}
 	}
 	ev := Event{Kind: "ack", CmdID: c.ID, SessionID: c.SessionID}
 	if err != nil {
@@ -141,8 +183,13 @@ func (m *Manager) start(c Command) error {
 	if c.SessionID == "" {
 		return errors.New("start needs a session_id")
 	}
+	if known, err := m.res.agentRegistered(c.SessionID); err != nil {
+		return err
+	} else if known && !c.Args.ResourceAgent {
+		return errors.New("a management session must start with its resource profile")
+	}
 	if s := m.get(c.SessionID); s != nil {
-		m.setState(s, s.state)
+		m.setState(s, s.runtimeState())
 		return nil
 	}
 	if c.Args.Resume && !c.Args.AllowLive {
@@ -183,17 +230,56 @@ func (m *Manager) start(c Command) error {
 		mode = "dontAsk"
 	}
 	args = append(args, "--permission-mode", mode)
-	if c.Args.Model != "" {
-		args = append(args, "--model", c.Args.Model)
-	}
-	if c.Args.Effort != "" {
-		args = append(args, "--effort", c.Args.Effort)
-	}
-	if len(c.Args.AllowedTools) > 0 {
-		args = append(args, "--allowedTools", strings.Join(c.Args.AllowedTools, ","))
+	if !c.Args.ResourceAgent {
+		if c.Args.Model != "" {
+			args = append(args, "--model", c.Args.Model)
+		}
+		if c.Args.Effort != "" {
+			args = append(args, "--effort", c.Args.Effort)
+		}
+		if len(c.Args.AllowedTools) > 0 {
+			args = append(args, "--allowedTools", strings.Join(c.Args.AllowedTools, ","))
+		}
 	}
 	if c.Args.AppendSystemPrompt != "" {
 		args = append(args, "--append-system-prompt", c.Args.AppendSystemPrompt)
+	}
+	if c.Args.ResourceAgent {
+		exe, err := os.Executable()
+		if err != nil {
+			return fmt.Errorf("resource agent helper path: %w", err)
+		}
+		mcpConfig := map[string]any{
+			"mcpServers": map[string]any{
+				"flightdeck_resources": map[string]any{
+					"type":    "stdio",
+					"command": exe,
+					"args":    []string{"-resource-mcp", "-resource-sock", m.res.socket, "-resource-token", m.res.tokenPath()},
+				},
+			},
+		}
+		raw, err := json.Marshal(mcpConfig)
+		if err != nil {
+			return err
+		}
+		confPath := filepath.Join(m.res.dir, "mcp.json")
+		if err := writePrivateAtomic(confPath, raw); err != nil {
+			return fmt.Errorf("resource agent mcp config: %w", err)
+		}
+		for i := 0; i+1 < len(args); i++ {
+			if args[i] == "--permission-mode" {
+				args = append(args[:i], args[i+2:]...)
+				i--
+			}
+		}
+		args = append(args, "--permission-mode", "dontAsk",
+			"--mcp-config", confPath,
+			"--strict-mcp-config",
+			"--setting-sources", "",
+			"--disable-slash-commands",
+			"--tools", "",
+			"--allowedTools", "mcp__flightdeck_resources__list_resources,mcp__flightdeck_resources__inspect_resource,mcp__flightdeck_resources__propose_action",
+		)
 	}
 
 	cmd := exec.Command(m.claude, args...)
@@ -212,7 +298,10 @@ func (m *Manager) start(c Command) error {
 		return fmt.Errorf("spawn: %w", err)
 	}
 	s := &session{id: c.SessionID, cwd: cwd, cmd: cmd, stdin: stdin,
-		since: time.Now(), last: time.Now(), done: make(chan struct{})}
+		since: time.Now(), last: time.Now(), done: make(chan struct{}),
+		ready: make(chan struct{})}
+	s.resourceAgent = c.Args.ResourceAgent
+	s.startTicks, s.exeIdentity = captureResourceIdentity("/proc", cmd.Process.Pid)
 	m.mu.Lock()
 	m.sessions[s.id] = s
 	m.mu.Unlock()
@@ -249,22 +338,35 @@ func (m *Manager) read(s *session, r io.Reader) {
 		if err := json.Unmarshal(sc.Bytes(), &f); err != nil {
 			continue
 		}
+		s.readyOnce.Do(func() { close(s.ready) })
 		if f.Type == "control_request" {
 			m.handleControl(s, sc.Bytes())
 			continue
 		}
+		if f.Type == "control_response" {
+			m.res.handleControlResponse(sc.Bytes(), s)
+			continue
+		}
 		switch f.Type {
 		case "assistant":
-			if s.state != "busy" {
+			if s.runtimeState() != "busy" {
 				m.setState(s, "busy")
 			}
 			// The authoritative close of whatever block was streaming: see
 			// delta.go's doc comment for why this, not content_block_stop.
 			m.deltas.OnAssistant(s.id, f.SessionID, f.ParentToolUseID)
+		case "system":
+			if f.Subtype == "init" {
+				s.meta.Lock()
+				s.startTicks, s.exeIdentity = captureResourceIdentity("/proc", s.cmd.Process.Pid)
+				s.meta.Unlock()
+			}
 		case "stream_event":
 			m.deltas.OnStreamEvent(s.id, f.SessionID, f.ParentToolUseID, f.Event)
 		case "result":
+			s.meta.Lock()
 			s.last = time.Now()
+			s.meta.Unlock()
 			// Flush before the event that tells Odoo the turn is done, so a
 			// reader never sees "idle" ahead of the text that led to it.
 			m.deltas.FlushSession(s.id)
@@ -292,7 +394,9 @@ func (m *Manager) wait(s *session) {
 	if err != nil {
 		ev.Error = err.Error()
 	}
+	s.meta.Lock()
 	s.state = "stopped"
+	s.meta.Unlock()
 	m.dropPermissions(s)
 	m.deltas.DropSession(s.id)
 	m.sp.ClearState(s.id)
@@ -326,7 +430,9 @@ func (m *Manager) send(c Command) error {
 	if _, err := s.stdin.Write(append(line, '\n')); err != nil {
 		return fmt.Errorf("stdin: %w", err)
 	}
+	s.meta.Lock()
 	s.last = time.Now()
+	s.meta.Unlock()
 	m.setState(s, "busy")
 	return nil
 }
@@ -383,7 +489,10 @@ func (m *Manager) Reap() {
 		m.mu.Lock()
 		var stale []string
 		for id, s := range m.sessions {
-			if s.state == "idle" && time.Since(s.last) > m.idle {
+			if s.resourceAgent {
+				continue
+			}
+			if s.runtimeState() == "idle" && s.idleFor() > m.idle {
 				stale = append(stale, id)
 			}
 		}
@@ -396,7 +505,9 @@ func (m *Manager) Reap() {
 }
 
 func (m *Manager) setState(s *session, state string) {
+	s.meta.Lock()
 	s.state = state
+	s.meta.Unlock()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	pid := 0
 	if s.cmd.Process != nil {

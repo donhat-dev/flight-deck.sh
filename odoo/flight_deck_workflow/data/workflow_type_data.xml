@@ -6,19 +6,28 @@
             <field name="node_type">fd_ask_agent</field>
             <field name="category">integration</field>
             <field name="icon">icon-bot-message-square</field>
-            <field name="description">Send a prompt to a FlightDeck session and wait for its answer</field>
+            <field name="description">Send a prompt to a FlightDeck session; go on when it answers, or right away</field>
             <field name="config_schema">{
-    "prompt": {"type": "expression", "label": "Prompt", "required": true, "placeholder": "={{ _json['message']['text'] }}", "help": "What the session is asked, as a user turn."},
-    "chat_key": {"type": "expression", "label": "Conversation Key", "placeholder": "=zalo:{{ _json['message']['chat']['id'] }}", "help": "Steps and runs with the same key talk to the same session, which remembers the conversation. Empty: one session for this run."},
-    "session_name": {"type": "expression", "label": "Session Name", "placeholder": "Zalo chat", "help": "Title of the session when it is made. Empty: the flow's name."},
-    "timeout_amount": {"type": "number", "label": "Time limit", "default": 10, "min": 0, "help": "No answer by then: the run goes on through 'timeout'."},
-    "timeout_unit": {"type": "select", "options": ["minutes", "hours", "days"], "default": "minutes", "label": "Time limit unit"}
+    "prompt": {"type": "expression", "label": "Prompt", "required": true, "placeholder": "={{ _json['question'] }}", "help": "What the session is asked, as a user turn."},
+    "mode": {"type": "select", "options": [{"value": "default", "label": "Manual"}, {"value": "acceptEdits", "label": "Edit"}, {"value": "plan", "label": "Plan"}, {"value": "auto", "label": "Auto"}], "default": "auto", "label": "Mode", "help": "How the agent may act. Manual: a tool the rules do not allow waits for a person to approve it in FlightDeck. Edit: file edits go ahead, other tools ask. Plan: it only plans and changes nothing. Auto: it runs what it judges safe and asks only when unsure."},
+    "model": {"type": "select", "options": [{"value": "", "label": "Runner default"}, {"value": "claude-sonnet-5-5", "label": "Sonnet 5.5"}, {"value": "claude-opus-5-5", "label": "Opus 5.5"}, {"value": "fable", "label": "Fable 5.1"}, {"value": "claude-haiku-5-5", "label": "Haiku 5.5"}], "label": "Model", "help": "The model that answers. Runner default: the model set on the runner (Sonnet 5.5 unless changed)."},
+    "effort": {"type": "select", "options": [{"value": "", "label": "Runner default"}, {"value": "low", "label": "Low"}, {"value": "medium", "label": "Medium"}, {"value": "high", "label": "High"}, {"value": "xhigh", "label": "Extra high"}, {"value": "max", "label": "Max"}], "label": "Thinking effort", "help": "How hard the model thinks on the turn. Runner default: the level set on the runner; a runner without one leaves the session's level."},
+    "session_name": {"type": "expression", "label": "Session Name", "help": "Title of the FlightDeck session when it is made. Empty: the flow's name."},
+    "go_on": {"type": "select", "options": [{"value": "answer", "label": "After the agent answers"}, {"value": "sent", "label": "Right away"}], "default": "answer", "label": "Next step", "help": "When the next step runs; it gets the same fields either way, with status answered, sent or timeout and an empty answer when sent right away."},
+    "timeout_amount": {"type": "number", "label": "Time limit", "default": 10, "min": 0, "visibleWhen": {"go_on": ["answer"]}, "help": "No answer by then: the run goes on through 'timeout'."},
+    "timeout_unit": {"type": "select", "options": ["minutes", "hours", "days"], "default": "minutes", "label": "Time limit unit", "visibleWhen": {"go_on": ["answer"]}},
+    "instructions": {"type": "expression", "label": "Instructions", "section": "options", "placeholder": "You sort support tickets. Answer with the queue name only.", "help": "Who the agent is and how it answers, for the whole session. Empty: answer the request directly, for the next step to use."},
+    "output_format": {"type": "select", "options": [{"value": "text", "label": "Text"}, {"value": "json", "label": "JSON, following a schema"}], "default": "text", "label": "Answer format", "section": "options", "help": "JSON: the answer also comes out as 'data', checked against the schema."},
+    "output_schema": {"type": "json", "label": "Output schema", "section": "options", "visibleWhen": {"output_format": ["json"]}, "placeholder": "{\"type\": \"object\", \"properties\": {\"queue\": {\"type\": \"string\"}}, \"required\": [\"queue\"]}", "help": "A JSON Schema object the answer must follow."},
+    "tools": {"type": "select", "options": [{"value": "web", "label": "Web search"}, {"value": "read", "label": "Read files"}, {"value": "read_web", "label": "Read files and web search"}, {"value": "", "label": "Runner's tools and rules"}, {"value": "none", "label": "No tools"}], "default": "web", "label": "Tools", "section": "options", "help": "The tools the agent has and may use without asking. Runner's tools and rules: only what the runner's permission rules allow (none on a runner without rules)."},
+    "max_turns": {"type": "number", "label": "Max turns", "min": 0, "step": 1, "section": "options", "help": "The agent stops after this many rounds of tool use and the step goes out through 'error'. Empty or 0: no limit."},
+    "max_budget_usd": {"type": "number", "label": "Cost limit (USD)", "min": 0, "step": 0.1, "section": "options", "help": "The turn stops once it has cost this much and the step goes out through 'error'; the last call can take it a little over. Empty or 0: no limit."}
 }</field>
             <field name="input_schema">{
     "data": {"type": "DataSocket"}
 }</field>
             <field name="output_schema">{
-    "answer": {"type": "DataSocket", "label": "answer"},
+    "answer": {"type": "DataSocket", "label": "done"},
     "timeout": {"type": "DataSocket", "label": "timeout"},
     "error": {"type": "ErrorSocket", "label": "error"}
 }</field>
@@ -30,10 +39,18 @@
             <field name="category">integration</field>
             <field name="icon">icon-bot</field>
             <field name="description">Send a prompt to a FlightDeck session and go on without waiting</field>
+            <!-- Ask Agent does the same with Next step "Right away"; kept so saved steps run. -->
+            <field name="palette" eval="False"/>
             <field name="config_schema">{
     "prompt": {"type": "expression", "label": "Prompt", "required": true, "placeholder": "Review the failed run {{ _json['run_id'] }}", "help": "What the session is asked, as a user turn."},
-    "chat_key": {"type": "expression", "label": "Conversation Key", "help": "Steps and runs with the same key talk to the same session. Empty: one session for this run."},
-    "session_name": {"type": "expression", "label": "Session Name", "help": "Title of the session when it is made. Empty: the flow's name."}
+    "mode": {"type": "select", "options": [{"value": "default", "label": "Manual"}, {"value": "acceptEdits", "label": "Edit"}, {"value": "plan", "label": "Plan"}, {"value": "auto", "label": "Auto"}], "default": "auto", "label": "Mode", "help": "How the agent may act. Manual: a tool the rules do not allow waits for a person to approve it in FlightDeck. Edit: file edits go ahead, other tools ask. Plan: it only plans and changes nothing. Auto: it runs what it judges safe and asks only when unsure."},
+    "model":{"type": "select", "options": [{"value": "", "label": "Runner default"}, {"value": "claude-sonnet-5-5", "label": "Sonnet 5.5"}, {"value": "claude-opus-5-5", "label": "Opus 5.5"}, {"value": "fable", "label": "Fable 5.1"}, {"value": "claude-haiku-5-5", "label": "Haiku 5.5"}], "label": "Model", "help": "The model that works on the prompt. Runner default: the model set on the runner (Sonnet 5.5 unless changed)."},
+    "effort": {"type": "select", "options": [{"value": "", "label": "Runner default"}, {"value": "low", "label": "Low"}, {"value": "medium", "label": "Medium"}, {"value": "high", "label": "High"}, {"value": "xhigh", "label": "Extra high"}, {"value": "max", "label": "Max"}], "label": "Thinking effort", "help": "How hard the model thinks on the turn. Runner default: the level set on the runner; a runner without one leaves the session's level."},
+    "session_name": {"type": "expression", "label": "Session Name", "help": "Title of the FlightDeck session when it is made. Empty: the flow's name."},
+    "instructions": {"type": "expression", "label": "Instructions", "section": "options", "help": "Who the agent is and how it works, for the whole session. Empty: answer the request directly, for the next step to use."},
+    "tools": {"type": "select", "options": [{"value": "web", "label": "Web search"}, {"value": "read", "label": "Read files"}, {"value": "read_web", "label": "Read files and web search"}, {"value": "", "label": "Runner's tools and rules"}, {"value": "none", "label": "No tools"}], "default": "web", "label": "Tools", "section": "options", "help": "The tools the agent has and may use without asking. Runner's tools and rules: only what the runner's permission rules allow (none on a runner without rules)."},
+    "max_turns": {"type": "number", "label": "Max turns", "min": 0, "step": 1, "section": "options", "help": "The agent stops after this many rounds of tool use. Empty or 0: no limit."},
+    "max_budget_usd": {"type": "number", "label": "Cost limit (USD)", "min": 0, "step": 0.1, "section": "options", "help": "The turn stops once it has cost this much; the last call can take it a little over. Empty or 0: no limit."}
 }</field>
             <field name="input_schema">{
     "data": {"type": "DataSocket"}

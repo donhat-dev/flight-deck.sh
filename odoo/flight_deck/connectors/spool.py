@@ -91,6 +91,29 @@ class SpoolConnector(RunnerConnector):
                 continue
         return out
 
+    def resource_snapshot(self):
+        path = self._path("resources.json")
+        unavailable = {"available": False, "complete": False}
+        try:
+            with open(path, "rb") as f:
+                raw = f.read(8 * 1024 * 1024 + 1)
+        except FileNotFoundError:
+            return dict(unavailable, error="the runner has not published a resource snapshot yet")
+        except OSError as e:
+            return dict(unavailable, error="resource snapshot is unreadable")
+        if len(raw) > 8 * 1024 * 1024:
+            return dict(unavailable, error="resource snapshot is too large")
+        try:
+            snap = json.loads(raw)
+        except ValueError:
+            return dict(unavailable, error="resource snapshot is not valid JSON")
+        if not isinstance(snap, dict) or snap.get("schema_version") != 1:
+            return dict(unavailable, error="resource snapshot has an unknown schema")
+        for field in ("processes", "mcp_servers", "warnings"):
+            if field in snap and not isinstance(snap[field], list):
+                return dict(unavailable, error="resource snapshot field %s is malformed" % field)
+        return snap
+
     def status(self):
         if not self.runner.spool_dir:
             return "No spool directory set."

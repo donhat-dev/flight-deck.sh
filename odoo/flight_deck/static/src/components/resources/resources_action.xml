@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+  <t t-name="flight_deck.ResourcesAction" owl="1">
+    <div class="fd_res">
+      <header class="fd_res_head">
+        <label>
+          Runner
+          <select t-on-change="(ev) => this.onRunnerChange(ev)" class="fd_res_runner"
+                  aria-label="Runner" data-testid="fd-res-runner">
+            <t t-foreach="state.data?.runners || []" t-as="r" t-key="r.id">
+              <option t-att-value="r.id" t-att-selected="r.id === state.runnerId"><t t-esc="r.name"/> (<t t-esc="r.zone"/>)</option>
+            </t>
+          </select>
+        </label>
+        <button class="btn btn-sm btn-secondary" t-if="canManage" t-on-click="() => this.rescan()">Rescan</button>
+        <span class="fd_res_taken" t-if="snapshot.taken_at">taken <t t-esc="ago(snapshot.taken_at)"/></span>
+        <span class="fd_res_err" t-if="state.error"><t t-esc="state.error"/></span>
+      </header>
+
+      <div class="fd_res_warn" t-if="snapshot.error">
+        Snapshot unavailable: <t t-esc="snapshot.error"/>
+      </div>
+      <div class="fd_res_warn" t-elif="snapshot.available and !usable">
+        This inventory is stale — the machine may have slept. Destructive controls are off until the runner reports again.
+      </div>
+      <t t-foreach="snapshot.warnings || []" t-as="w" t-key="w_index">
+        <div class="fd_res_warn"><t t-esc="w"/></div>
+      </t>
+      <div class="fd_res_warn" t-if="!state.data and !state.error">Loading the first inventory…</div>
+
+      <div class="fd_res_body">
+        <section class="fd_res_left">
+          <h2>Processes</h2>
+          <div class="fd_res_empty" t-if="!processes.length and snapshot.available">
+            No harness processes observed in this inventory.
+          </div>
+          <div class="fd_res_empty" t-if="!snapshot.available">Waiting for the runner's first scan…</div>
+          <table class="fd_res_table">
+            <thead>
+              <tr><th>Process</th><th>PID</th><th>Harness</th><th>Age</th><th>RSS</th><th>FDs</th><th>Socks</th><th>State</th></tr>
+            </thead>
+            <tbody>
+              <t t-foreach="processes" t-as="p" t-key="p.key">
+                <tr t-att-class="rowClass(p)" tabindex="0" role="button"
+                    t-att-aria-label="p.comm + ' ' + p.pid" data-testid="fd-res-row"
+                    t-on-click="(ev) => this.select('proc', p.key, ev)"
+                    t-on-keydown="(ev) => ev.key === 'Enter' &amp;&amp; this.select('proc', p.key, ev)">
+                  <td><t t-esc="p.comm"/><span t-if="p.session_id" class="fd_res_sid"> · <t t-esc="p.session_id.slice(0,8)"/></span></td>
+                  <td><t t-esc="p.pid"/><span t-if="p.parent_pid" class="fd_res_ppid"> ←<t t-esc="p.parent_pid"/></span></td>
+                  <td><t t-esc="p.harness || p.role"/></td>
+                  <td><t t-esc="age(p.age_seconds)"/></td>
+                  <td><t t-esc="mib(p.rss_bytes)"/> MiB</td>
+                  <td><t t-esc="p.fd_count ?? '—'"/></td>
+                  <td><t t-esc="p.socket_count ?? '—'"/></td>
+                  <td>
+                    <t t-esc="p.runtime_state || p.state"/>
+                    <span t-if="p.orphan" class="fd_res_tag">orphan?</span>
+                    <span t-if="p.protected" class="fd_res_tag fd_res_tag_prot">protected</span>
+                  </td>
+                </tr>
+              </t>
+            </tbody>
+          </table>
+
+          <h2>MCP servers <small>as reported by managed sessions</small></h2>
+          <div class="fd_res_empty" t-if="!mcpServers.length">No MCP servers reported.</div>
+          <t t-foreach="mcpServers" t-as="m" t-key="m.key">
+            <div t-att-class="mcpClass(m)" tabindex="0" role="button"
+                 t-on-click="(ev) => this.select('mcp', m.key, ev)"
+                 t-on-keydown="(ev) => ev.key === 'Enter' &amp;&amp; this.select('mcp', m.key, ev)">
+              <t t-esc="m.name"/> — <t t-esc="m.status || 'unknown'"/> (<t t-esc="m.type || '?'"/>)
+              in <t t-esc="(m.session_id || '').slice(0,8)"/>
+              <span t-if="m.management" class="fd_res_tag fd_res_tag_prot">management</span>
+            </div>
+          </t>
+
+          <h2>Proposals &amp; actions</h2>
+          <div class="fd_res_empty" t-if="!actions.length">No recorded actions.</div>
+          <t t-foreach="actions" t-as="a" t-key="a.id">
+            <div class="fd_res_action">
+              <span t-att-class="stateClass(a)"><t t-esc="a.state"/></span>
+              <t t-esc="actionLabel(a.action_kind)"/> on <code><t t-esc="a.resource_key"/></code>
+              <span t-if="a.reason" class="fd_res_sid"> — <t t-esc="a.reason"/></span>
+              <span t-if="a.requested_by" class="fd_res_sid"> by <t t-esc="a.requested_by"/></span>
+              <span t-if="a.confirmed_by" class="fd_res_sid"> confirmed by <t t-esc="a.confirmed_by"/></span>
+              <t t-if="a.result"> — <t t-esc="a.result"/></t>
+              <span class="fd_res_btnrow" t-if="a.state === 'pending' and canManage and usable">
+                <button class="btn btn-sm btn-primary" t-on-click="() => this.confirmAction(a)"
+                        t-att-aria-label="'confirm ' + a.action_kind" data-testid="fd-res-confirm">Confirm</button>
+                <button class="btn btn-sm btn-secondary" t-on-click="() => this.denyAction(a)"
+                        t-att-aria-label="'deny ' + a.action_kind" data-testid="fd-res-deny">Deny</button>
+              </span>
+            </div>
+          </t>
+        </section>
+
+        <section class="fd_res_right">
+          <t t-if="selectedRow">
+            <div class="fd_res_detail">
+              <t t-if="state.selected.kind === 'proc'">
+                <h3><t t-esc="selectedRow.comm"/> <t t-esc="selectedRow.pid"/></h3>
+                <div class="fd_res_kv">key <code><t t-esc="selectedRow.key"/></code></div>
+                <div class="fd_res_kv">started tick <t t-esc="selectedRow.start_ticks"/> · exe <code><t t-esc="selectedRow.exe_identity || '—'"/></code></div>
+                <div class="fd_res_kv">role <t t-esc="selectedRow.role"/> · harness <t t-esc="selectedRow.harness || '—'"/> · session <t t-esc="selectedRow.session_id || '—'"/></div>
+                <div class="fd_res_kv" t-if="selectedRow.harness_evidence">identity evidence: <t t-esc="selectedRow.harness_evidence"/></div>
+                <div class="fd_res_kv">state <t t-esc="selectedRow.state"/> · managed <t t-esc="selectedRow.managed"/> · orphan <t t-esc="selectedRow.orphan"/></div>
+                <div class="fd_res_kv" t-if="selectedRow.protection_reason">protected: <t t-esc="selectedRow.protection_reason"/></div>
+                <t t-foreach="selectedRow.warnings || []" t-as="w" t-key="w_index">
+                  <div class="fd_res_kv"><t t-esc="w"/></div>
+                </t>
+                <div class="fd_res_kv" t-if="selectedRow.stdio_peer_key">
+                  observed stdio pipe to <code><t t-esc="selectedRow.stdio_peer_key"/></code>
+                  <span class="fd_res_note"> — a bidirectional parent/child pipe, not a confirmed MCP connection</span>
+                </div>
+                <div class="fd_res_socks" t-if="(selectedRow.sockets || []).length">
+                  observed sockets:
+                  <t t-foreach="selectedRow.sockets" t-as="s" t-key="s.inode">
+                    <span class="fd_res_tag"><t t-esc="s.protocol"/> <t t-esc="s.state"/> <t t-esc="s.inode"/></span>
+                  </t>
+                </div>
+                <div class="fd_res_btnrow" t-if="canManage and usable and selectedRow.manageable">
+                  <button class="btn btn-sm btn-danger" t-on-click="() => this.askAction('stop_process', selectedRow)"
+                          aria-label="stop process" data-testid="fd-res-stop">Stop process…</button>
+                </div>
+                <div class="fd_res_note" t-if="selectedRow.orphan">An orphan is only a candidate — it may still be useful to another program.</div>
+              </t>
+              <t t-else="">
+                <h3>MCP <t t-esc="selectedRow.name"/></h3>
+                <div class="fd_res_kv">status <t t-esc="selectedRow.status || 'unknown'"/> · type <t t-esc="selectedRow.type || '?'"/></div>
+                <div class="fd_res_kv">session <t t-esc="selectedRow.session_id"/></div>
+                <div class="fd_res_btnrow" t-if="canManage and usable and !selectedRow.protected">
+                  <button class="btn btn-sm btn-warning" t-on-click="() => this.askAction('disconnect_mcp', selectedRow)"
+                          aria-label="disconnect mcp server" data-testid="fd-res-disconnect">Disconnect…</button>
+                  <button class="btn btn-sm btn-secondary" t-on-click="() => this.askAction('reconnect_mcp', selectedRow)"
+                          aria-label="reconnect mcp server" data-testid="fd-res-reconnect">Reconnect…</button>
+                </div>
+                <div class="fd_res_note" t-if="selectedRow.protected">Management server — observation only.</div>
+              </t>
+            </div>
+          </t>
+
+          <h2>Management chat</h2>
+          <div class="fd_res_agent">
+            <t t-if="agent.session_uuid">
+              session <code><t t-esc="agent.session_uuid.slice(0,8)"/></code> · <t t-esc="agent.state"/>
+              <t t-if="agent.pid"> · pid <t t-esc="agent.pid"/></t>
+              <t t-if="agent.error"> — <t t-esc="agent.error"/></t>
+            </t>
+            <t t-else="">starts on your first message</t>
+          </div>
+          <div class="fd_res_chat">
+            <div class="fd_res_empty" t-if="!chat.length">No messages yet.</div>
+            <t t-foreach="chat" t-as="c" t-key="c.reply_id">
+              <div class="fd_res_msg fd_res_msg_user"><t t-esc="c.prompt"/></div>
+              <div class="fd_res_msg fd_res_msg_assistant">
+                <t t-if="c.answer"><t t-esc="c.answer"/></t>
+                <t t-else=""><em><t t-esc="c.state === 'waiting' ? '…' : '(no answer — ' + c.state + ')'"/></em></t>
+              </div>
+            </t>
+          </div>
+          <div class="fd_res_composer" t-if="canManage">
+            <textarea t-model="state.chatText" t-on-keydown="onChatKey"
+                      aria-label="management chat input" data-testid="fd-res-chat-input"
+                      placeholder="Ask about these resources — e.g. what looks like a leftover?"
+                      t-att-disabled="agent.busy or agent.starting or state.working"/>
+            <button class="btn btn-primary" aria-label="send management chat"
+                    data-testid="fd-res-chat-send"
+                    t-att-disabled="agent.busy or agent.starting or state.working or !state.chatText.trim()"
+                    t-on-click="() => this.sendChat()">
+              <t t-esc="agent.busy ? 'Working…' : (agent.starting ? 'Starting…' : 'Send')"/>
+            </button>
+          </div>
+          <div class="fd_res_note" t-if="!canManage">Read-only: resource management needs the Manager group.</div>
+        </section>
+      </div>
+    </div>
+  </t>
+</templates>

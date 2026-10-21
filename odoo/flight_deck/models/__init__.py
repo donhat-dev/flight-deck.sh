@@ -30,3 +30,4 @@ from . import turn_feedback
 from . import turn_notify
 from . import session_message
 from . import chat_bridge
+from . import resource_manager
