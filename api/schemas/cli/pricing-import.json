@@ -1,0 +1,12 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/pricing-import.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd pricing import <file|-> --json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["models", "geo"],
+  "properties": {
+    "models": {"type": "integer"},
+    "geo": {"type": "integer"}
+  }
+}

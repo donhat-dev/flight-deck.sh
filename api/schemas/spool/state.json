@@ -1,0 +1,17 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/spool/state.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "spool state/<session_id>.json — SessionState",
+  "description": "api/runner-spool.md; SessionState (go/runner/spool.go:76-83).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["session_id", "pid", "state", "cwd", "since", "last"],
+  "properties": {
+    "session_id": {"type": "string"},
+    "pid": {"type": "integer"},
+    "state": {"type": "string", "enum": ["idle", "busy"]},
+    "cwd": {"type": "string"},
+    "since": {"type": "string", "description": "RFC3339Nano."},
+    "last": {"type": "string", "description": "RFC3339Nano."}
+  }
+}

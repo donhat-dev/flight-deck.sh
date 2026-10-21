@@ -1,0 +1,7 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/pricing-defaults.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd pricing defaults --json",
+  "description": "The same Config shape `fd pricing list` prints.",
+  "$ref": "pricing-list.json"
+}

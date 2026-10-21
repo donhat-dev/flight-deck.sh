@@ -10,6 +10,24 @@ right and the doc is stale.
 | `cli.md` | The `fd --json` contract: one JSON document on stdout, exit codes 0/1/2/3 | The `fd` binary (go/cmd/fd/main.go) | Shell scripts, skills and agents that shell out to `fd`. |
 | `runner-spool.md` | The spool-directory protocol between `fd-runner` and Odoo | Odoo writes commands and reads events/state/deltas (clients/odoo/flight_deck/connectors/spool.py); `fd-runner` does the reverse (go/runner/spool.go, delta.go) | Each side reads the other's files. |
 
+## Machine-read contracts
+
+The prose docs above are translated into schemas the code is tested against:
+
+| Path | Contents |
+|---|---|
+| `openapi/spend.yaml` | OpenAPI 3.1 for the routes `fd serve` serves and the FastAPI routes it shares. `x-servers` marks which implementations answer each operation; `x-go-json-404` documents the JSON 404. |
+| `openapi/python.json` | The FastAPI app's `app.openapi()`, generated and checked in. Regenerate with `tools/contracts/gen_python_openapi.py`. |
+| `schemas/cli/` | JSON Schema (draft 2020-12) for each `fd` command's `--json` output, plus `envelope-error.json`. `help` is text and has no schema. |
+| `schemas/spool/` | JSON Schema for the spool files: `command.json`, `event.json`, `state.json`, `delta.json`. |
+| `conformance/` | The pytest suite that validates both servers, the CLI and the spool samples against the schemas. |
+
+`make contracts` runs it: `go-build`, then a Go test in `go/runner` that
+writes one of each spool file type into `conformance/spool-samples/` (via
+`FD_SPOOL_SAMPLES`; gitignored, regenerated each run), then the conformance
+pytest. A change to a route or a JSON key fails the suite until both the code
+and the schema agree.
+
 ## The rule
 
 A change to a contract — a route, a JSON key, an exit code, a filename in the

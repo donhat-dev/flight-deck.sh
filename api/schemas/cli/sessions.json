@@ -1,0 +1,13 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/sessions.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd sessions --json",
+  "description": "The /api/sessions row without `subagents` (api/cli.md, spend.go:104-129).",
+  "type": "array",
+  "items": {
+    "allOf": [
+      {"$ref": "../openapi/spend.yaml#/components/schemas/SessionRow"},
+      {"not": {"required": ["subagents"]}}
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/spend.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd spend --json",
+  "description": "Same row shapes as the HTTP API (api/openapi/spend.yaml).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["range", "summary", "by_model", "daily"],
+  "properties": {
+    "range": {"type": "string", "enum": ["today", "7d", "30d", "all"]},
+    "summary": {"$ref": "../openapi/spend.yaml#/components/schemas/Summary"},
+    "by_model": {
+      "type": "array",
+      "items": {"$ref": "../openapi/spend.yaml#/components/schemas/ModelRow"}
+    },
+    "daily": {
+      "type": "array",
+      "items": {"$ref": "../openapi/spend.yaml#/components/schemas/Day"}
+    }
+  }
+}

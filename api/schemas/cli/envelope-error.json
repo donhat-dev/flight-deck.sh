@@ -1,0 +1,12 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/envelope-error.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd error envelope",
+  "description": "The refusal/unknown-command body on stdout with --json (exit 2 or 3). api/cli.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error"],
+  "properties": {
+    "error": {"type": "string"}
+  }
+}

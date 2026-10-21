@@ -1,0 +1,43 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/pricing-list.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd pricing list --json (Config)",
+  "description": "The whole price table; also the shape `fd pricing defaults` prints and `fd pricing import` reads.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["models", "geo"],
+  "properties": {
+    "models": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/row"}
+    },
+    "geo": {
+      "type": "object",
+      "description": "inference_geo -> multiplier on every token class.",
+      "additionalProperties": {"type": "number"}
+    }
+  },
+  "$defs": {
+    "row": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prefix", "valid_from", "input", "output", "cache_read_mult",
+                   "write_5m_mult", "write_1h_mult"],
+      "properties": {
+        "prefix": {"type": "string"},
+        "valid_from": {
+          "type": "string",
+          "description": "\"\" (always) or a YYYY-MM-DD UTC date."
+        },
+        "input": {"type": "number"},
+        "output": {"type": "number"},
+        "cache_read_mult": {"type": "number"},
+        "write_5m_mult": {"type": "number"},
+        "write_1h_mult": {"type": "number"},
+        "fast_input": {"type": "number"},
+        "fast_output": {"type": "number"},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

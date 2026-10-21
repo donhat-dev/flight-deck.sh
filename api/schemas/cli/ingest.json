@@ -1,0 +1,14 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/ingest.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd ingest --json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["files", "new_rows", "seconds", "db"],
+  "properties": {
+    "files": {"type": "integer"},
+    "new_rows": {"type": "integer"},
+    "seconds": {"type": "number"},
+    "db": {"type": "string"}
+  }
+}

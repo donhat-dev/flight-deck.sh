@@ -1,0 +1,19 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/spool/delta.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "one line of spool deltas.jsonl — a text snapshot, not an increment",
+  "description": "api/runner-spool.md; deltaLine (go/runner/delta.go:83-89). Every line carries the full accumulated text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ts", "session_id", "stream", "seq", "text"],
+  "properties": {
+    "ts": {"type": "string", "description": "RFC3339Nano."},
+    "session_id": {"type": "string", "description": "The Go-tracked session."},
+    "stream": {
+      "type": "string",
+      "description": "The frame session id; `:<parent_tool_use_id>` suffix for a subagent's."
+    },
+    "seq": {"type": "integer"},
+    "text": {"type": "string"}
+  }
+}

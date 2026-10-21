@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: FlightDeck spend API
+  version: "1.0.0"
+  description: |
+    Machine-readable contract for the `fd serve` (Go) spend API and the routes
+    the FastAPI (Python) server shares with it. Written from the code as it is
+    (see api/spend-http.md, which cites path:line); where this file and the
+    code disagree, the code is right and this file is stale.
+
+    `x-servers` marks which implementations answer each operation: `[go,
+    python]` means both serve it and the response schema holds the keys both
+    send. Where the two differ in keys, the shared keys are required and the
+    keys only one sends are optional, with the difference noted in the
+    description.
+
+    Conventions both servers share (api/spend-http.md):
+    - `?range=` is `today`, `7d`, `30d` or `all`; missing or unknown means
+      `all`. Both compare the local calendar date against UTC timestamps.
+    - Error bodies differ: `fd serve` answers `{"error": "<msg>"}`, FastAPI
+      answers `{"detail": "<msg>"}`.
+
+x-go-json-404:
+  description: |
+    `fd serve` answers every other `/api/` path (any method) with status 404
+    and body {"error": "not served by fd yet: <path>"} so the SPA fallback
+    never swallows an API miss (go/server/server.go:54-58). FastAPI serves
+    those routes itself instead.
+  schema:
+    $ref: "#/components/schemas/Error"
+
+paths:
+  /api/summary:
+    get:
+      x-servers: [go, python]
+      summary: Spend totals for a range.
+      description: |
+        Identical keys in both servers. One difference: fd's `rtk_savings`
+        is a stub, always 0; FastAPI reports `app.state.rtk_savings`.
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: Spend totals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Summary"
+  /api/daily:
+    get:
+      x-servers: [go, python]
+      summary: One point per UTC day.
+      description: |
+        Same keys in both servers. Difference: fd emits the three
+        `agent_hours*` keys as 0 "until the activity slice"; FastAPI fills
+        them from the `agent_activity` table.
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: Daily series, ascending by date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Day"
+  /api/by-model:
+    get:
+      x-servers: [go, python]
+      summary: Spend per model.
+      description: |
+        Identical in both servers; both exclude `<synthetic>` turns.
+      parameters:
+        - $ref: "#/components/parameters/Range"
+      responses:
+        "200":
+          description: Per-model rows, cost descending.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ModelRow"
+  /api/sessions:
+    get:
+      x-servers: [go, python]
+      summary: Sessions by last activity, newest first.
+      description: |
+        FastAPI adds one key per row: `subagents` (always present, possibly
+        an empty list), read from transcript files. `fd serve` omits it by
+        design — it is optional in the schema.
+      parameters:
+        - $ref: "#/components/parameters/Range"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Session rows.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SessionRow"
+  /api/health:
+    get:
+      x-servers: [go]
+      summary: Liveness and version. Go-only — FastAPI has no route here.
+      responses:
+        "200":
+          description: Health payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  parameters:
+    Range:
+      name: range
+      in: query
+      required: false
+      description: Missing or unknown means `all`.
+      schema:
+        type: string
+        enum: [today, 7d, 30d, all]
+        default: all
+    Limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 100
+    Offset:
+      name: offset
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 0
+  schemas:
+    Summary:
+      type: object
+      additionalProperties: false
+      required:
+        - total_cost
+        - cache_savings
+        - saved_vs_subscription
+        - rtk_savings
+        - cache_hit_rate
+        - input_tokens
+        - input_tokens_raw
+        - output_tokens
+        - session_count
+        - unknown_model_tokens
+        - message_count
+        - total_context_tokens
+        - avg_context_per_turn
+      properties:
+        total_cost: {type: number}
+        cache_savings: {type: number}
+        saved_vs_subscription: {type: number}
+        rtk_savings:
+          type: number
+          description: Always 0 from `fd serve` (stub); real figure from FastAPI.
+        cache_hit_rate: {type: number}
+        input_tokens: {type: integer}
+        input_tokens_raw:
+          type: integer
+          description: Full prompt size regardless of caching; equals total_context_tokens.
+        output_tokens: {type: integer}
+        session_count: {type: integer}
+        unknown_model_tokens: {type: integer}
+        message_count: {type: integer}
+        total_context_tokens: {type: integer}
+        avg_context_per_turn: {type: number}
+    Day:
+      type: object
+      additionalProperties: false
+      required:
+        - date
+        - cost
+        - input
+        - output
+        - cache_read
+        - cache_write
+        - tokens
+        - agent_hours
+        - agent_hours_sub
+        - agent_hours_est
+      properties:
+        date: {type: string}
+        cost: {type: number}
+        input: {type: integer}
+        output: {type: integer}
+        cache_read: {type: integer}
+        cache_write: {type: integer}
+        tokens: {type: integer}
+        agent_hours:
+          type: number
+          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+        agent_hours_sub:
+          type: number
+          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+        agent_hours_est:
+          type: number
+          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+    ModelRow:
+      type: object
+      additionalProperties: false
+      required:
+        - model
+        - input
+        - input_raw
+        - output
+        - cache_read
+        - cost
+        - priced
+      properties:
+        model: {type: string}
+        input: {type: integer}
+        input_raw: {type: integer}
+        output: {type: integer}
+        cache_read: {type: integer}
+        cost: {type: number}
+        priced: {type: boolean}
+    SessionRow:
+      type: object
+      additionalProperties: false
+      required:
+        - session_id
+        - project
+        - models
+        - first_ts
+        - last_ts
+        - turns
+        - input
+        - output
+        - cache_read
+        - cache_create
+        - cost
+        - title
+        - context
+        - input_raw
+        - avg_context
+        - cache_ratio
+      properties:
+        session_id: {type: string}
+        project: {type: [string, "null"]}
+        models:
+          type: array
+          items: {type: string}
+        first_ts: {type: string}
+        last_ts: {type: string}
+        turns: {type: integer}
+        input: {type: integer}
+        output: {type: integer}
+        cache_read: {type: integer}
+        cache_create: {type: integer}
+        cost: {type: number}
+        title: {type: [string, "null"]}
+        context: {type: integer}
+        input_raw: {type: integer}
+        avg_context: {type: number}
+        cache_ratio: {type: number}
+        subagents:
+          type: array
+          description: |
+            FastAPI only (always present there, possibly empty); `fd serve`
+            never sends it. A subset of the parent's totals — the ledger
+            already folds subagent usage into the parent session_id.
+          items:
+            $ref: "#/components/schemas/SubagentRow"
+    SubagentRow:
+      type: object
+      additionalProperties: false
+      required:
+        - agent_id
+        - agent_type
+        - model
+        - turns
+        - input_raw
+        - output
+        - cache_read
+        - cost
+        - first_ts
+        - last_ts
+        - dispatch
+      properties:
+        agent_id: {type: string}
+        agent_type: {type: [string, "null"]}
+        model: {type: [string, "null"]}
+        turns: {type: integer}
+        input_raw: {type: integer}
+        output: {type: integer}
+        cache_read: {type: integer}
+        cost: {type: number}
+        first_ts: {type: [string, "null"]}
+        last_ts: {type: [string, "null"]}
+        dispatch: {type: string}
+    Health:
+      type: object
+      additionalProperties: false
+      required: [ok, version, projects]
+      properties:
+        ok: {type: boolean}
+        version: {type: string}
+        projects: {type: string}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: 'The `fd serve` error envelope. FastAPI uses {"detail": "<msg>"} instead.'

@@ -1,0 +1,82 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/thinking.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd thinking --json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["source", "since", "until", "days", "by", "split_at", "model", "effort",
+               "agent", "buckets", "trends", "notes", "warnings"],
+  "properties": {
+    "source": {"type": "string", "enum": ["ledger", "transcripts"]},
+    "since": {"type": "string"},
+    "until": {"type": "string"},
+    "days": {"type": "integer"},
+    "by": {"type": "string", "enum": ["day", "model", "effort", "agent", "split"]},
+    "split_at": {"type": "string"},
+    "model": {"type": "string"},
+    "effort": {"type": "string"},
+    "agent": {"type": "string", "enum": ["", "main", "subagent"]},
+    "buckets": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/bucket"}
+    },
+    "trends": {
+      "description": "Null when --by is not day; a list otherwise.",
+      "type": ["array", "null"],
+      "items": {"$ref": "#/$defs/trend"}
+    },
+    "notes": {"type": ["array", "null"], "items": {"type": "string"}},
+    "warnings": {"type": ["array", "null"], "items": {"type": "string"}},
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["complete_from"],
+      "properties": {
+        "complete_from": {"type": "string"},
+        "oldest_line": {"type": "string"}
+      }
+    }
+  },
+  "$defs": {
+    "stat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["n", "sum", "mean", "p50", "p90"],
+      "properties": {
+        "n": {"type": "integer"},
+        "sum": {"type": "number"},
+        "mean": {"type": "number"},
+        "p50": {"type": "number"},
+        "p90": {"type": "number"}
+      }
+    },
+    "bucket": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "responses", "tokens_reported", "thought",
+                   "thinking_tokens", "thinking_seconds", "wait_seconds"],
+      "properties": {
+        "key": {"type": "string"},
+        "responses": {"type": "integer"},
+        "tokens_reported": {"type": "integer"},
+        "thought": {"type": "integer"},
+        "thinking_tokens": {"$ref": "#/$defs/stat"},
+        "thinking_seconds": {"$ref": "#/$defs/stat"},
+        "wait_seconds": {"$ref": "#/$defs/stat"}
+      }
+    },
+    "trend": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["metric", "days", "slope_pct_per_day", "first", "last"],
+      "properties": {
+        "metric": {"type": "string"},
+        "days": {"type": "integer"},
+        "slope_pct_per_day": {"type": ["number", "null"]},
+        "first": {"type": ["number", "null"]},
+        "last": {"type": ["number", "null"]},
+        "note": {"type": "string"}
+      }
+    }
+  }
+}

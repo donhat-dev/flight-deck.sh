@@ -1,0 +1,49 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/spool/command.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "spool cmd/<seq>-<cmd_id>.json — one Command (Odoo -> runner)",
+  "description": "api/runner-spool.md; shaped by Command/CommandArgs (go/runner/spool.go:17-62).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["cmd_id", "seq", "op", "session_id", "args"],
+  "properties": {
+    "cmd_id": {"type": "string"},
+    "seq": {"type": "integer"},
+    "op": {
+      "type": "string",
+      "enum": ["start", "send", "interrupt", "stop", "decide", "set_mode",
+               "set_model", "set_effort", "usage"]
+    },
+    "session_id": {"type": "string"},
+    "expires_at": {
+      "type": "string",
+      "description": "RFC3339; honored by `send` only."
+    },
+    "args": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cwd": {"type": "string"},
+        "resume": {"type": "boolean"},
+        "allow_live": {"type": "boolean"},
+        "text": {"type": "string"},
+        "permission_mode": {"type": "string"},
+        "allowed_tools": {"type": "array", "items": {"type": "string"}},
+        "model": {"type": "string"},
+        "append_system_prompt": {"type": "string"},
+        "request_id": {"type": "string"},
+        "behavior": {"type": "string", "enum": ["allow", "deny"]},
+        "scope": {"type": "string", "enum": ["once", "session", "always"]},
+        "message": {"type": "string"},
+        "updated_input": {"type": "object"},
+        "mode": {"type": "string"},
+        "effort": {"type": "string"},
+        "name": {"type": "string"},
+        "json_schema": {"type": "string"},
+        "max_budget_usd": {"type": "number"},
+        "max_turns": {"type": "integer"},
+        "tools": {"type": ["array", "null"], "items": {"type": "string"}}
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/spool/event.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "one line of spool events.jsonl (runner -> Odoo)",
+  "description": "api/runner-spool.md; Event (go/runner/spool.go:64-74). Payload shape varies by kind.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ts", "kind"],
+  "properties": {
+    "ts": {
+      "type": "string",
+      "description": "RFC3339Nano, filled if empty."
+    },
+    "kind": {
+      "type": "string",
+      "enum": ["ack", "state", "result", "permission", "decision", "mode",
+               "model", "effort", "usage"]
+    },
+    "session_id": {"type": "string"},
+    "cmd_id": {"type": "string"},
+    "state": {"type": "string", "enum": ["idle", "busy", "stopped"]},
+    "error": {"type": "string"},
+    "payload": {"type": "object"}
+  }
+}

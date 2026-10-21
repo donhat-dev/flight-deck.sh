@@ -142,15 +142,29 @@ cli:
 # files written into the tree stay theirs. Module and build caches persist under
 # ~/.cache/fd-go. The image has no git, so VCS stamping is off.
 GO_CACHE    := $(HOME)/.cache/fd-go
-GO          := docker run --rm -u $(shell id -u):$(shell id -g) \
+GO_FLAGS    := -u $(shell id -u):$(shell id -g) \
                -v $(PROJ):/src -v $(GO_CACHE):/cache -w /src/go \
                -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false -e HOME=/cache \
-               -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod \
-               golang:1.26-alpine go
+               -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod
+GO          := docker run --rm $(GO_FLAGS) golang:1.26-alpine go
 GOTEST_ARGS ?= ./...
 FD_VERSION  := $(shell git describe --always --dirty 2>/dev/null || echo dev)
 
-.PHONY: go-tidy go-test go-build
+.PHONY: go-tidy go-test go-build contracts
+
+# api/conformance needs go/bin/fd (go-build) plus spool samples the runner
+# writes through its own code paths. FD_SPOOL_SAMPLES points under /src, the
+# worktree bind mount, so the container's writes land in the tree; the dir is
+# gitignored and the suite fails on a missing sample rather than skipping.
+# The venv lives in the main checkout when this runs from a worktree.
+SPOOL_SAMPLES := api/conformance/spool-samples
+VENV_PY       := $(firstword $(wildcard $(PROJ)/.venv/bin/python $(PROJ)/../../.venv/bin/python))
+
+contracts: go-build             ## run the contract conformance suite (api/conformance)
+	mkdir -p $(GO_CACHE) $(SPOOL_SAMPLES)
+	docker run --rm $(GO_FLAGS) -e FD_SPOOL_SAMPLES=/src/$(SPOOL_SAMPLES) \
+	  golang:1.26-alpine go test ./runner -run TestSpoolContractSamples -count=1 -v
+	$(VENV_PY) -m pytest api/conformance -q -p no:cacheprovider
 go-tidy:                    ## resolve the Go module's requirements
 	mkdir -p $(GO_CACHE)
 	$(GO) mod tidy

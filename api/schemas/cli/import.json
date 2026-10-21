@@ -1,0 +1,27 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/import.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd import --json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["dry_run", "stats"],
+  "properties": {
+    "dry_run": {"type": "boolean"},
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["read", "billed", "inserted", "skipped_key_present",
+                   "skipped_session_on_disk", "possible_overlap_rows",
+                   "possible_overlap_cost"],
+      "properties": {
+        "read": {"type": "integer"},
+        "billed": {"type": "integer"},
+        "inserted": {"type": "integer"},
+        "skipped_key_present": {"type": "integer"},
+        "skipped_session_on_disk": {"type": "integer"},
+        "possible_overlap_rows": {"type": "integer"},
+        "possible_overlap_cost": {"type": "number"}
+      }
+    }
+  }
+}

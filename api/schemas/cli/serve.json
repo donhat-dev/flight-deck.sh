@@ -1,0 +1,12 @@
+{
+  "$id": "https://contracts.flightdeck/schemas/cli/serve.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fd serve --json (on shutdown)",
+  "description": "A daemon; on shutdown it prints this document on stdout (api/cli.md, serve.go:21-74).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["stopped"],
+  "properties": {
+    "stopped": {"type": "string"}
+  }
+}
