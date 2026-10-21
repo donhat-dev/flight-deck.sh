@@ -25,6 +25,6 @@ Refs: `api/openapi/spend.yaml`, `docs/briefs/2026-10-21-monorepo-l3.md`, map `de
 - The Python routers are `routers/agui.py` and `routers/systems_{containers,mcp,skills}.py`; `systems/*` keeps FastAPI-free helpers that take explicit arguments.
 - Ledger schema v3 resets every file cursor on upgrade, so an existing ledger reads all transcripts again and backfills busy time; response keys dedupe the billed rows.
 - `File` reads the cursor again after taking the IMMEDIATE write lock (a lock-free pre-check still skips unchanged files): `fd serve` and `fd ingest` on one ledger counted an interval twice before.
-- `agent_hours_est` stays 0 on both servers; no estimate is ported.
+- `agent_hours_est` is not ported: Go writes no estimate rows and reports 0, while Python reads the estimate rows its older method left in its ledger. `spend.yaml` records it as the one remaining difference; the parity test checks 0 on fresh ledgers only.
 - The HTTP and CLI session rows are separate schemas composed with `unevaluatedProperties: false`, so `subagents` is required on HTTP and forbidden on the CLI.
 - The idle cap stays env-only (`TOKEN_AUDIT_AGENT_IDLE_CAP_MIN`, default 15 min), as in Python.
