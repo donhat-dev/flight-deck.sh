@@ -46,8 +46,7 @@ enable:                     ## enable + start the durable service (survives rebo
 logs:                       ## follow the durable service logs
 	journalctl --user -u flightdeck -f
 
-test:                       ## run the test suite in the venv
-	cd python && ../.venv/bin/python -m pytest tests -q
+test: py-test               ## run the test suite in the venv (alias)
 
 FONT_DIR := python/flightdeck/treasures/templates/fonts
 # Google's css2 API subsets by User-Agent, not by a `subset=` query param (that
@@ -137,17 +136,20 @@ cli:
 	ln -sf $(CURDIR)/bin/flightdeck $(HOME)/.local/bin/flightdeck
 	@$(HOME)/.local/bin/flightdeck --version
 
-# --- Go module (`fd`, `fd-runner`) -------------------------------------------
+# --- Go workspace (`fd`, `fd-runner`) ----------------------------------------
 # No Go on the host: build and test in the official image, as the calling user so
 # files written into the tree stay theirs. Module and build caches persist under
 # ~/.cache/fd-go. The image has no git, so VCS stamping is off.
+# go/go.work ties the layer modules together: core, server, runner, cmd,
+# archtest. `./...` does not span a workspace, so the targets list each module.
 GO_CACHE    := $(HOME)/.cache/fd-go
 GO_FLAGS    := -u $(shell id -u):$(shell id -g) \
                -v $(PROJ):/src -v $(GO_CACHE):/cache -w /src/go \
                -e CGO_ENABLED=0 -e GOFLAGS=-buildvcs=false -e HOME=/cache \
                -e GOCACHE=/cache/build -e GOMODCACHE=/cache/mod
 GO          := docker run --rm $(GO_FLAGS) golang:1.26-alpine go
-GOTEST_ARGS ?= ./...
+GO_MODULES  := core server runner cmd archtest
+GOTEST_ARGS ?= $(foreach m,$(GO_MODULES),./$(m)/...)
 FD_VERSION  := $(shell git describe --always --dirty 2>/dev/null || echo dev)
 
 .PHONY: go-tidy go-test go-build contracts
@@ -165,9 +167,10 @@ contracts: go-build             ## run the contract conformance suite (api/confo
 	docker run --rm $(GO_FLAGS) -e FD_SPOOL_SAMPLES=/src/$(SPOOL_SAMPLES) \
 	  golang:1.26-alpine go test ./runner -run TestSpoolContractSamples -count=1 -v
 	$(VENV_PY) -m pytest api/conformance -q -p no:cacheprovider
-go-tidy:                    ## resolve the Go module's requirements
+go-tidy:                    ## resolve every Go module's requirements
 	mkdir -p $(GO_CACHE)
-	$(GO) mod tidy
+	docker run --rm $(GO_FLAGS) golang:1.26-alpine sh -c \
+	  'set -e; for m in $(GO_MODULES); do (cd /src/go/$$m && go mod tidy); done'
 go-test:                    ## run the Go module tests (GOTEST_ARGS narrows them)
 	mkdir -p $(GO_CACHE)
 	$(GO) test $(GOTEST_ARGS)
@@ -175,3 +178,32 @@ go-build:                   ## build go/bin/fd and go/bin/fd-runner (static, lin
 	mkdir -p $(GO_CACHE) go/bin
 	$(GO) build -trimpath -ldflags "-s -w -X main.version=$(FD_VERSION)" -o bin/fd ./cmd/fd
 	$(GO) build -trimpath -ldflags "-s -w" -o bin/fd-runner ./cmd/fd-runner
+
+# --- make check ---------------------------------------------------------------
+# One gate over every check (ML-4..ML-7): Go tests (archtest), the Python
+# suite (import-layers ratchet), contracts, the web build and compose config.
+# VENV_PY falls back to the main checkout's venv when the worktree has none;
+# FD_ENV_FILE does the same for docker/odoo19/.env.
+FD_ENV_FILE ?= $(firstword $(wildcard \
+	$(PROJ)/docker/odoo19/.env $(PROJ)/../../docker/odoo19/.env))
+
+.PHONY: py-test web-deps web-build compose-config check
+
+py-test:                    ## run the Python suite in the venv (layers ratchet included)
+	cd python && $(VENV_PY) -m pytest tests -q -p no:cacheprovider
+
+web-deps:                   ## install the web client deps (npm ci; needs network)
+	npm --prefix clients/web ci
+
+web-build:                  ## build the web client (needs node_modules: make web-deps)
+	@test -d clients/web/node_modules || \
+	  { echo "clients/web/node_modules is missing -- run: make web-deps"; exit 1; }
+	npm --prefix clients/web run build
+
+compose-config:             ## validate the odoo19 compose file (env file, no render)
+	@test -n "$(FD_ENV_FILE)" || \
+	  { echo "no .env for docker/odoo19 -- set FD_ENV_FILE=<path>"; exit 1; }
+	cd docker/odoo19 && docker compose --env-file $(FD_ENV_FILE) config -q
+
+check: go-test py-test contracts web-build compose-config   ## run every gate
+	@echo "check: all green"

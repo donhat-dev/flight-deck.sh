@@ -1,0 +1,31 @@
+# Project manifest for the flightdeck package (ML-7). requirements.txt is the
+# install source -- `make venv` and the images pip-install that file -- so the
+# dependency list below mirrors it; change requirements.txt first, then sync
+# this file. No build backend is configured: the service is not pip-installed.
+[project]
+name = "flightdeck"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "watchdog>=4.0",
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "zen-engine==0.53.0",
+    # PostgreSQL (Phase 2). Present so the host .venv is ready; db.py stays on
+    # SQLite until cfg["database_url"] is set.
+    "psycopg[binary]>=3.1",
+    "psycopg_pool>=3.2",
+    # Missions MCP server (flightdeck.mcp_server) -- standalone process over stdio.
+    "fastmcp>=2.0",
+    # test-only: verifies the artifact fonts carry the Vietnamese block
+    "fonttools>=4.53",
+    "brotli>=1.1",
+    # Compose stack scan (systems/compose_scan.py) reads the top-level `name:`
+    # from docker-compose files.
+    "pyyaml>=6",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

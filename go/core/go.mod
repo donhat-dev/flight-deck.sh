@@ -1,9 +1,8 @@
-module flightdeck
+module flightdeck/core
 
 go 1.26.0
 
 require (
-	github.com/fsnotify/fsnotify v1.10.1
 	golang.org/x/sys v0.48.0
 	modernc.org/sqlite v1.60.1
 )

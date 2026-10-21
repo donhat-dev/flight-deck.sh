@@ -171,13 +171,15 @@ Home-layout explorations ship as separate Vite entries: `/home-concept.html`
 ## 🗂️ Repository layout
 
 ```
-go/             the Go core: one module (flightdeck)
-  core/         ledger, ingest, pricing, metrics, import (SQLite; no Postgres)
-  server/       HTTP API for `fd serve`
-  runner/       the spool runner (library)
-  cmd/fd, cmd/fd-runner   the two binaries (built into go/bin/)
-python/         FastAPI app (flightdeck package), config.toml, requirements
-api/            contracts between servers and clients: spend HTTP, CLI JSON, runner spool
+go/             the Go workspace (go.work): one module per layer
+  core/         flightdeck/core — ledger, ingest, pricing, metrics, import (SQLite; no Postgres)
+  server/       flightdeck/server — HTTP API for `fd serve`
+  runner/       flightdeck/runner — the spool runner (library)
+  cmd/fd, cmd/fd-runner   flightdeck/cmd — the two binaries (built into go/bin/)
+  archtest/     flightdeck/archtest — layer rules + module-boundary checks
+python/         FastAPI app (flightdeck package), pyproject.toml, requirements.txt
+api/            contracts between servers and clients: OpenAPI in api/openapi,
+                JSON Schemas in api/schemas, the conformance suite in api/conformance
 clients/web/    React + Vite app and the standalone concept/lab entries
 clients/odoo/   Flightdoo Odoo modules (mounted into docker/odoo19)
 warp-fleet/     experimental: drive Warp terminal panes from an orchestrator
@@ -198,6 +200,12 @@ npm --prefix clients/web test        # vitest (component contract tests)
 The backend runs alone from `python/` with
 `../.venv/Scripts/python -m uvicorn flightdeck.server:app --port 8010`
 (`bin` instead of `Scripts` on Linux).
+
+Checks: `make go-test` runs every Go module's tests
+including the architecture test; `make py-test` the Python suite including
+the import-layers ratchet; `make contracts` the API/CLI/spool conformance
+suite; `make web-deps` + `make web-build` the web client; `make check` runs
+all of them plus `docker compose` validation.
 
 README screenshots are generated against live local data with
 [docs/screenshots/capture.mjs](docs/screenshots/capture.mjs) — FlightDeck
