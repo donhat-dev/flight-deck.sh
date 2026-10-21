@@ -25,7 +25,7 @@ from odoo import api, fields, models
 
 from .session import ROSTER_ROOT
 
-ROSTER_KEYS = ("sessionId", "name", "nameSource", "status", "cwd", "startedAt", "kind")
+ROSTER_KEYS = ("sessionId", "name", "nameSource", "status", "cwd", "startedAt", "kind", "entrypoint")
 AGENT_FIELDS = ["parent_agent_id", "description", "agent_type", "model_name", "status",
                 "waiting", "is_background", "duration_seconds", "total_tokens",
                 "transcript_path"]

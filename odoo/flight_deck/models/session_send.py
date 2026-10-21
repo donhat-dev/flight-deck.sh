@@ -112,6 +112,8 @@ class FlightdeckSessionRuntime(models.Model):
             "model": "" if self.live_model == "default" else (self.live_model or ""),
             "effort": self.live_effort or "",
             "allowed_tools": tools,
+            # The CLI forgets a display name between starts; this keeps it the session's.
+            "name": self.name or "",
         }
 
     def action_start_runtime(self):

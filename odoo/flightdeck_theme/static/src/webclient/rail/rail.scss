@@ -1,0 +1,238 @@
+// The rail, restyled. MuK draws a flat strip whose current app is a band across
+// the full width; what follows gives it the two things that read as current: a
+// rounded pill inset from the edge, and a width that animates between the two
+// sizes instead of jumping.
+//
+// Every rule is nested under MuK's own two classes, which makes each selector
+// identical to the one it replaces. Equal specificity, so what decides is
+// source order: this module depends on MuK and compiles after it.
+
+.mk_apps_sidebar_panel {
+    transition: width 160ms ease;
+    // The rail and the top bar are one surface, so the rail takes the bar's
+    // colour rather than a colour of its own. MuK's $mk-appbar-background
+    // cannot serve here: it is declared !default ahead of the colour editor's
+    // override and keeps the shipped value whatever the settings page says.
+    background-color: $o-navbar-background;
+
+    .mk_apps_sidebar {
+        // MuK spreads its two children apart. A third one at the top would put
+        // the apps in the middle of the rail, so the logo is what floats down.
+        justify-content: flex-start;
+
+        .mk_apps_sidebar_logo {
+            margin-top: auto;
+        }
+
+        // With the bar gone the systray is the last thing in the rail, so it
+        // is the one that takes the free space above it.
+        .fd_rail_systray ~ .mk_apps_sidebar_logo {
+            margin-top: 0;
+        }
+
+        .mk_apps_sidebar_menu,
+        .fd_rail_submenu {
+            > li > a {
+                display: flex;
+                align-items: center;
+                margin: 1px 6px;
+                padding: 7px 8px;
+                border-radius: .375rem;
+                transition: background-color 120ms ease, color 120ms ease;
+            }
+            > li:hover > a {
+                background: rgba(255, 255, 255, .08);
+                color: #fff;
+            }
+        }
+
+        // $o-brand-primary, not MuK's own $mk-appbar-active: that one is
+        // declared !default in muk_web_appsbar and reads the accent from a
+        // position in the bundle ahead of the colour editor's override, so it
+        // keeps the shipped blue whatever the settings page is set to.
+        .mk_apps_sidebar_menu > li.active > a,
+        .mk_apps_sidebar_menu > li.active:hover > a {
+            background: $o-brand-primary;
+            color: #fff;
+            font-weight: 500;
+        }
+
+        .mk_apps_sidebar_icon {
+            flex: 0 0 auto;
+            border-radius: .25rem;
+        }
+        .mk_apps_sidebar_name {
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    }
+}
+
+// The two controls, kept quiet: they are used once a session and should not
+// compete with the apps under them.
+.fd_rail_bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 2px;
+    padding: 6px 8px 2px;
+
+    .fd_rail_btn {
+        border: 0;
+        background: transparent;
+        color: rgba(255, 255, 255, .45);
+        padding: 4px 6px;
+        border-radius: .25rem;
+        font-size: 12px;
+        line-height: 1;
+
+        &:hover {
+            background: rgba(255, 255, 255, .1);
+            color: #fff;
+        }
+    }
+}
+
+// Narrow, there is no room for two side by side.
+.mk_sidebar_type_small .fd_rail_bar {
+    flex-direction: column;
+    justify-content: center;
+    padding: 6px 4px 2px;
+}
+
+.fd_rail_submenu {
+    list-style: none;
+    padding: 4px 0 0;
+    margin: 4px 0 0;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+
+    > li > a {
+        color: $mk-appbar-color;
+        font-size: 12px;
+        text-decoration: none;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .fd_rail_dot {
+        flex: 0 0 auto;
+        width: 5px;
+        height: 5px;
+        margin: 0 8px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, .4);
+    }
+
+    .fd_rail_letter {
+        display: none;
+    }
+
+    .fd_rail_heading {
+        display: block;
+        padding: 8px 14px 2px;
+        color: rgba(255, 255, 255, .35);
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: .04em;
+        text-transform: uppercase;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+}
+
+.mk_sidebar_type_small .fd_rail_submenu {
+    .fd_rail_dot {
+        display: none;
+    }
+    // Narrow, a heading has no width to be read in; the rule above it already
+    // says a group starts here.
+    .fd_rail_heading {
+        padding: 0;
+        margin: 6px 10px 2px;
+        border-top: 1px solid rgba(255, 255, 255, .08);
+        font-size: 0;
+    }
+    .fd_rail_letter {
+        display: block;
+        flex: 0 0 auto;
+        width: 22px;
+        line-height: 22px;
+        margin: 0 auto;
+        border-radius: .25rem;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        background: rgba(255, 255, 255, .1);
+    }
+}
+
+// The systray, moved out of the bar it was drawn for. Its own sizing and
+// colours live under .o_main_navbar, so in the rail the items arrive with no
+// size at all — the user avatar renders at its full 180px. What follows gives
+// them the rail's colours and a size that fits 56px.
+.fd_rail_systray {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    margin-top: auto;
+    padding: 6px 4px;
+    border-top: 1px solid rgba(255, 255, 255, .08);
+    color: $mk-appbar-color;
+
+    .btn,
+    button,
+    .dropdown-toggle {
+        background: transparent !important;
+        border: 0;
+        box-shadow: none;
+        color: inherit;
+        padding: 4px 6px;
+        border-radius: .25rem;
+        font-size: 12px;
+        line-height: 1.2;
+
+        &:hover {
+            background: rgba(255, 255, 255, .08) !important;
+            color: #fff;
+        }
+    }
+
+    img,
+    .o_avatar {
+        width: 22px !important;
+        height: 22px !important;
+        min-width: 22px;
+        border-radius: .25rem;
+        object-fit: cover;
+    }
+
+    .oe_topbar_name {
+        max-width: 90px;
+        color: inherit;
+    }
+
+    // A menu opened from here would be cut off by the panel's own scrolling,
+    // so it is drawn against the viewport instead.
+    .o-dropdown--menu {
+        position: fixed;
+    }
+}
+
+.mk_sidebar_type_small .fd_rail_systray {
+    padding: 6px 2px;
+
+    // The company name carries Bootstrap's own d-lg-block, which is
+    // !important, so taking it away has to be too.
+    .oe_topbar_name {
+        display: none !important;
+    }
+}
+
+// The top bar, taken away. The rail carries the app's own menu while it is
+// gone, so nothing becomes unreachable — see rail.js.
+.fd_no_navbar .o_main_navbar {
+    display: none !important;
+}

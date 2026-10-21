@@ -1,6 +1,6 @@
 {
     "name": "FlightDeck",
-    "version": "19.0.1.8.0",
+    "version": "19.0.1.9.0",
     "summary": "Session logbook, treasure library and spend analytics for Claude Code",
     "author": "NAKIVO",
     "license": "LGPL-3",
@@ -27,6 +27,8 @@
         "views/task_views.xml",
         "views/feedback_views.xml",
         "views/orchestrator_views.xml",
+        "views/orchestrator_supervisor_views.xml",
+        "data/orchestrator_watch_data.xml",
         "views/turn_step_views.xml",
         "views/res_users_views.xml",
         "views/session_notify_views.xml",

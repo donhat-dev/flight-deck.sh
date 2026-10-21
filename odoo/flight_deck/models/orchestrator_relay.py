@@ -3,7 +3,8 @@
 It is a `claude -p` process on the host runner, working in its own folder
 under the spool mount and renamed `fd-orchestrator` at every start, so a
 session it writes to sees who wrote. It sends only what a person typed and
-confirmed on the Orchestrator page:
+confirmed on the Orchestrator page, or a notice Flightdoo wrote from a watch
+rule (orchestrator_supervisor.py):
 
 - Flightdoo writes the folder's settings before each start. They make every
   SendMessage ask for permission, so the runner parks the call and Flightdoo
@@ -71,6 +72,8 @@ MESSAGE_RE = re.compile(
 IDLE_RE = re.compile(r'\[Cross-session idle notice\]\s*"(?P<name>[^"]+)"')
 REF_RE = re.compile(r"\s*\[[0-9a-f]+\]\s*$")
 
+RELAYED = ("send", "notice")
+
 GATES = [("unchecked", "Not tested"), ("testing", "Testing"), ("ok", "Working"),
          ("broken", "Broken")]
 
@@ -80,7 +83,10 @@ class FlightdeckOrchestratorRequest(models.Model):
     _description = "Orchestrator request"
     _order = "id desc"
 
-    kind = fields.Selection([("send", "Send"), ("ask", "Question"), ("selftest", "Gate test")],
+    # A notice is a send whose text Flightdoo wrote from a watch rule
+    # (orchestrator_supervisor.py); the gate treats both alike.
+    kind = fields.Selection([("send", "Send"), ("notice", "Notice"), ("ask", "Question"),
+                             ("selftest", "Gate test")],
                             required=True, readonly=True)
     orchestrator_id = fields.Many2one("flightdeck.session", required=True, ondelete="cascade",
                                       index=True, readonly=True)
@@ -286,7 +292,7 @@ class FlightdeckSessionOrchestratorRelay(models.Model):
         detail = super().fd_orchestrator_detail(kind, record_id)
         if detail and kind == "session":
             detail["sends"] = [r._row() for r in self.env["flightdeck.orchestrator.request"].search(
-                [("kind", "=", "send"), ("target_session_id", "=", record_id)], limit=6)]
+                [("kind", "in", RELAYED), ("target_session_id", "=", record_id)], limit=6)]
         return detail
 
     # --- reading back --------------------------------------------------------------
@@ -326,18 +332,18 @@ class FlightdeckSessionOrchestratorRelay(models.Model):
                 Request.search([("orchestrator_id", "=", self.id), ("state", "=", "queued")]).write(
                     {"state": "failed", "note": "The send gate did not pass its test."})
         stuck = Request.search([
-            ("orchestrator_id", "=", self.id), ("kind", "=", "send"), ("state", "=", "forwarded"),
+            ("orchestrator_id", "=", self.id), ("kind", "in", RELAYED), ("state", "=", "forwarded"),
             ("forwarded_at", "<", fields.Datetime.now() - FORWARD_TIMEOUT),
         ])
         stuck.write({"state": "failed", "note": "The orchestrator did not make the call."})
         open_ = Request.search([("orchestrator_id", "=", self.id),
                                 ("state", "in", ("sent", "forwarded")),
-                                ("kind", "in", ("send", "ask"))])
+                                ("kind", "in", RELAYED + ("ask",))])
         if not open_:
             return
         entries = self._fd_orchestrator_entries()
         for request in open_.sorted("id"):
-            if request.kind == "send" and request.state == "sent":
+            if request.kind in RELAYED and request.state == "sent":
                 since = fields.Datetime.to_string(request.sent_at)
                 for ts, kind, name, body in entries:
                     if ts >= since and name == request.target_name and kind == "message":
@@ -416,7 +422,7 @@ class FlightdeckOrchestratorForward(models.Model):
         """Hand one request to the orchestrator as a user turn."""
         for request in self:
             orch = request.orchestrator_id
-            if request.kind == "send":
+            if request.kind in RELAYED:
                 body = json.dumps({"to": request.target_name, "message": request.text},
                                   ensure_ascii=False)
                 text = "FORWARD %s %s" % (request.id, body)
@@ -488,7 +494,7 @@ class FlightdeckDecisionOrchestrator(models.Model):
                                     ("state", "=", "queued")]).sorted("id")._fd_forward()
             return
         match = Request.search([
-            ("orchestrator_id", "=", session.id), ("kind", "=", "send"),
+            ("orchestrator_id", "=", session.id), ("kind", "in", RELAYED),
             ("state", "=", "forwarded"), ("target_name", "=", to),
         ], order="id").filtered(lambda r: r.text.strip() == message)[:1]
         if session.orchestrator_gate == "ok" and match and not raw.get("notify_when_idle"):
@@ -497,7 +503,7 @@ class FlightdeckDecisionOrchestrator(models.Model):
                          "sent_at": fields.Datetime.now()})
             return
         self.decide("deny", "once", "Not a message a person confirmed on the Orchestrator page.")
-        forwarded = Request.search([("orchestrator_id", "=", session.id), ("kind", "=", "send"),
+        forwarded = Request.search([("orchestrator_id", "=", session.id), ("kind", "in", RELAYED),
                                     ("state", "=", "forwarded")], order="id")
         waiting = forwarded.filtered(lambda r: r.target_name == to)[:1] or forwarded[:1]
         if waiting:

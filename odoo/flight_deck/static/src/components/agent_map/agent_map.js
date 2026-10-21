@@ -27,7 +27,9 @@ const FIELDS = ["parent_agent_id", "agent_id", "description", "agent_type", "sta
 const SESSION_FIELDS = ["name", "live_model", "text_count", "runtime_state"];
 // Mirrors MODELS in models/runner.py.
 const MODEL_LABELS = {
-    opus: "Opus 5", fable: "Fable 5.1", sonnet: "Sonnet 5", haiku: "Haiku 4.5",
+    "claude-sonnet-5-5": "Sonnet 5.5", "claude-opus-5-5": "Opus 5.5", fable: "Fable 5.1",
+    "claude-haiku-5-5": "Haiku 5.5", opus: "Opus (CLI alias)", sonnet: "Sonnet (CLI alias)",
+    haiku: "Haiku (CLI alias)",
 };
 
 /** One agent's own transcript, in a dialog over the session. */

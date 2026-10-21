@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- Watches -->
+    <record id="view_orchestrator_watch_list" model="ir.ui.view">
+        <field name="name">flightdeck.orchestrator.watch.list</field>
+        <field name="model">flightdeck.orchestrator.watch</field>
+        <field name="arch" type="xml">
+            <list string="Watches">
+                <field name="sequence" widget="handle"/>
+                <field name="name"/>
+                <field name="trigger"/>
+                <field name="scope"/>
+                <field name="session_id"/>
+                <field name="deliver"/>
+                <field name="target_session_id"/>
+                <field name="once" optional="show"/>
+                <field name="fired_count"/>
+                <field name="last_fired_at" optional="show"/>
+                <field name="active" widget="boolean_toggle"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_orchestrator_watch_form" model="ir.ui.view">
+        <field name="name">flightdeck.orchestrator.watch.form</field>
+        <field name="model">flightdeck.orchestrator.watch</field>
+        <field name="arch" type="xml">
+            <form string="Watch">
+                <sheet>
+                    <widget name="web_ribbon" title="Off" bg_color="text-bg-secondary" invisible="active"/>
+                    <div class="oe_title">
+                        <label for="name"/>
+                        <h1><field name="name" placeholder="Tell the review session when the build session finishes"/></h1>
+                    </div>
+                    <group>
+                        <group string="Look for">
+                            <field name="trigger"/>
+                            <field name="scope"/>
+                            <field name="session_id" invisible="scope != 'session'"
+                                   required="scope == 'session'"/>
+                        </group>
+                        <group string="Then">
+                            <field name="deliver"/>
+                            <field name="target_session_id" invisible="deliver != 'session'"
+                                   required="deliver == 'session'"/>
+                            <field name="once"/>
+                            <field name="active"/>
+                        </group>
+                    </group>
+                    <field name="note" invisible="deliver != 'session'"
+                           placeholder="Added under the notice, e.g. what the other session should do next."/>
+                    <p class="text-muted" invisible="deliver != 'session'">
+                        The notice goes out through fd-orchestrator, written by Flightdoo, not by a model.
+                        The receiving session's Claude reads it as a message from another session and
+                        decides what to do.
+                    </p>
+                    <group string="Fired">
+                        <field name="fired_count"/>
+                        <field name="last_fired_at"/>
+                    </group>
+                    <field name="event_ids" readonly="1">
+                        <list>
+                            <field name="at"/>
+                            <field name="session_id"/>
+                            <field name="summary"/>
+                        </list>
+                    </field>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="action_orchestrator_watch" model="ir.actions.act_window">
+        <field name="name">Watches</field>
+        <field name="res_model">flightdeck.orchestrator.watch</field>
+        <field name="view_mode">list,form</field>
+        <field name="context">{'active_test': False}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No watches yet</p>
+            <p>A watch looks for a turn that ended, an approval waited on or an agent that failed,
+               and records it in the ledger, pushes it to you or tells another session.</p>
+        </field>
+    </record>
+
+    <!-- Ledger -->
+    <record id="view_orchestrator_event_list" model="ir.ui.view">
+        <field name="name">flightdeck.orchestrator.event.list</field>
+        <field name="model">flightdeck.orchestrator.event</field>
+        <field name="arch" type="xml">
+            <list string="Ledger" create="0" edit="0" delete="0">
+                <field name="at"/>
+                <field name="kind" widget="badge"
+                       decoration-danger="kind == 'agent_failed'" decoration-warning="kind == 'approval'"
+                       decoration-info="kind == 'request'" decoration-muted="kind == 'relay'"/>
+                <field name="session_id"/>
+                <field name="summary"/>
+                <field name="watch_id" optional="show"/>
+                <field name="request_id" optional="hide"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="view_orchestrator_event_form" model="ir.ui.view">
+        <field name="name">flightdeck.orchestrator.event.form</field>
+        <field name="model">flightdeck.orchestrator.event</field>
+        <field name="arch" type="xml">
+            <form string="Ledger entry" create="0" edit="0" delete="0">
+                <sheet>
+                    <div class="oe_title">
+                        <h1><field name="summary"/></h1>
+                    </div>
+                    <group>
+                        <group>
+                            <field name="at"/>
+                            <field name="kind"/>
+                            <field name="session_id"/>
+                            <field name="watch_id"/>
+                        </group>
+                        <group>
+                            <field name="request_id"/>
+                            <field name="turn_id"/>
+                            <field name="agent_id"/>
+                            <field name="decision_id"/>
+                            <field name="key"/>
+                        </group>
+                    </group>
+                    <field name="detail"/>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="view_orchestrator_event_search" model="ir.ui.view">
+        <field name="name">flightdeck.orchestrator.event.search</field>
+        <field name="model">flightdeck.orchestrator.event</field>
+        <field name="arch" type="xml">
+            <search string="Ledger">
+                <field name="summary"/>
+                <field name="session_id"/>
+                <field name="watch_id"/>
+                <filter name="observed" string="Observations"
+                        domain="[('kind', 'in', ('turn_ended', 'approval', 'agent_failed'))]"/>
+                <filter name="requests" string="Relay requests" domain="[('kind', '=', 'request')]"/>
+                <filter name="relay" string="Relay process" domain="[('kind', '=', 'relay')]"/>
+                <separator/>
+                <filter name="today" string="Last 24 hours"
+                        domain="[('at', '>=', (context_today() - relativedelta(days=1)).strftime('%Y-%m-%d'))]"/>
+                <group>
+                    <filter name="by_kind" string="Kind" context="{'group_by': 'kind'}"/>
+                    <filter name="by_session" string="Session" context="{'group_by': 'session_id'}"/>
+                    <filter name="by_day" string="Day" context="{'group_by': 'at:day'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="action_orchestrator_event" model="ir.actions.act_window">
+        <field name="name">Ledger</field>
+        <field name="res_model">flightdeck.orchestrator.event</field>
+        <field name="view_mode">list,form</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">The ledger is empty</p>
+            <p>What the Orchestrator saw and did lands here: observations its watches matched,
+               every relay request and how it ended, and every start, stop and gate test.</p>
+        </field>
+    </record>
+
+    <!-- The Orchestrator menu becomes a group: the live page, its watches, its ledger -->
+    <record id="menu_orchestrator" model="ir.ui.menu">
+        <field name="action" eval="False"/>
+    </record>
+    <menuitem id="menu_orchestrator_live" name="Live" parent="menu_orchestrator"
+              action="action_orchestrator" sequence="10"/>
+    <menuitem id="menu_orchestrator_watch" name="Watches" parent="menu_orchestrator"
+              action="action_orchestrator_watch" sequence="20"/>
+    <menuitem id="menu_orchestrator_event" name="Ledger" parent="menu_orchestrator"
+              action="action_orchestrator_event" sequence="30"/>
+</odoo>

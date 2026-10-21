@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flightdeck_theme.AppsBar"
+       t-inherit="muk_web_appsbar.AppsBar" t-inherit-mode="extension">
+
+        <!-- Above the apps and inside the rail's own column, so it scrolls
+             and narrows with them. -->
+        <xpath expr="//ul[hasclass('mk_apps_sidebar_menu')]" position="before">
+            <div class="fd_rail_bar">
+                <button type="button" class="fd_rail_btn"
+                        t-att-title="collapsed ? 'Widen the rail' : 'Narrow the rail to icons'"
+                        t-on-click="() => this.toggleWidth()">
+                    <i t-attf-class="fa {{ collapsed ? 'fa-angle-double-right' : 'fa-angle-double-left' }}"/>
+                </button>
+                <button type="button" class="fd_rail_btn"
+                        t-att-title="navbarOff ? 'Bring the top bar back' : 'Hide the top bar'"
+                        t-on-click="() => this.toggleNavbar()">
+                    <i t-attf-class="fa {{ navbarOff ? 'fa-window-maximize' : 'fa-window-minimize' }}"/>
+                </button>
+            </div>
+        </xpath>
+
+        <!-- The app's own menu, for as long as the bar that carries it is gone. -->
+        <xpath expr="//ul[hasclass('mk_apps_sidebar_menu')]" position="after">
+            <ul t-if="appMenu.length" class="fd_rail_submenu">
+                <li t-foreach="appMenu" t-as="item" t-key="item.id">
+                    <span t-if="item.heading" class="fd_rail_heading"
+                          t-att-title="item.name" t-esc="item.name"/>
+                    <a t-else="" class="nav-link" t-att-href="item.href"
+                       t-att-title="item.name"
+                       t-on-click.prevent="() => this.openMenu(item)">
+                        <span class="fd_rail_dot"/>
+                        <!-- Narrow, a row of identical dots names nothing, so
+                             the item wears its own initial instead. -->
+                        <span class="fd_rail_letter" t-esc="item.name.charAt(0)"/>
+                        <span class="mk_apps_sidebar_name" t-esc="item.name"/>
+                    </a>
+                </li>
+            </ul>
+        </xpath>
+
+        <!-- The systray follows the app menu out of the bar. It sits at the
+             foot of the rail, away from the apps, the way it sits at the far
+             end of the bar it came from. -->
+        <xpath expr="//div[hasclass('mk_apps_sidebar_logo')]" position="before">
+            <div t-if="navbarOff" class="fd_rail_systray" role="menu">
+                <t t-foreach="systrayItems" t-as="item" t-key="item.key">
+                    <ErrorHandler onError="(error) => this.handleSystrayError(error, item)">
+                        <t t-component="item.Component" t-props="item.props"/>
+                    </ErrorHandler>
+                </t>
+            </div>
+        </xpath>
+
+    </t>
+
+</templates>

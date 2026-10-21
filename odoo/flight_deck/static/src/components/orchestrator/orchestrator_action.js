@@ -428,6 +428,38 @@ export class OrchestratorAction extends Component {
         return !!this.state.data?.can_send;
     }
 
+    get supervisor() {
+        return this.state.data?.supervisor || null;
+    }
+
+    setKeepalive(on) {
+        return this.relay("fd_orchestrator_set_keepalive", [on]);
+    }
+
+    openWatches() {
+        this.action.doAction("flight_deck.action_orchestrator_watch");
+    }
+
+    openLedger() {
+        this.action.doAction("flight_deck.action_orchestrator_event");
+    }
+
+    /** A new watch on the selected session, its form prefilled. */
+    watchSession() {
+        const node = this.selectedNode;
+        this.action.doAction({
+            type: "ir.actions.act_window",
+            res_model: "flightdeck.orchestrator.watch",
+            views: [[false, "form"]],
+            target: "new",
+            context: {
+                default_scope: "session",
+                default_session_id: this.state.selected.id,
+                default_name: `${node?.label || "Session"}: turn ended`,
+            },
+        }, { onClose: () => this.load() });
+    }
+
     relayLabel(orch) {
         return relayLabel(orch);
     }

@@ -108,6 +108,50 @@
             <button type="button" class="btn btn-sm btn-primary"
                     t-att-disabled="state.working or !state.askText.trim()" t-on-click="ask">Ask</button>
         </t>
+        <t t-set="sup" t-value="supervisor"/>
+        <t t-if="sup">
+            <div class="fd_orch_section">Supervisor</div>
+            <div class="form-check form-switch mb-1">
+                <input class="form-check-input" type="checkbox" id="fd_orch_keepalive"
+                       t-att-checked="sup.keepalive" t-att-disabled="!canSend or state.working"
+                       t-on-change="(ev) => setKeepalive(ev.target.checked)"/>
+                <label class="form-check-label" for="fd_orch_keepalive">Keep the relay running</label>
+            </div>
+            <p class="text-muted small">
+                Watches that tell a session keep it running too. A stopped relay is started again
+                at most every 10 minutes, and replaced once its context grows large.
+            </p>
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="small fw-semibold">Watches</span>
+                <button type="button" class="btn btn-link btn-sm p-0" t-on-click="openWatches">Manage</button>
+            </div>
+            <ul class="fd_orch_requests">
+                <li t-if="!sup.watches.length" class="text-muted small">None yet.</li>
+                <li t-foreach="sup.watches" t-as="w" t-key="w.id">
+                    <div class="fd_orch_request_head">
+                        <span t-out="w.name"/>
+                        <span class="text-muted small" t-out="w.fired + '×'"/>
+                    </div>
+                    <div class="text-muted small">
+                        <t t-out="w.trigger"/> → <t t-out="w.deliver"/><t t-if="w.target"> (<t t-out="w.target"/>)</t>
+                    </div>
+                </li>
+            </ul>
+            <div class="d-flex align-items-center justify-content-between mt-2">
+                <span class="small fw-semibold">Ledger</span>
+                <button type="button" class="btn btn-link btn-sm p-0" t-on-click="openLedger">All entries</button>
+            </div>
+            <ul class="fd_orch_requests">
+                <li t-if="!sup.ledger.length" class="text-muted small">Nothing recorded yet.</li>
+                <li t-foreach="sup.ledger" t-as="e" t-key="e.id">
+                    <div class="fd_orch_request_head">
+                        <span t-out="e.session or e.kind_label"/>
+                        <span class="text-muted small" t-out="ago(e.at)"/>
+                    </div>
+                    <div class="fd_orch_request_text" t-out="e.summary"/>
+                </li>
+            </ul>
+        </t>
         <t t-if="orch and orch.requests.length">
             <div class="fd_orch_section">Recent requests</div>
             <t t-call="flight_deck.OrchestratorRequests">
@@ -121,6 +165,7 @@
             <li t-foreach="rows" t-as="row" t-key="row.id">
                 <div class="fd_orch_request_head">
                     <span t-if="row.kind === 'ask'">Question</span>
+                    <span t-elif="row.kind === 'notice'">Notice to <t t-out="row.target"/></span>
                     <span t-else="">To <t t-out="row.target"/></span>
                     <span t-attf-class="fd_orch_request_state fd_orch_rs_{{row.state}}" t-out="row.state_label"/>
                 </div>
@@ -136,6 +181,8 @@
         <t t-set="d" t-value="state.detail"/>
         <div class="fd_orch_panel_actions">
             <button type="button" class="btn btn-sm btn-primary" t-on-click="openLogbook">Open logbook</button>
+            <button t-if="canSend" type="button" class="btn btn-sm btn-outline-secondary"
+                    t-on-click="watchSession">Watch this session</button>
         </div>
         <dl class="fd_orch_facts">
             <dt>Logbook</dt><dd t-out="d.name"/>

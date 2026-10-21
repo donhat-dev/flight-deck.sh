@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <t t-name="flightdeck_theme_light.AppsBar"
+       t-inherit="muk_web_appsbar.AppsBar" t-inherit-mode="extension">
+
+        <!-- The sections leave their zone at the foot: with the rail narrow
+             and the labels away, that zone was a list of initials nowhere near
+             the app they belong to. They go under the app instead, where the
+             relationship needs no explaining. -->
+        <xpath expr="//ul[hasclass('fd_rail_submenu')]" position="replace"/>
+
+        <xpath expr="//ul[hasclass('mk_apps_sidebar_menu')]//a[hasclass('nav-link')]"
+               position="after">
+            <ul t-if="appMenu.length and isCurrentApp(app)" class="fd_rail_sections">
+                <li t-foreach="appMenu" t-as="item" t-key="item.id">
+                    <span t-if="item.heading" class="fd_rail_heading"
+                          t-att-title="item.name" t-esc="item.name"/>
+                    <a t-else="" class="nav-link" t-att-href="item.href"
+                       t-att-title="item.name"
+                       t-on-click.prevent="() => this.openMenu(item)"
+                       t-esc="item.name"/>
+                </li>
+            </ul>
+        </xpath>
+
+        <!-- Both zones the dark rail puts at the head and the foot change
+             ends here, so both are taken out and put back where they belong. -->
+        <xpath expr="//div[hasclass('fd_rail_systray')]" position="replace"/>
+        <xpath expr="//div[hasclass('fd_rail_bar')]" position="replace"/>
+
+        <!-- The systray at the head. It is about the person and the instance,
+             not about where they are, so it belongs above the apps. -->
+        <xpath expr="//ul[hasclass('mk_apps_sidebar_menu')]" position="before">
+            <div t-if="navbarOff" class="fd_rail_systray" role="menu">
+                <t t-foreach="systrayItems" t-as="item" t-key="item.key">
+                    <ErrorHandler onError="(error) => this.handleSystrayError(error, item)">
+                        <t t-component="item.Component" t-props="item.props"/>
+                    </ErrorHandler>
+                </t>
+            </div>
+        </xpath>
+
+        <!-- The two controls at the foot, a row each. They are settings for
+             the rail rather than places to go, so they sit under everything
+             that is a place to go, and they wear the same row as it. -->
+        <xpath expr="//ul[hasclass('mk_apps_sidebar_menu')]" position="after">
+            <div class="fd_rail_foot">
+                <button type="button" class="fd_rail_btn"
+                        t-att-title="collapsed ? 'Keep the rail open' : 'Collapse the rail to icons'"
+                        t-on-click="() => this.toggleWidth()">
+                    <i t-attf-class="fa {{ collapsed ? 'fa-angle-double-right' : 'fa-angle-double-left' }}"/>
+                    <span class="fd_rail_btn_label">
+                        <t t-if="collapsed">Expand</t>
+                        <t t-else="">Collapse</t>
+                    </span>
+                </button>
+                <button type="button"
+                        t-attf-class="fd_rail_btn {{ zenOn ? 'fd_rail_btn_on' : '' }}"
+                        t-att-title="zenOn ? 'Leave zen mode and bring the top bar back' : 'Zen mode: the rail is the only chrome'"
+                        t-on-click="() => this.toggleNavbar()">
+                    <i class="fa fa-compress"/>
+                    <span class="fd_rail_btn_label">Zen mode</span>
+                </button>
+            </div>
+        </xpath>
+
+    </t>
+
+</templates>

@@ -31,20 +31,32 @@ PERMISSION_MODES = [
 
 # The names the CLI takes for --model. "default" means: pass nothing and let
 # the signed-in account decide.
-MODELS = [
-    ("default", "Default"),
-    ("opus", "Opus 5"),
+# Current models by their full ID, so every CLI version means the same one; a
+# CLI too old for a model answers with an API error.
+CURRENT_MODELS = [
+    ("claude-sonnet-5-5", "Sonnet 5.5"),
+    ("claude-opus-5-5", "Opus 5.5"),
     ("fable", "Fable 5.1"),
-    ("sonnet", "Sonnet 5"),
-    ("haiku", "Haiku 4.5"),
+    ("claude-haiku-5-5", "Haiku 5.5"),
+]
+DEFAULT_MODEL = "claude-sonnet-5-5"
+MODELS = [("default", "Default")] + CURRENT_MODELS + [
+    # Aliases sessions picked before 2026-10-14: the installed CLI decides the
+    # version (2.1.278 maps them to Opus 5, Sonnet 5 and Haiku 4.5).
+    ("opus", "Opus (CLI alias)"),
+    ("sonnet", "Sonnet (CLI alias)"),
+    ("haiku", "Haiku (CLI alias)"),
 ]
 # What each one is for, one line, shown next to the name when picking.
 MODEL_NOTES = {
     "default": "Whatever the signed-in account uses.",
-    "opus": "1M context. Everyday and complex work.",
+    "claude-sonnet-5-5": "Balanced; the default for new sessions.",
+    "claude-opus-5-5": "Long agentic and knowledge work. Needs Claude Code 2.1.296 or later.",
     "fable": "The most capable, for the hardest and longest runs.",
-    "sonnet": "Efficient for routine work.",
-    "haiku": "Fastest, for quick answers.",
+    "claude-haiku-5-5": "Fastest, for quick answers.",
+    "opus": "The Opus the installed CLI knows.",
+    "sonnet": "The Sonnet the installed CLI knows.",
+    "haiku": "The Haiku the installed CLI knows.",
 }
 EFFORTS = [
     ("low", "Low"),
@@ -76,7 +88,7 @@ class FlightdeckRunner(models.Model):
         "Working directory",
         help="Where claude starts for a new session, as the runner sees it.")
     default_model = fields.Selection(
-        MODELS, string="Model", default="default", required=True,
+        MODELS, string="Model", default=DEFAULT_MODEL, required=True,
         help="Where a new session starts.")
     default_effort = fields.Selection(
         EFFORTS, string="Effort",
@@ -277,6 +289,7 @@ class FlightdeckRunnerCommand(models.Model):
     op = fields.Selection([
         ("start", "Start"), ("send", "Send"), ("interrupt", "Interrupt"), ("stop", "Stop"),
         ("decide", "Answer a permission request"), ("set_mode", "Change permission mode"),
+        ("set_model", "Change model"), ("set_effort", "Change effort"),
     ], required=True)
     state = fields.Selection([
         ("queued", "Queued"), ("done", "Done"), ("failed", "Failed"),

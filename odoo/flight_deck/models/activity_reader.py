@@ -80,7 +80,10 @@ def is_human_prompt(obj):
         return False
     origin = obj.get("turnOrigin")
     if origin:
-        return origin == "human"
+        # `sdk` is a prompt handed to `claude -p` or to a runner session: the
+        # turn's own prompt, typed elsewhere. Peers, task notifications and
+        # scheduled wake-ups land inside a turn and do not start one.
+        return origin in ("human", "sdk")
     text = _prompt_body(_user_text(obj) or "").strip()
     return bool(text) and not text.startswith(_MACHINE_PREFIXES)
 

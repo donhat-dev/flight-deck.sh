@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates xml:space="preserve">
+
+    <!-- A word for each systray item, for when the rail is wide enough to
+         read one. The label is written into each item's own template rather
+         than beside it in the rail, for two reasons: it can then read the
+         same expression the badge reads, so the two can never disagree; and
+         it lands inside the button, so the whole row answers a click.
+
+         It is hidden everywhere by default. Only the rail, and only once it
+         is wide, ever shows it — see light.scss. -->
+
+    <t t-name="flightdeck_theme_light.MessagingMenu"
+       t-inherit="mail.MessagingMenu" t-inherit-mode="extension">
+        <xpath expr="//span[hasclass('o-mail-MessagingMenu-counter')]" position="after">
+            <span class="fd_rail_syslabel">
+                <t t-if="counter == 1">1 unread</t>
+                <t t-elif="counter"><t t-esc="counter"/> unreads</t>
+                <t t-else="">Messages</t>
+            </span>
+        </xpath>
+    </t>
+
+    <t t-name="flightdeck_theme_light.ActivityMenu"
+       t-inherit="mail.ActivityMenu" t-inherit-mode="extension">
+        <xpath expr="//span[hasclass('o-mail-ActivityMenu-counter')]" position="after">
+            <span class="fd_rail_syslabel">
+                <t t-if="store.activityCounter == 1">1 activity</t>
+                <t t-elif="store.activityCounter"><t t-esc="store.activityCounter"/> activities</t>
+                <t t-else="">Activities</t>
+            </span>
+        </xpath>
+    </t>
+
+    <!-- The user menu already carries a name, on a .oe_topbar_name that Odoo
+         keeps hidden and that is the name over the database on two lines.
+         This is the one line of it the rail has room for. -->
+    <t t-name="flightdeck_theme_light.UserMenu"
+       t-inherit="web.UserMenu" t-inherit-mode="extension">
+        <xpath expr="//small[hasclass('oe_topbar_name')]" position="after">
+            <span class="fd_rail_syslabel" t-esc="userName"/>
+        </xpath>
+    </t>
+
+</templates>

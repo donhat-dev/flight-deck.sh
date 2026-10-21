@@ -24,6 +24,7 @@ from . import ir_ui_view
 from . import ir_module_module
 from . import orchestrator
 from . import orchestrator_relay
+from . import orchestrator_supervisor
 from . import turn_step
 from . import turn_feedback
 from . import turn_notify
