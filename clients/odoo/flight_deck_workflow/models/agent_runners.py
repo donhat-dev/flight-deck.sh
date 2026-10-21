@@ -18,15 +18,12 @@ from odoo import _, fields
 from odoo.exceptions import UserError, ValidationError
 
 from odoo.addons.flight_deck.models.runner import EFFORTS, MODELS
-from odoo.addons.workflow_studio.models.context_objects import build_eval_context, to_plain
-from odoo.addons.workflow_studio.models.runners.base import BaseNodeRunner
-from odoo.addons.workflow_studio.models.runners.errors import PermanentNodeError
-from odoo.addons.workflow_studio.models.runners.wait_runners import (
-    WAIT_RESUME,
-    WaitingStepMixin,
-    duration,
-)
-from odoo.addons.workflow_studio.models.workflow_executor import WorkflowExecutor
+from odoo.addons.workflow_engine.engine.context import build_eval_context, to_plain
+from odoo.addons.workflow_engine.engine.registry import register_runner
+from odoo.addons.workflow_engine.engine.runners.base import BaseNodeRunner
+from odoo.addons.workflow_engine.engine.runners.errors import PermanentNodeError
+from odoo.addons.workflow_engine.engine.runners.waiting import WAIT_RESUME, duration
+from odoo.addons.workflow_studio.models.runners.wait_runners import WaitingStepMixin
 
 MANAGER_GROUP = "flight_deck.group_manager"
 DEFAULT_TIMEOUT = (10, "minutes")
@@ -294,7 +291,5 @@ class StartSessionNodeRunner(AgentStepMixin, BaseNodeRunner):
         return {"outputs": [[payload], []], "json": payload}
 
 
-WorkflowExecutor.NODE_RUNNERS.update({
-    AskAgentNodeRunner.node_type: AskAgentNodeRunner,
-    StartSessionNodeRunner.node_type: StartSessionNodeRunner,
-})
+register_runner(AskAgentNodeRunner.node_type, AskAgentNodeRunner)
+register_runner(StartSessionNodeRunner.node_type, StartSessionNodeRunner)

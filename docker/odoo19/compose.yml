@@ -63,6 +63,8 @@ services:
       # it here can go back to that repository. Module by module: the
       # repository also vendors an Odoo 18 queue_job that must not sit on
       # addons_path beside the one above.
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_engine:/mnt/wfs-addons/workflow_engine:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_graph:/mnt/wfs-addons/workflow_graph:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro
@@ -121,6 +123,8 @@ services:
     volumes:
       - ./odoo-wfs.conf:/etc/odoo/odoo.conf:ro
       - ./addons:/mnt/vendor-addons:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_engine:/mnt/wfs-addons/workflow_engine:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_graph:/mnt/wfs-addons/workflow_graph:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro

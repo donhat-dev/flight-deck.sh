@@ -17,7 +17,7 @@ Records deleted since are left out. Set DRY_RUN to count without writing.
 from datetime import timedelta
 
 from odoo.addons.workflow_studio.tracking import recorder
-from odoo.addons.workflow_studio.tracking.state import SEGMENT_STRIDE
+from odoo.addons.workflow_engine.tracking.state import SEGMENT_STRIDE
 
 DRY_RUN = False
 LABEL_FLOW = "flight_deck.label_new_turns"
