@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-inherit="muk_ai.ChatWindow" t-inherit-mode="extension">
+        <xpath expr="//span[hasclass('mk_window_actions')]/span[1]" position="before">
+            <span
+                class="mk_window_btn o_flight_tools_btn"
+                title="Tools"
+                t-on-click.stop="(ev) => this.onFlightTools(ev)"
+            >
+                <i class="fa fa-wrench"/>
+                <span
+                    t-if="flightToolsBadge"
+                    class="o_flight_tools_badge"
+                    t-esc="flightToolsBadge"
+                />
+            </span>
+        </xpath>
+    </t>
+
+</templates>

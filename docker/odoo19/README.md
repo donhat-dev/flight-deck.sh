@@ -81,16 +81,18 @@ To remove it: `button_immediate_uninstall` on `muk_web_theme`, then drop the
 
 ## Workflow Studio
 
-`workflow_studio` and `workflow_studio_queue_job` come from their own repository,
-`github.com/donhat-dev/open-workflow-studio`, cloned in the workspace at
+Workflow Studio's modules (`workflow_engine`, `workflow_graph`, `workflow_studio`, the
+connectors, `workflow_studio_queue_job` and the `harness_*` modules) come from their own
+repository, `github.com/donhat-dev/open-workflow-studio`, cloned in the workspace at
 `repos/open-workflow-studio` on branch `19.0` (the Odoo 19 port; `main` is 18.0). Unlike
 `addons/`, that clone is where changes to it are made, so it is mounted as it is rather
-than copied: set `WFS_SRC` in `.env` to use another checkout. The two modules are mounted
-one by one under `/mnt/wfs-addons`, last in `addons_path`, because the repository also
-vendors an Odoo 18 `queue_job` that must not sit on the path beside the one in `addons/`.
-`workflow_studio_ai` is left out: it depends on `ai`, which Odoo 19 CE does not have.
-The same mounts carry the other modules used here: the connectors, `flight_ai_chat` (the
-FlightDeck chat on MuK AI, which needs `muk_ai`, `muk_mcp` and `muk_web_utils` from
-`addons/`, pinned in `addons/MUK_PIN.txt`) and the `harness_*` modules.
+than copied: set `WFS_SRC` in `.env` to use another checkout. The whole repository is one
+addons path at `/mnt/wfs-addons`, last in `addons_path`; it keeps no `queue_job` of its
+own, so the one in `addons/` is the only one. `workflow_studio_ai` sits on the path but is
+not installed: it depends on `ai`, which Odoo 19 CE does not have.
+
+`flight_ai_chat` (the FlightDeck chat on MuK AI) lives in `clients/odoo/` with the other
+FlightDeck modules; it needs `muk_ai`, `muk_mcp` and `muk_web_utils` from `addons/`,
+pinned in `addons/MUK_PIN.txt`.
 
 A person needs one of the Workflow Studio groups (Settings › Users) to see its menu.

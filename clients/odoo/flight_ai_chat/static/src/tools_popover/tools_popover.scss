@@ -1,0 +1,51 @@
+.o_flight_tools_popover {
+    min-width: 280px;
+    max-width: 340px;
+    display: flex;
+    flex-direction: column;
+}
+
+.o_flight_tools_body {
+    max-height: 320px;
+    overflow-y: auto;
+}
+
+.o_flight_tools_inline {
+    min-width: 0;
+    max-width: none;
+
+    .o_flight_tools_body {
+        max-height: none;
+    }
+}
+
+.o_flight_tool_label {
+    min-width: 0;
+}
+
+.o_flight_tool_desc {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.8em;
+}
+
+.o_flight_tools_badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 14px;
+    padding: 0 3px;
+    border-radius: 7px;
+    background: var(--danger, #dc3545);
+    color: #fff;
+    font-size: 9px;
+    line-height: 14px;
+    text-align: center;
+    pointer-events: none;
+}
+
+.o_flight_tools_btn {
+    position: relative;
+}

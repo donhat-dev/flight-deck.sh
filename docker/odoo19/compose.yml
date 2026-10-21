@@ -60,25 +60,12 @@ services:
       - ./addons:/mnt/vendor-addons:ro
       # Workflow Studio, from its own repository (workspace
       # repos/open-workflow-studio, branch 19.0), so changes made while using
-      # it here can go back to that repository. Module by module: the
-      # repository also vendors an Odoo 18 queue_job that must not sit on
-      # addons_path beside the one above.
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_engine:/mnt/wfs-addons/workflow_engine:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_graph:/mnt/wfs-addons/workflow_graph:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_zalo_bot:/mnt/wfs-addons/workflow_connector_zalo_bot:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_github:/mnt/wfs-addons/workflow_connector_github:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_llm:/mnt/wfs-addons/workflow_connector_llm:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/flight_ai_chat:/mnt/wfs-addons/flight_ai_chat:ro
-      # AI harness modules: OpenCode over ACP inside this container, under
-      # Landlock. harness_base is also in odoo.conf's server_wide_modules.
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_base:/mnt/wfs-addons/harness_base:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_core:/mnt/wfs-addons/harness_core:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_opencode:/mnt/wfs-addons/harness_opencode:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_workflow:/mnt/wfs-addons/harness_workflow:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_muk_ai:/mnt/wfs-addons/harness_muk_ai:ro
+      # it here can go back to that repository. The whole repository is one
+      # addons path: it holds only its own modules and one vendor module
+      # (flight_json_widget); queue_job comes from ./addons above. The AI
+      # harness modules are among them; harness_base is also in odoo.conf's
+      # server_wide_modules.
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}:/mnt/wfs-addons:ro
       # Treasures keeps content on disk; the database is only an index.
       - ${HOME}/.flightdeck/treasures:/mnt/treasures:ro
       # Session transcripts, including every agent's own file. Readable
@@ -123,15 +110,7 @@ services:
     volumes:
       - ./odoo-wfs.conf:/etc/odoo/odoo.conf:ro
       - ./addons:/mnt/vendor-addons:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_engine:/mnt/wfs-addons/workflow_engine:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_graph:/mnt/wfs-addons/workflow_graph:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_zalo_bot:/mnt/wfs-addons/workflow_connector_zalo_bot:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_github:/mnt/wfs-addons/workflow_connector_github:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_llm:/mnt/wfs-addons/workflow_connector_llm:ro
-      - ${WFS_SRC:-../../../repos/open-workflow-studio}/flight_ai_chat:/mnt/wfs-addons/flight_ai_chat:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}:/mnt/wfs-addons:ro
       - wfs-data:/var/lib/odoo
     ports:
       - "8039:8069"

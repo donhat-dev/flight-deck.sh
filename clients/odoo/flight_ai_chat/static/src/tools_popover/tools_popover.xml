@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <t t-name="flight_ai_chat.FlightToolsPopover">
+        <div class="o_flight_tools_popover" t-att-class="{ 'o_flight_tools_inline': props.inline }">
+            <div t-if="!props.inline" class="o_flight_tools_head px-3 pt-2 pb-1 small fw-semibold">
+                Tools
+            </div>
+            <div class="px-3 pb-2">
+                <input
+                    type="text"
+                    class="form-control form-control-sm"
+                    placeholder="Search tools"
+                    t-model="state.search"
+                />
+            </div>
+            <div t-if="state.loading" class="p-3 small text-muted">
+                <i class="fa fa-spinner fa-spin me-1"/>Loading…
+            </div>
+            <div t-elif="state.error" class="p-3 small text-danger" t-esc="state.error"/>
+            <t t-else="">
+                <div class="o_flight_tools_body">
+                    <t t-foreach="visibleGroups" t-as="group" t-key="group.key">
+                        <div class="o_flight_tools_group px-3 pb-2">
+                            <div class="d-flex align-items-center mb-1">
+                                <span class="small fw-semibold" t-esc="group.label"/>
+                                <span class="ms-auto small text-nowrap">
+                                    <a href="#" class="me-2" t-on-click.prevent="() => this.setGroup(group, true)">All on</a>
+                                    <a href="#" t-on-click.prevent="() => this.setGroup(group, false)">All off</a>
+                                </span>
+                            </div>
+                            <div
+                                t-foreach="group.tools"
+                                t-as="tool"
+                                t-key="tool.name"
+                                class="form-check o_flight_tool"
+                            >
+                                <input
+                                    class="form-check-input"
+                                    type="checkbox"
+                                    t-att-id="'flight-tool-' + (props.inline ? 'inline' : 'pop') + '-' + props.sessionId + '-' + tool.name"
+                                    t-model="tool.enabled"
+                                    t-att-disabled="state.busy"
+                                    t-on-change="() => this.onToolToggle(tool)"
+                                />
+                                <label
+                                    class="form-check-label o_flight_tool_label"
+                                    t-att-for="'flight-tool-' + (props.inline ? 'inline' : 'pop') + '-' + props.sessionId + '-' + tool.name"
+                                    t-att-title="tool.description"
+                                >
+                                    <code t-esc="tool.name"/>
+                                    <span class="text-muted o_flight_tool_desc" t-esc="tool.description"/>
+                                </label>
+                            </div>
+                        </div>
+                    </t>
+                    <div t-if="!visibleGroups.length" class="p-3 small text-muted">
+                        No tools match.
+                    </div>
+                </div>
+                <div class="o_flight_tools_foot px-3 py-2 border-top small text-muted d-flex align-items-center">
+                    <span class="o_flight_tools_server text-truncate" t-esc="serverLabel"/>
+                    <span class="ms-auto text-nowrap" t-esc="countsLabel"/>
+                </div>
+            </t>
+        </div>
+    </t>
+
+</templates>
