@@ -13,7 +13,7 @@ type Summary struct {
 	TotalCost           float64 `json:"total_cost"`
 	CacheSavings        float64 `json:"cache_savings"`
 	SavedVsSubscription float64 `json:"saved_vs_subscription"`
-	RTKSavings          float64 `json:"rtk_savings"` // not measured by fd yet
+	RTKSavings          float64 `json:"rtk_savings"` // the server fills this from its cached rtk reading
 	CacheHitRate        float64 `json:"cache_hit_rate"`
 	InputTokens         int64   `json:"input_tokens"`
 	InputTokensRaw      int64   `json:"input_tokens_raw"`

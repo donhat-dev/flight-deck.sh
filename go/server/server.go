@@ -5,17 +5,20 @@ package server
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"flightdeck/core/ingest"
 	"flightdeck/core/ledger"
 	"flightdeck/core/metrics"
 	"flightdeck/core/pricing"
+	"flightdeck/core/rtk"
 )
 
 type Server struct {
@@ -26,13 +29,20 @@ type Server struct {
 	Version      string
 	Now          func() time.Time
 	Ready        chan struct{} // closed once the watches are in place; tests wait on it
-	mu           sync.Mutex    // one ingest pass at a time, from the watcher or the sweep
+	// RTKSavings measures `rtk gain`; nil means rtk.SavingsUSD. Called only
+	// from the ingest ticks, never a request. Tests substitute a stub.
+	RTKSavings func() float64
+	mu         sync.Mutex    // one ingest pass at a time, from the watcher or the sweep
+	rtkUSD     atomic.Uint64 // math.Float64bits of the last reading; summary reports it
+	rtkBusy    atomic.Bool    // an rtk refresh is already running
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/summary", s.cells(func(w http.ResponseWriter, _ *http.Request, p *pricing.Table, c []metrics.Cell) {
-		writeJSON(w, 200, metrics.Summarize(p, c, s.Subscription))
+		sum := metrics.Summarize(p, c, s.Subscription)
+		sum.RTKSavings = math.Float64frombits(s.rtkUSD.Load())
+		writeJSON(w, 200, sum)
 	}))
 	mux.HandleFunc("GET /api/daily", s.cells(func(w http.ResponseWriter, _ *http.Request, p *pricing.Table, c []metrics.Cell) {
 		writeJSON(w, 200, metrics.Daily(p, c))
@@ -43,7 +53,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /api/sessions", s.cells(func(w http.ResponseWriter, r *http.Request, p *pricing.Table, c []metrics.Cell) {
 		rows, err := metrics.Sessions(s.Store.DB, p, c, intParam(r, "limit", 100), intParam(r, "offset", 0))
 		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			writeJSON(w, 500, map[string]string{"detail": err.Error()})
 			return
 		}
 		writeJSON(w, 200, rows)
@@ -54,7 +64,7 @@ func (s *Server) Handler() http.Handler {
 	// The UI calls endpoints fd does not have yet; a JSON 404 fails them cleanly
 	// instead of handing back index.html.
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, 404, map[string]string{"error": "not served by fd yet: " + r.URL.Path})
+		writeJSON(w, 404, map[string]string{"detail": "not served by fd yet: " + r.URL.Path})
 	})
 	if st, err := os.Stat(s.UIDir); s.UIDir != "" && err == nil && st.IsDir() {
 		mux.Handle("/", spa(s.UIDir))
@@ -71,12 +81,12 @@ func (s *Server) cells(h func(http.ResponseWriter, *http.Request, *pricing.Table
 	return func(w http.ResponseWriter, r *http.Request) {
 		p, err := ledger.PriceTable(s.Store.DB)
 		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			writeJSON(w, 500, map[string]string{"detail": err.Error()})
 			return
 		}
 		c, err := metrics.Grain(s.Store.DB, metrics.Since(r.URL.Query().Get("range"), s.Now()))
 		if err != nil {
-			writeJSON(w, 500, map[string]string{"error": err.Error()})
+			writeJSON(w, 500, map[string]string{"detail": err.Error()})
 			return
 		}
 		h(w, r, p, c)
@@ -109,7 +119,26 @@ func spa(dir string) http.Handler {
 	})
 }
 
+// refreshRTK updates the cached `rtk gain` reading. The ingest ticks below
+// call it (the same points Python re-measures on reingest); the measurement
+// is a subprocess, so it runs on its own goroutine and a tick that finds one
+// still in flight skips — a slow `rtk` never stalls a request or the loop.
+func (s *Server) refreshRTK() {
+	if !s.rtkBusy.CompareAndSwap(false, true) {
+		return
+	}
+	go func() {
+		defer s.rtkBusy.Store(false)
+		measure := s.RTKSavings
+		if measure == nil {
+			measure = rtk.SavingsUSD
+		}
+		s.rtkUSD.Store(math.Float64bits(measure()))
+	}()
+}
+
 func (s *Server) IngestPaths(paths []string) {
+	defer s.refreshRTK()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	in := ingest.Ingester{Store: s.Store}
@@ -121,6 +150,7 @@ func (s *Server) IngestPaths(paths []string) {
 }
 
 func (s *Server) SweepNow() {
+	defer s.refreshRTK()
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	st, err := (&ingest.Ingester{Store: s.Store}).Sweep(s.Projects)

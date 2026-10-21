@@ -117,12 +117,46 @@ func TestEmptyListsAreArrays(t *testing.T) {
 	}
 }
 
-func TestOtherAPIPathsAre404WithAnError(t *testing.T) {
+func TestOtherAPIPathsAre404WithADetail(t *testing.T) {
 	s, _ := newServer(t)
 	rec := get(t, s, "/api/burn")
 	var m map[string]string
-	if rec.Code != 404 || json.Unmarshal(rec.Body.Bytes(), &m) != nil || m["error"] == "" {
+	if rec.Code != 404 || json.Unmarshal(rec.Body.Bytes(), &m) != nil ||
+		m["detail"] == "" || m["error"] != "" {
 		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+}
+
+// FastAPI's error shape is {"detail"}; the CLI's {"error"} envelope does not
+// apply to fd serve.
+func TestAFailureIs500WithADetail(t *testing.T) {
+	s, _ := newServer(t)
+	s.Store.DB.Close()
+	for _, p := range []string{"/api/sessions", "/api/daily"} {
+		rec := get(t, s, p)
+		var m map[string]string
+		if rec.Code != 500 || json.Unmarshal(rec.Body.Bytes(), &m) != nil ||
+			m["detail"] == "" || m["error"] != "" {
+			t.Errorf("%s: %d %s", p, rec.Code, rec.Body)
+		}
+	}
+}
+
+func TestSummaryReportsTheCachedRTKSavings(t *testing.T) {
+	s, _ := newServer(t)
+	s.RTKSavings = func() float64 { return 2.5 }
+	s.SweepNow()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		rec := get(t, s, "/api/summary?range=all")
+		var m map[string]any
+		if rec.Code == 200 && json.Unmarshal(rec.Body.Bytes(), &m) == nil && m["rtk_savings"] == 2.5 {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("rtk_savings never reported: %d %s", rec.Code, rec.Body)
+		}
+		time.Sleep(10 * time.Millisecond)
 	}
 }
 
