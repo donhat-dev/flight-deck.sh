@@ -19,13 +19,10 @@ from flightdeck.missions import store as missions_store
 from flightdeck.treasures import store as treasures_store
 from flightdeck.radar import store as radar_store
 from flightdeck.tickets import store as tickets_store
-from flightdeck.routers import (burn, charts, core, decisions, diff, hub, memory, missions,
-                               radar, send, sessions, stream, tasks, thinking, tickets, treasures,
-                               treasure_config, appearance)
-from flightdeck.systems import containers as sys_containers
-from flightdeck.systems import mcp as sys_mcp
-from flightdeck.systems import skills as sys_skills
-from flightdeck.agui import routes as agui_routes
+from flightdeck.routers import (agui, appearance, burn, charts, core, decisions, diff, hub,
+                               memory, missions, radar, send, sessions, stream,
+                               systems_containers, systems_mcp, systems_skills,
+                               tasks, thinking, tickets, treasures, treasure_config)
 
 # The built web client the SPA mount serves at "/". FLIGHTDECK_WEB_DIST
 # overrides the repo default (<repo>/clients/web/dist).
@@ -102,12 +99,12 @@ def create_app() -> FastAPI:
     # routers/treasure_config.py's module docstring (that router is in flight
     # in another session and must not be able to shadow this one).
     app.include_router(treasure_config.router)
-    # Systems views (Comms / Manuals / Hangar) + AG-UI Relay stream: already
-    # their own routers, read-only surface.
-    app.include_router(sys_mcp.router)
-    app.include_router(sys_skills.router)
-    app.include_router(sys_containers.router)
-    app.include_router(agui_routes.router)
+    # Systems views (Comms / Manuals / Hangar) + AG-UI Relay stream: read-only
+    # surface over helpers in flightdeck.systems/* and flightdeck.agui/*.
+    app.include_router(systems_mcp.router)
+    app.include_router(systems_skills.router)
+    app.include_router(systems_containers.router)
+    app.include_router(agui.router)
 
     # Static SPA mount MUST stay LAST: it catches every non-/api route to serve
     # the built frontend.

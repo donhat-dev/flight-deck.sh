@@ -81,7 +81,7 @@ def agui_run(inp: RunInput, request: Request):
             _remember(run_id, thread_id)
             yield E.run_finished(thread_id, run_id,
                                  result={"reason": "interrupted",
-                                         "resume": f"/api/agui/resume"})
+                                         "resume": "/api/agui/resume"})
         return StreamingResponse(_paced(demo_gen(), speed),
                                  media_type="text/event-stream",
                                  headers=_SSE_HEADERS)
@@ -93,7 +93,7 @@ def agui_run(inp: RunInput, request: Request):
         if not session_id:
             yield E.run_error("no sessionId supplied for replay", code="no_session")
             return
-        path = _session_path(request, session_id)
+        path = _session_path(request.app.state.cfg["projects_dir"], session_id)
         if not path:
             yield E.run_error(f"session {session_id} not found", code="not_found")
             return
@@ -149,6 +149,5 @@ def agui_sessions(request: Request, limit: int = 12):
     return {"sessions": out}
 
 
-def _session_path(request: Request, session_id: str):
-    cfg = request.app.state.cfg
-    return transcript.find_session_file(cfg["projects_dir"], session_id)
+def _session_path(projects_dir: str, session_id: str):
+    return transcript.find_session_file(projects_dir, session_id)

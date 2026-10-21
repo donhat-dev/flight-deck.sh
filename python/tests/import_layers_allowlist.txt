@@ -2,7 +2,3 @@
 # flightdeck/routers today. One "module -> import" per line; the list may
 # only shrink. flightdeck.runtime is a named entry point in the test, not a
 # violation (it builds the FastAPI app).
-flightdeck.agui.routes -> fastapi
-flightdeck.systems.containers -> fastapi
-flightdeck.systems.mcp -> fastapi
-flightdeck.systems.skills -> fastapi
