@@ -10,21 +10,20 @@ info:
 
     `x-servers` marks which implementations answer each operation: `[go,
     python]` means both serve it and the response schema holds the keys both
-    send. Where the two differ in keys, the shared keys are required and the
-    keys only one sends are optional, with the difference noted in the
-    description.
+    send. The one value that still differs in kind — `agent_hours_est`, 0 from
+    fd — is noted in the Day schema.
 
     Conventions both servers share (api/spend-http.md):
     - `?range=` is `today`, `7d`, `30d` or `all`; missing or unknown means
       `all`. Both compare the local calendar date against UTC timestamps.
-    - Error bodies differ: `fd serve` answers `{"error": "<msg>"}`, FastAPI
-      answers `{"detail": "<msg>"}`.
+    - Both servers answer errors as `{"detail": "<msg>"}`. (The `fd` CLI's
+      --json envelope stays `{"error"}` — a separate contract, api/cli.md.)
 
 x-go-json-404:
   description: |
     `fd serve` answers every other `/api/` path (any method) with status 404
-    and body {"error": "not served by fd yet: <path>"} so the SPA fallback
-    never swallows an API miss (go/server/server.go:54-58). FastAPI serves
+    and body {"detail": "not served by fd yet: <path>"} so the SPA fallback
+    never swallows an API miss (go/server/server.go:84-86). FastAPI serves
     those routes itself instead.
   schema:
     $ref: "#/components/schemas/Error"
@@ -35,8 +34,10 @@ paths:
       x-servers: [go, python]
       summary: Spend totals for a range.
       description: |
-        Identical keys in both servers. One difference: fd's `rtk_savings`
-        is a stub, always 0; FastAPI reports `app.state.rtk_savings`.
+        Identical keys in both servers, `rtk_savings` included: both measure
+        `rtk gain` on the same cadence (each ingest/sweep tick, never inside a
+        request — go/server/server.go:43-46,148-164;
+        python/flightdeck/runtime.py:216-217).
       parameters:
         - $ref: "#/components/parameters/Range"
       responses:
@@ -51,9 +52,12 @@ paths:
       x-servers: [go, python]
       summary: One point per UTC day.
       description: |
-        Same keys in both servers. Difference: fd emits the three
-        `agent_hours*` keys as 0 "until the activity slice"; FastAPI fills
-        them from the `agent_activity` table.
+        Same keys in both servers; both fill `agent_hours*` from the
+        `agent_activity` table the transcript tracker writes during ingest
+        (go/core/metrics/daily.go:33-100; python/flightdeck/metrics.py:214-267).
+        One remaining difference: `agent_hours_est` is the ledger-method
+        estimate for sessions whose transcript is gone — only Python's
+        backfill writes those rows, so fd always reports 0.
       parameters:
         - $ref: "#/components/parameters/Range"
       responses:
@@ -87,9 +91,12 @@ paths:
       x-servers: [go, python]
       summary: Sessions by last activity, newest first.
       description: |
-        FastAPI adds one key per row: `subagents` (always present, possibly
-        an empty list), read from transcript files. `fd serve` omits it by
-        design — it is optional in the schema.
+        Both servers answer SessionRowHTTP: the CLI's SessionRow plus
+        `subagents` (always present, possibly empty), read from the
+        transcript files — not the ledger, whose parent rows already fold
+        subagent usage in (python/flightdeck/metrics.py:316-351;
+        go/server/server.go:59-78 with go/core/subagents). `fd sessions
+        --json` stays on SessionRow (api/schemas/cli/sessions.json).
       parameters:
         - $ref: "#/components/parameters/Range"
         - $ref: "#/components/parameters/Limit"
@@ -102,7 +109,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SessionRow"
+                  $ref: "#/components/schemas/SessionRowHTTP"
   /api/health:
     get:
       x-servers: [go]
@@ -164,7 +171,7 @@ components:
         saved_vs_subscription: {type: number}
         rtk_savings:
           type: number
-          description: Always 0 from `fd serve` (stub); real figure from FastAPI.
+          description: USD value of `rtk gain`'s saved tokens at $5/MTok, refreshed on each ingest tick in both servers; 0 when `rtk` is not on PATH.
         cache_hit_rate: {type: number}
         input_tokens: {type: integer}
         input_tokens_raw:
@@ -200,13 +207,13 @@ components:
         tokens: {type: integer}
         agent_hours:
           type: number
-          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+          description: (main + subagent + estimate) transcript busy seconds / 3600; both servers fill it from agent_activity.
         agent_hours_sub:
           type: number
-          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+          description: The subagent part of agent_hours; filled in both servers.
         agent_hours_est:
           type: number
-          description: Always 0 from `fd serve`; filled from agent_activity by FastAPI.
+          description: The ledger-method estimate for sessions whose transcript is gone. Only Python's backfill writes those rows (method='ledger'), so `fd serve` always reports 0.
     ModelRow:
       type: object
       additionalProperties: false
@@ -227,8 +234,13 @@ components:
         cost: {type: number}
         priced: {type: boolean}
     SessionRow:
+      description: |
+        The fields every session row carries — the `fd sessions --json`
+        shape and the shared part of the HTTP row. Deliberately not closed
+        here (additionalProperties would reject `subagents` before the HTTP
+        extension could add it): each consuming schema closes it with
+        unevaluatedProperties.
       type: object
-      additionalProperties: false
       required:
         - session_id
         - project
@@ -265,14 +277,22 @@ components:
         input_raw: {type: integer}
         avg_context: {type: number}
         cache_ratio: {type: number}
-        subagents:
-          type: array
-          description: |
-            FastAPI only (always present there, possibly empty); `fd serve`
-            never sends it. A subset of the parent's totals — the ledger
-            already folds subagent usage into the parent session_id.
-          items:
-            $ref: "#/components/schemas/SubagentRow"
+    SessionRowHTTP:
+      description: |
+        The /api/sessions row: SessionRow plus `subagents`, which both HTTP
+        servers always send (an empty list when the session ran no agents).
+        The subagent totals are a subset of the parent's — the ledger already
+        folds subagent usage into the parent session_id.
+      allOf:
+        - $ref: "#/components/schemas/SessionRow"
+        - type: object
+          required: [subagents]
+          properties:
+            subagents:
+              type: array
+              items:
+                $ref: "#/components/schemas/SubagentRow"
+      unevaluatedProperties: false
     SubagentRow:
       type: object
       additionalProperties: false
@@ -311,8 +331,8 @@ components:
     Error:
       type: object
       additionalProperties: false
-      required: [error]
+      required: [detail]
       properties:
-        error:
+        detail:
           type: string
-          description: 'The `fd serve` error envelope. FastAPI uses {"detail": "<msg>"} instead.'
+          description: 'The HTTP error envelope both servers share. The `fd` CLI keeps {"error": "<msg>"} (api/cli.md, schemas/cli/envelope-error.json).'

@@ -2,12 +2,13 @@
   "$id": "https://contracts.flightdeck/schemas/cli/sessions.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "fd sessions --json",
-  "description": "The /api/sessions row without `subagents` (api/cli.md, spend.go:104-129).",
+  "description": "The session row the `fd sessions --json` CLI prints: the shared SessionRow fields, closed, and without the HTTP-only `subagents` (api/cli.md, go/cmd/fd/spend.go, api/openapi/spend.yaml).",
   "type": "array",
   "items": {
     "allOf": [
-      {"$ref": "../openapi/spend.yaml#/components/schemas/SessionRow"},
-      {"not": {"required": ["subagents"]}}
-    ]
+      {"$ref": "../openapi/spend.yaml#/components/schemas/SessionRow"}
+    ],
+    "not": {"required": ["subagents"]},
+    "unevaluatedProperties": false
   }
 }

@@ -3,15 +3,14 @@
 Two servers answer `/api/*`:
 
 - **`fd serve`** (Go): five routes, then a JSON 404 for every other `/api/`
-  path so the SPA fallback never swallows an API miss (go/server/server.go:34-58).
+  path so the SPA fallback never swallows an API miss (go/server/server.go:41-86).
   Listens on `127.0.0.1:8011` by default (go/cmd/fd/serve.go:24).
 - **FastAPI** (Python): the full surface, ~100 routes across
-  `python/flightdeck/routers/*.py`, `python/flightdeck/systems/*.py` and
-  `python/flightdeck/agui/routes.py`, wired in python/flightdeck/server.py:77-110.
+  `python/flightdeck/routers/*.py`, wired in python/flightdeck/server.py:74-107.
   This is what `flightdeck.service` runs on port 8010.
 
 Both mount the built web client when `clients/web/dist` (or
-`FLIGHTDECK_WEB_DIST`) exists: Go's SPA handler at go/server/server.go:59-63,99-110,
+`FLIGHTDECK_WEB_DIST`) exists: Go's SPA handler at go/server/server.go:87-91,136-145,
 FastAPI's `StaticFiles` mount at python/flightdeck/server.py:114-115.
 
 ## Shared conventions
@@ -20,9 +19,9 @@ FastAPI's `StaticFiles` mount at python/flightdeck/server.py:114-115.
   (go/server/server.go:67-77 with go/core/metrics/grain.go:63-74;
   python/flightdeck/runtime.py:121-131). Both compare the **local** calendar
   date against UTC timestamps (grain.go:61-63, runtime.py:124-130).
-- Errors: `fd serve` answers `{"error": "<msg>"}` (go/server/server.go:46,74-80,93-97).
-  FastAPI answers `{"detail": "<msg>"}`; the web client reads `detail`
-  (clients/web/src/api.js:9-21; e.g. python/flightdeck/routers/sessions.py:43,49).
+- Errors: both servers answer `{"detail": "<msg>"}` (go/server/server.go:51,62,85;
+  the web client reads `detail`, clients/web/src/api.js:9-21). The `fd` CLI's
+  --json envelope keeps `{"error"}` — a separate contract (api/cli.md).
 - `fd serve` recomputes per request (the price table is re-read each call,
   server.go:67-69); FastAPI answers warm requests from an in-process snapshot
   cache (routers/core.py:24-26, runtime.py:134-140).
@@ -33,12 +32,12 @@ All methods are GET; there is no write route.
 
 | Route | Query params | Response JSON (keys: types) | FastAPI match and differences |
 |---|---|---|---|
-| `/api/summary` | `range` | Object — `total_cost` f, `cache_savings` f, `saved_vs_subscription` f, `rtk_savings` f, `cache_hit_rate` f, `input_tokens` i, `input_tokens_raw` i, `output_tokens` i, `session_count` i, `unknown_model_tokens` i, `message_count` i, `total_context_tokens` i, `avg_context_per_turn` f (go/server/server.go:34-36; go/core/metrics/summary.go:12-26) | `GET /api/summary` (routers/core.py:22-34). Identical keys (python/flightdeck/metrics.py:195-211). One difference: fd's `rtk_savings` is a stub, always 0 (summary.go:16); FastAPI reports `app.state.rtk_savings` (routers/core.py:30-31, metrics.py:199). |
-| `/api/daily` | `range` | Array of `date` s, `cost` f, `input` i, `output` i, `cache_read` i, `cache_write` i, `tokens` i, `agent_hours` f, `agent_hours_sub` f, `agent_hours_est` f (server.go:37-39; go/core/metrics/daily.go:9-20) | `GET /api/daily` (routers/core.py:37-47). Same keys (metrics.py:232-235,267). Difference: fd emits the three `agent_hours*` keys as 0 "until the activity slice" (daily.go:17-19); FastAPI fills them from the `agent_activity` table (metrics.py:214-229,258-266). |
+| `/api/summary` | `range` | Object — `total_cost` f, `cache_savings` f, `saved_vs_subscription` f, `rtk_savings` f, `cache_hit_rate` f, `input_tokens` i, `input_tokens_raw` i, `output_tokens` i, `session_count` i, `unknown_model_tokens` i, `message_count` i, `total_context_tokens` i, `avg_context_per_turn` f (go/server/server.go:43-47; go/core/metrics/summary.go:12-26) | `GET /api/summary` (routers/core.py:22-34). Identical keys (python/flightdeck/metrics.py:195-211), `rtk_savings` included: both run `rtk gain` on the ingest/sweep tick, never inside a request (go/core/rtk, go/server/server.go:148-164; python/flightdeck/rtk.py:28-44, runtime.py:216-217). |
+| `/api/daily` | `range` | Array of `date` s, `cost` f, `input` i, `output` i, `cache_read` i, `cache_write` i, `tokens` i, `agent_hours` f, `agent_hours_sub` f, `agent_hours_est` f (server.go:48-55; go/core/metrics/daily.go:9-100) | `GET /api/daily` (routers/core.py:37-47). Same keys, same source: both fill `agent_hours*` from the `agent_activity` table written by the transcript tracker at ingest (metrics.py:214-267; go/core/activity, go/core/metrics/daily.go:33-61). `agent_hours_est` is the only leftover difference: it is the ledger-method estimate for sessions whose transcript is gone, which only Python's backfill writes, so fd reports 0. |
 | `/api/by-model` | `range` | Array of `model` s, `input` i, `input_raw` i, `output` i, `cache_read` i, `cost` f, `priced` b (server.go:40-42; go/core/metrics/bymodel.go:12-20) | `GET /api/by-model` (routers/core.py:50-60). Identical (metrics.py:360-376). Both exclude `<synthetic>` (bymodel.go:10,27-29; metrics.py:354-357,363-364). |
-| `/api/sessions` | `range`, `limit` (default 100), `offset` (default 0) (server.go:43-44,86-91) | Array of `session_id` s, `project` s\|null, `models` [s], `first_ts` s, `last_ts` s, `turns` i, `input` i, `output` i, `cache_read` i, `cache_create` i, `cost` f, `title` s\|null, `context` i, `input_raw` i, `avg_context` f, `cache_ratio` f (go/core/metrics/sessions.go:10-27) | `GET /api/sessions` with the same params (routers/sessions.py:16-29). FastAPI adds one key per row: `subagents` [obj] read from transcript files (metrics.py:316-351); fd omits it by design (sessions.go:29-31). |
-| `/api/health` | — | `{"ok": true, "version": s, "projects": s}` (server.go:51-53) | **Go-only** — no FastAPI route at this path. |
-| `/api/*` (anything else) | — | 404 `{"error": "not served by fd yet: <path>"}` (server.go:54-58) | The FastAPI routes below. |
+| `/api/sessions` | `range`, `limit` (default 100), `offset` (default 0) (server.go:59-78,122-127) | Array of `session_id` s, `project` s\|null, `models` [s], `first_ts` s, `last_ts` s, `turns` i, `input` i, `output` i, `cache_read` i, `cache_create` i, `cost` f, `title` s\|null, `context` i, `input_raw` i, `avg_context` f, `cache_ratio` f, `subagents` [obj] (go/core/metrics/sessions.go:10-27, go/core/subagents) | `GET /api/sessions` with the same params (routers/sessions.py:16-29). Both attach `subagents` per row, parsed from the `<session>/subagents/**/agent-*.jsonl` transcripts (metrics.py:316-351; go/core/subagents/subagents.go). The `fd sessions --json` CLI stays on the row without `subagents` (api/schemas/cli/sessions.json). |
+| `/api/health` | — | `{"ok": true, "version": s, "projects": s}` (server.go:79-81) | **Go-only** — no FastAPI route at this path. |
+| `/api/*` (anything else) | — | 404 `{"detail": "not served by fd yet: <path>"}` (server.go:84-86) | The FastAPI routes below. |
 
 ## FastAPI routes the web client calls that `fd serve` does not serve
 
@@ -130,15 +129,15 @@ functional only against the FastAPI server.
 - `GET /api/decisions`, `GET /api/decisions/{did}` (decisions.py:62,71) — agui/ApprovalDock.jsx:116 (and per its comment :10)
 - `POST /api/decisions/{did}/resolve` (decisions.py:83) — ApprovalDock.jsx:137
 
-**systems/*.py** (prefix `/api/systems`)
-- `GET /api/systems/stacks` (systems/containers.py:318) — systems/HangarView.jsx:428
-- `GET /api/systems/containers/{cid}/stats` (containers.py:263) — HangarView.jsx:121
-- `GET /api/systems/skills?range` (systems/skills.py:234) — systems/ManualsView.jsx:130
-- `GET /api/systems/mcp?range`, `GET /api/systems/mcp/processes`, `POST /api/systems/mcp/reprobe` (systems/mcp.py:592,562,599) — systems/CommsView.jsx:351,167,342
+**routers/systems_*.py** (prefix `/api/systems`; helpers stay in `flightdeck/systems/`)
+- `GET /api/systems/stacks` (systems_containers.py:120) — systems/HangarView.jsx:428
+- `GET /api/systems/containers/{cid}/stats` (systems_containers.py:65) — HangarView.jsx:121
+- `GET /api/systems/skills?range` (systems_skills.py:15) — systems/ManualsView.jsx:130
+- `GET /api/systems/mcp?range`, `GET /api/systems/mcp/processes`, `POST /api/systems/mcp/reprobe` (systems_mcp.py:46,16,54) — systems/CommsView.jsx:351,167,342
 
-**agui/routes.py** (prefix `/api/agui`)
-- `POST /api/agui/run`, `POST /api/agui/resume` (agui/routes.py:69,108) — agui/client.js:35,45
-- `GET /api/agui/sessions?limit` (agui/routes.py:128) — agui/RelayView.jsx:201
+**routers/agui.py** (prefix `/api/agui`)
+- `POST /api/agui/run`, `POST /api/agui/resume` (agui.py:69,108) — agui/client.js:35,45
+- `GET /api/agui/sessions?limit` (agui.py:128) — agui/RelayView.jsx:201
 
 ## Registered in FastAPI but not fetched by the web client
 
@@ -150,6 +149,6 @@ the CLI"), `GET /api/session/{id}/route` (sessions.py:114), `GET /api/burn`
 (radar.py:50), `POST /api/decisions` (decisions.py:53 — the PreToolUse hook
 writes here, server.py:92-95), `POST /api/hub/webhook/{token}` (hub.py:171 —
 external webhooks), `DELETE /api/hub/flows/{id}` (hub.py:114),
-`GET /api/systems/containers` (containers.py:215), `POST /api/tickets`
+`GET /api/systems/containers` (systems_containers.py:17), `POST /api/tickets`
 (tickets.py:103), `POST /api/treasures/{ident}/tags` and `/link`
 (treasures.py:54,283).

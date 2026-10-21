@@ -20,7 +20,7 @@ The prose docs above are translated into schemas the code is tested against:
 | `openapi/python.json` | The FastAPI app's `app.openapi()`, generated and checked in. Regenerate with `tools/contracts/gen_python_openapi.py`. |
 | `schemas/cli/` | JSON Schema (draft 2020-12) for each `fd` command's `--json` output, plus `envelope-error.json`. `help` is text and has no schema. |
 | `schemas/spool/` | JSON Schema for the spool files: `command.json`, `event.json`, `state.json`, `delta.json`. |
-| `conformance/` | The pytest suite that validates both servers, the CLI and the spool samples against the schemas. |
+| `conformance/` | The pytest suite that validates both servers, the CLI and the spool samples against the schemas, plus `test_parity.py`: both servers ingest the same transcript fixture in three passes and must answer /api/daily, /api/sessions and /api/summary (fake `rtk` on PATH) identically. |
 
 `make contracts` runs it: `go-build`, then a Go test in `go/runner` that
 writes one of each spool file type into `conformance/spool-samples/` (via
