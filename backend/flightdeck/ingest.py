@@ -2,10 +2,17 @@
 import glob
 import json
 import os
+from datetime import datetime
+
+from flightdeck import activity, thinking
 
 _COLS = ("uuid", "session_id", "project", "model", "ts", "input_tokens",
          "cache_read", "cache_create_5m", "cache_create_1h",
-         "output_tokens", "service_tier")
+         "output_tokens", "service_tier", "message_id", "request_id",
+         "speed", "inference_geo", "prompt_id", "agent_id")
+
+# Idle-gap cap for busy time, read once per process (config or env).
+_IDLE_CAP_SECONDS = activity.idle_cap_seconds()
 
 _TOOL_COLS = ("id", "session_id", "project", "ts", "tool", "server", "detail")
 
@@ -95,6 +102,14 @@ def parse_line(obj: dict) -> dict | None:
         return None
     cc = usage.get("cache_creation") or {}
     return {
+        # One API response is written as one line per content block, every line
+        # repeating its usage; (message_id, request_id) is the billed unit.
+        "message_id": msg.get("id"),
+        "request_id": obj.get("requestId") or "",
+        "speed": usage.get("speed"),
+        "inference_geo": usage.get("inference_geo"),
+        "prompt_id": None,
+        "agent_id": None,
         "uuid": obj.get("uuid"),
         "session_id": obj.get("sessionId"),
         "project": obj.get("cwd"),
@@ -177,14 +192,50 @@ def _insert_tool_calls(conn, obj: dict) -> int:
     return n
 
 
-def _upsert(conn, row: dict) -> bool:
+def _upsert(conn, row: dict):
+    """Store one billed line. Returns True for a new billed row, "dup" for a
+    further line of a response already stored, "copy" when that response belongs
+    to another session (resume/fork history), False when nothing changed.
+
+    A later line of the same response can carry a larger `output_tokens` (early
+    lines hold a partial count), so the stored row keeps the largest. A line whose
+    uuid is already stored as its own row (a ledger written before the dedupe key
+    existed) is marked `dup_of` the response's row rather than deleted.
+    """
     if not row.get("uuid"):
         return False
+    if row.get("message_id"):
+        first = conn.execute(
+            "SELECT uuid, session_id, output_tokens FROM messages "
+            "WHERE message_id=? AND request_id=? AND dup_of IS NULL LIMIT 1",
+            (row["message_id"], row["request_id"])).fetchone()
+        if first is not None and first["uuid"] != row["uuid"]:
+            if (row["output_tokens"] or 0) > (first["output_tokens"] or 0):
+                conn.execute("UPDATE messages SET output_tokens=? WHERE uuid=?",
+                             (row["output_tokens"], first["uuid"]))
+            conn.execute(
+                "UPDATE messages SET dup_of=?, message_id=?, request_id=?, "
+                "dedupe_method='exact' WHERE uuid=? AND dup_of IS NULL",
+                (first["uuid"], row["message_id"], row["request_id"], row["uuid"]))
+            return "copy" if first["session_id"] != row["session_id"] else "dup"
     placeholders = ",".join("?" for _ in _COLS)
     sql = (f"INSERT INTO messages ({','.join(_COLS)}) VALUES ({placeholders}) "
            "ON CONFLICT(uuid) DO NOTHING")
     cur = conn.execute(sql, tuple(row[c] for c in _COLS))
-    return cur.rowcount > 0
+    if cur.rowcount > 0:
+        return True
+    # Already stored (a re-scan): fill what the row was stored without. The turn
+    # stamp comes from the transcript, so a re-read replaces it.
+    conn.execute(
+        "UPDATE messages SET message_id=COALESCE(message_id, ?), "
+        "request_id=COALESCE(request_id, ?), speed=COALESCE(speed, ?), "
+        "inference_geo=COALESCE(inference_geo, ?), prompt_id=COALESCE(?, prompt_id), "
+        "agent_id=COALESCE(?, agent_id), dedupe_method=COALESCE(?, dedupe_method) "
+        "WHERE uuid=?",
+        (row["message_id"], row["request_id"], row["speed"], row["inference_geo"],
+         row["prompt_id"], row["agent_id"], "exact" if row["message_id"] else None,
+         row["uuid"]))
+    return False
 
 
 def _title_upsert(conn, obj: dict) -> None:
@@ -227,8 +278,10 @@ def ingest_file(conn, path: str) -> int:
     if _stat_cache.get(path) == key:
         return 0
     rec = conn.execute(
-        "SELECT bytes_ingested, size, lines_ingested FROM files WHERE path=?",
+        "SELECT bytes_ingested, size, lines_ingested, act_last_ts, act_in_turn, "
+        "act_wait_human, act_prompt_id, act_answered FROM files WHERE path=?",
         (path,)).fetchone()
+    rec = dict(rec) if rec is not None else None
     start = 0
     base_line = 0
     if rec and st.st_size >= rec["size"]:
@@ -237,6 +290,11 @@ def ingest_file(conn, path: str) -> int:
         # mid-file must continue the count, not restart it.
         base_line = rec["lines_ingested"] or 0
     # else: new file or truncated/rotated -> re-ingest from 0
+    tracker = activity.FileTracker(conn, path, rec, start, _IDLE_CAP_SECONDS)
+    # Timestamp of the record before the current line: a response's start.
+    prev_ts = None
+    if start > 0 and rec and rec.get("act_last_ts"):
+        prev_ts = thinking.zulu(datetime.fromisoformat(rec["act_last_ts"]))
     new_rows = 0
     lines = 0
     committed = 0  # bytes past the last newline-terminated line consumed
@@ -260,10 +318,21 @@ def ingest_file(conn, path: str) -> int:
             except (json.JSONDecodeError, UnicodeDecodeError, ValueError):
                 continue
             row = parse_line(obj)
-            if row and _upsert(conn, row):
+            status = False
+            if row:
+                # A replayed line keeps the turn it was stamped with when first read.
+                row.update({"prompt_id": None, "agent_id": None} if tracker.is_replay(obj)
+                           else tracker.stamp())
+                status = _upsert(conn, row)
+                thinking.record(conn, row, obj, prev_ts, tracker.agent_id)
+            if status is True:
                 new_rows += 1
             else:
                 _title_upsert(conn, obj)
+            tracker.feed(obj, copied=status == "copy")
+            ts = obj.get("timestamp")
+            if ts and (prev_ts is None or ts > prev_ts):
+                prev_ts = ts
             # tool_use extraction is independent of usage/message dedup: an
             # assistant line carries BOTH a usage row and its tool_use block,
             # so run it for every line (INSERT OR IGNORE keeps it idempotent).
@@ -272,13 +341,20 @@ def ingest_file(conn, path: str) -> int:
             # above: a user turn carries no usage row but is exactly what a
             # later search is looking for.
             _insert_message_text(conn, text_row(obj, base_line + lines))
+    act = tracker.flush()
     conn.execute(
-        "INSERT INTO files (path, mtime, size, bytes_ingested, lines_ingested) "
-        "VALUES (?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET "
+        "INSERT INTO files (path, mtime, size, bytes_ingested, lines_ingested, "
+        "act_last_ts, act_in_turn, act_wait_human, act_prompt_id, act_answered) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET "
         "mtime=excluded.mtime, size=excluded.size, "
         "bytes_ingested=excluded.bytes_ingested, "
-        "lines_ingested=files.lines_ingested+excluded.lines_ingested",
-        (path, st.st_mtime, st.st_size, start + committed, lines))
+        "lines_ingested=files.lines_ingested+excluded.lines_ingested, "
+        "act_last_ts=excluded.act_last_ts, act_in_turn=excluded.act_in_turn, "
+        "act_wait_human=excluded.act_wait_human, act_prompt_id=excluded.act_prompt_id, "
+        "act_answered=excluded.act_answered",
+        (path, st.st_mtime, st.st_size, start + committed, lines,
+         act["act_last_ts"], act["act_in_turn"], act["act_wait_human"],
+         act["act_prompt_id"], act["act_answered"]))
     conn.commit()
     _stat_cache[path] = key   # mark clean so the next sweep skips it
     return new_rows
@@ -333,9 +409,25 @@ def _maybe_backfill_message_text(conn) -> bool:
     return True
 
 
+def _maybe_backfill_response_timing(conn) -> bool:
+    """One-time migration, same shape as _maybe_backfill_tool_calls, for the
+    response_timing table (flightdeck.thinking)."""
+    if conn.execute("SELECT EXISTS(SELECT 1 FROM response_timing)").fetchone()[0]:
+        return False
+    if not conn.execute("SELECT EXISTS(SELECT 1 FROM messages)").fetchone()[0]:
+        return False
+    conn.execute("DELETE FROM files")
+    conn.commit()
+    _stat_cache.clear()
+    print("[ingest] response_timing backfill: cleared files table to re-scan for "
+          "response timing (all writers on this path are idempotent)")
+    return True
+
+
 def ingest_all(conn, projects_dir: str) -> int:
     _maybe_backfill_tool_calls(conn)
     _maybe_backfill_message_text(conn)
+    _maybe_backfill_response_timing(conn)
     projects_dir = os.path.expanduser(projects_dir)
     total = 0
     for path in glob.glob(os.path.join(projects_dir, "**", "*.jsonl"),
@@ -349,6 +441,7 @@ def ingest_paths(conn, paths) -> int:
     re-globbing the whole tree. Non-jsonl / missing paths are skipped."""
     _maybe_backfill_tool_calls(conn)
     _maybe_backfill_message_text(conn)
+    _maybe_backfill_response_timing(conn)
     total = 0
     for path in paths:
         if str(path).endswith(".jsonl"):

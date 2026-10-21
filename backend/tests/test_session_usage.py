@@ -20,7 +20,7 @@ def _app(tmp_path, monkeypatch, rows):
     from flightdeck import db
     conn = db.connect(str(db_path))
     for r in rows:
-        conn.execute("INSERT INTO messages VALUES (?,?,?,?,?,?,?,?,?,?,?)", r)
+        conn.execute("INSERT INTO messages (uuid, session_id, project, model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens, service_tier) VALUES (?,?,?,?,?,?,?,?,?,?,?)", r)
     conn.commit()
     conn.close()
 

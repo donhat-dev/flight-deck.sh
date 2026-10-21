@@ -185,7 +185,15 @@ CREATE TABLE IF NOT EXISTS messages (
   cache_create_5m INTEGER,
   cache_create_1h INTEGER,
   output_tokens INTEGER,
-  service_tier TEXT
+  service_tier TEXT,
+  message_id TEXT,
+  request_id TEXT,
+  speed TEXT,
+  inference_geo TEXT,
+  dup_of TEXT,
+  dedupe_method TEXT,
+  prompt_id TEXT,
+  agent_id TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
@@ -196,8 +204,52 @@ CREATE TABLE IF NOT EXISTS files (
   mtime REAL,
   size INTEGER,
   bytes_ingested INTEGER,
-  lines_ingested INTEGER
+  lines_ingested INTEGER,
+  act_last_ts TEXT,
+  act_in_turn INTEGER,
+  act_wait_human INTEGER,
+  act_prompt_id TEXT,
+  act_answered INTEGER
 );
+
+-- Seconds an agent was busy, per (session, agent, prompt, UTC day). `agent_id`
+-- is '' for the main agent; `method` is 'transcript' (exact, from every record's
+-- timestamp) or 'ledger' (estimated from billed rows of a session whose
+-- transcript is gone).
+CREATE TABLE IF NOT EXISTS agent_activity (
+  session_id TEXT NOT NULL,
+  agent_id TEXT NOT NULL DEFAULT '',
+  prompt_id TEXT NOT NULL DEFAULT '',
+  day TEXT NOT NULL,
+  method TEXT NOT NULL DEFAULT 'transcript',
+  busy_seconds REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, agent_id, prompt_id, day, method)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_day ON agent_activity(day);
+
+-- One row per human prompt. Labels (kind / parent) are user-meaningful and may
+-- be set by hand, so this table is never treated as rebuildable.
+CREATE TABLE IF NOT EXISTS turns (
+  turn_id TEXT PRIMARY KEY,
+  session_id TEXT,
+  started_at TEXT,
+  ended_at TEXT,
+  prompt_head TEXT,
+  final_head TEXT,
+  cwd TEXT,
+  git_branch TEXT,
+  kind TEXT,
+  parent_id TEXT,
+  merged_ids TEXT,
+  title TEXT,
+  label_source TEXT,
+  label_confidence REAL,
+  label_detail TEXT,
+  needs_review INTEGER NOT NULL DEFAULT 0,
+  labeled_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_turns_started ON turns(started_at);
 
 CREATE TABLE IF NOT EXISTS session_meta (
   session_id TEXT PRIMARY KEY,
@@ -236,13 +288,46 @@ CREATE TABLE IF NOT EXISTS message_text (
   tool_input TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_message_text_session ON message_text(session_id, seq);
+
+-- One row per API response (flightdeck.thinking): when the request went out, when
+-- thinking and the response ended, thinking tokens. Derived from the JSONL.
+CREATE TABLE IF NOT EXISTS response_timing (
+  message_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  session_id TEXT,
+  agent_id TEXT,
+  model TEXT,
+  effort TEXT,
+  started_at TEXT,
+  think_end_at TEXT,
+  ended_at TEXT,
+  thinking_tokens INTEGER,
+  output_tokens INTEGER,
+  PRIMARY KEY (message_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_response_timing_started ON response_timing(started_at);
+
+-- One row per /usage poll (flightdeck.burn). Not derived from the JSONL, so it is
+-- never rebuilt. `models` is JSON: [{label, pct, reset_at}] for per-model buckets.
+CREATE TABLE IF NOT EXISTS quota_readings (
+  ts TEXT PRIMARY KEY,
+  session_pct REAL,
+  session_reset_at INTEGER,
+  week_pct REAL,
+  week_reset_at INTEGER,
+  models TEXT,
+  source TEXT NOT NULL DEFAULT 'poll'
+);
 """
 
-# PostgreSQL schema. messages/tool_calls/files are DERIVED from the JSONL and
-# fully rebuildable, so they are UNLOGGED (skip WAL, faster ingest, emptied only
-# on an unclean crash -> re-ingested on next start). session_meta holds user
-# input (custom titles) so it stays LOGGED (durable). hub_credentials is created
-# LOGGED by hub/credentials.py.
+# PostgreSQL schema. tool_calls/files/message_text are DERIVED from the JSONL
+# and rebuildable while the transcript exists, so they are UNLOGGED (skip WAL,
+# emptied on an unclean crash; the backfill checks re-read them). messages and
+# response_timing are LOGGED: Claude Code deletes old transcripts, so for those
+# sessions the row is the only copy, and crash recovery on 2026-08-25 and
+# 2026-09-29 emptied them when they were UNLOGGED. session_meta holds user input
+# (custom titles) so it stays LOGGED. hub_credentials is created LOGGED by
+# hub/credentials.py.
 _SCHEMA_PG = """
 -- Search prerequisites. pg_trgm and unaccent are TRUSTED extensions on PG13+,
 -- so the database owner can create them without superuser. The `vi_en` config
@@ -259,7 +344,7 @@ BEGIN
       ALTER MAPPING FOR word, hword, hword_part WITH unaccent, simple;
   END IF;
 END $$;
-CREATE UNLOGGED TABLE IF NOT EXISTS messages (
+CREATE TABLE IF NOT EXISTS messages (
   uuid text PRIMARY KEY,
   session_id text,
   project text,
@@ -276,6 +361,25 @@ CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts);
 CREATE INDEX IF NOT EXISTS idx_messages_model ON messages(model);
 
+-- Columns added after the table first shipped: ADD COLUMN IF NOT EXISTS migrates
+-- a live ledger in place. The dedupe key is (message_id, request_id): Claude Code
+-- writes one line per content block of a response, each repeating its usage, so
+-- the line uuid over-counts. `dup_of` marks a row that repeats another (kept, not
+-- deleted, so the history fix is reversible); metrics read `dup_of IS NULL`.
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS message_id text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS request_id text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS speed text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS inference_geo text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS dup_of text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS dedupe_method text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS prompt_id text;
+ALTER TABLE messages ADD COLUMN IF NOT EXISTS agent_id text;
+CREATE INDEX IF NOT EXISTS idx_messages_msgid ON messages(message_id, request_id);
+CREATE INDEX IF NOT EXISTS idx_messages_prompt ON messages(prompt_id);
+-- A ledger created UNLOGGED before 2026-10-01 is converted in place; on a
+-- table that is already LOGGED this is a no-op.
+ALTER TABLE messages SET LOGGED;
+
 CREATE UNLOGGED TABLE IF NOT EXISTS files (
   path text PRIMARY KEY,
   mtime double precision,
@@ -283,6 +387,44 @@ CREATE UNLOGGED TABLE IF NOT EXISTS files (
   bytes_ingested bigint,
   lines_ingested bigint
 );
+ALTER TABLE files ADD COLUMN IF NOT EXISTS act_last_ts text;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS act_in_turn integer;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS act_wait_human integer;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS act_prompt_id text;
+ALTER TABLE files ADD COLUMN IF NOT EXISTS act_answered integer;
+
+CREATE TABLE IF NOT EXISTS agent_activity (
+  session_id text NOT NULL,
+  agent_id text NOT NULL DEFAULT '',
+  prompt_id text NOT NULL DEFAULT '',
+  day text NOT NULL,
+  method text NOT NULL DEFAULT 'transcript',
+  busy_seconds double precision NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, agent_id, prompt_id, day, method)
+);
+CREATE INDEX IF NOT EXISTS idx_agent_activity_day ON agent_activity(day);
+
+CREATE TABLE IF NOT EXISTS turns (
+  turn_id text PRIMARY KEY,
+  session_id text,
+  started_at text,
+  ended_at text,
+  prompt_head text,
+  final_head text,
+  cwd text,
+  git_branch text,
+  kind text,
+  parent_id text,
+  merged_ids text,
+  title text,
+  label_source text,
+  label_confidence double precision,
+  label_detail text,
+  needs_review integer NOT NULL DEFAULT 0,
+  labeled_at text
+);
+CREATE INDEX IF NOT EXISTS idx_turns_session ON turns(session_id, started_at);
+CREATE INDEX IF NOT EXISTS idx_turns_started ON turns(started_at);
 
 CREATE TABLE IF NOT EXISTS session_meta (
   session_id text PRIMARY KEY,
@@ -345,6 +487,36 @@ CREATE INDEX IF NOT EXISTS idx_message_text_tsv ON message_text USING GIN (tsv);
 CREATE INDEX IF NOT EXISTS idx_message_text_trgm ON message_text USING GIN (text gin_trgm_ops);
 CREATE INDEX IF NOT EXISTS idx_message_text_session ON message_text(session_id, seq);
 CREATE INDEX IF NOT EXISTS idx_message_text_ts ON message_text(ts);
+
+-- One row per response (flightdeck.thinking); LOGGED like messages, since a
+-- deleted transcript cannot rebuild it.
+CREATE TABLE IF NOT EXISTS response_timing (
+  message_id text NOT NULL,
+  request_id text NOT NULL,
+  session_id text,
+  agent_id text,
+  model text,
+  effort text,
+  started_at text,
+  think_end_at text,
+  ended_at text,
+  thinking_tokens bigint,
+  output_tokens bigint,
+  PRIMARY KEY (message_id, request_id)
+);
+CREATE INDEX IF NOT EXISTS idx_response_timing_started ON response_timing(started_at);
+ALTER TABLE response_timing SET LOGGED;
+
+-- Poll history is not rebuildable from the JSONL, so this one is LOGGED.
+CREATE TABLE IF NOT EXISTS quota_readings (
+  ts text PRIMARY KEY,
+  session_pct double precision,
+  session_reset_at bigint,
+  week_pct double precision,
+  week_reset_at bigint,
+  models text,
+  source text NOT NULL DEFAULT 'poll'
+);
 """
 
 
@@ -367,8 +539,28 @@ def connect(db_path: str):
     cols = {r[1] for r in conn.execute("PRAGMA table_info(session_meta)")}
     if "title_source" not in cols:
         conn.execute("ALTER TABLE session_meta ADD COLUMN title_source TEXT")
+    # Columns added after messages/files first shipped. CREATE TABLE IF NOT
+    # EXISTS leaves an existing table as it was, so add what is missing.
+    for table, added in _ADDED_COLUMNS.items():
+        have = {r[1] for r in conn.execute(f"PRAGMA table_info({table})")}
+        for name, kind in added:
+            if name not in have:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {kind}")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_msgid "
+                 "ON messages(message_id, request_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_prompt ON messages(prompt_id)")
     conn.commit()
     return conn
+
+
+_ADDED_COLUMNS = {
+    "messages": [("message_id", "TEXT"), ("request_id", "TEXT"), ("speed", "TEXT"),
+                 ("inference_geo", "TEXT"), ("dup_of", "TEXT"),
+                 ("dedupe_method", "TEXT"), ("prompt_id", "TEXT"), ("agent_id", "TEXT")],
+    "files": [("act_last_ts", "TEXT"), ("act_in_turn", "INTEGER"),
+              ("act_wait_human", "INTEGER"), ("act_prompt_id", "TEXT"),
+              ("act_answered", "INTEGER")],
+}
 
 
 def open_write(db_path: str):

@@ -251,10 +251,27 @@ const resetTime = (epoch) =>
 // The Quota instrument, as a Ring: amber >70, rose >90, else coral (a state
 // separate from the accent — approaching-limit is real, meaningful state).
 // Sized for the sidebar column (~190px usable).
+// Weekly pace: how the used% compares to the share of the window that has
+// elapsed so far (1.0 = right on the straight-line budget). Backend-computed
+// (flightdeck/quota.py: pace()); five_hour never carries it.
+function paceLine(pace, usedPct) {
+  if (!pace) return null;
+  const title = `Used ${Math.round(usedPct)}% with ${Math.round(pace.elapsed_pct)}% of the week gone. ` +
+    `Straight-line projection from the week start; it ignores quieter weekends.`;
+  if (pace.ratio <= 1.05) {
+    return { text: `on pace · ${Math.round(pace.per_day_left)}%/day left`, warn: false, title };
+  }
+  if (pace.runs_out_before_reset) {
+    return { text: `${pace.ratio.toFixed(1)}× pace · runs out ${resetTime(pace.runs_out_at)}`, warn: true, title };
+  }
+  return { text: `${pace.ratio.toFixed(1)}× pace`, warn: false, title };
+}
+
 function QuotaBar({ label, win }) {
   const p = win?.used_percentage ?? null;
   const color = p == null ? "var(--fdx-text-muted)" : p > 90 ? "#fb7185" : p > 70 ? "#fbbf24" : "var(--fdx-signal-hover)";
   const reset = win?.resets_at ? resetTime(win.resets_at) : (win?.resets_text || "-");
+  const pace = paceLine(win?.pace, p);
   return (
     <div className="flex items-center gap-3">
       <Ring pct={p} size={40} stroke={4} color={color} />
@@ -264,6 +281,14 @@ function QuotaBar({ label, win }) {
           <span className="font-mono text-zinc-200">{p == null ? "-" : `${Math.round(p)}%`}</span>
         </div>
         <div className="mt-0.5 text-[11px] text-zinc-600">resets {reset}</div>
+        {pace && (
+          <div
+            className={`mt-0.5 truncate text-[11px] ${pace.warn ? "text-amber-400/80" : "text-zinc-600"}`}
+            title={pace.title}
+          >
+            {pace.text}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -892,7 +917,7 @@ export default function App() {
         )}
 
         {view === "sessions" ? null : (
-          <SpendView summary={summary} daily={daily} byModel={byModel} />
+          <SpendView summary={summary} daily={daily} byModel={byModel} range={range} />
         )}
 
         {view === "sessions" && (

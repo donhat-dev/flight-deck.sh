@@ -95,8 +95,11 @@ def parse_usage(text, now=None):
 
 def poll(claude_bin=None, timeout=60):
     """Run `claude -p /usage`, parse, and return the report dict (or None)."""
+    # No MCP servers and no transcript: /usage needs neither, MCP startup more
+    # than doubles the CPU per poll, and each persisted run leaves an empty
+    # session file in the ledger's projects dir.
     cmd = [claude_bin or os.environ.get("TOKEN_AUDIT_CLAUDE_BIN", "claude"),
-           "-p", "/usage"]
+           "--strict-mcp-config", "--no-session-persistence", "-p", "/usage"]
     try:
         r = subprocess.run(
             cmd,

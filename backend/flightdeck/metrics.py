@@ -6,13 +6,18 @@ from flightdeck import pricing, transcript
 _DAYS_PER_MONTH = 30.4375
 
 
+# A row with `dup_of` set repeats another row's API response (a further content
+# block of it, or a resume/fork copy). Every sum reads billed rows only.
+BILLED = "dup_of IS NULL"
+
+
 def _rows(conn, since=None):
     # `since` is an ISO-8601 date/datetime prefix; ts is ISO-8601 so a
     # lexicographic ">=" is also chronological. None => all rows.
     sql = ("SELECT model, ts, input_tokens, cache_read, cache_create_5m, "
-           "cache_create_1h, output_tokens, session_id FROM messages")
+           "cache_create_1h, output_tokens, session_id FROM messages WHERE " + BILLED)
     if since:
-        return conn.execute(sql + " WHERE ts >= ?", (since,)).fetchall()
+        return conn.execute(sql + " AND ts >= ?", (since,)).fetchall()
     return conn.execute(sql).fetchall()
 
 
@@ -41,6 +46,8 @@ _GRAIN_SQL = (
     # COALESCE mirrors the old `(r["ts"] or "")[:10]`: a NULL ts belongs in the
     # "" bucket, not in a NULL one that would vanish from the daily chart.
     "SELECT COALESCE(substr(ts,1,10),'') AS day, model, session_id, "
+    # Fast mode and US-only inference change the rate, so they split a cell.
+    "COALESCE(speed,'') AS speed, COALESCE(inference_geo,'') AS geo, "
     "COUNT(*) AS turns, "
     "SUM(input_tokens) AS input_tokens, SUM(cache_read) AS cache_read, "
     "SUM(cache_create_5m) AS cache_create_5m, "
@@ -51,7 +58,7 @@ _GRAIN_SQL = (
     # '' as its first_ts. Callers that need a real date (summary's subscription
     # span) filter falsy values themselves, as the old loop's `if r["ts"]` did.
     "MIN(ts) AS first_ts, MAX(ts) AS last_ts "
-    "FROM messages")
+    "FROM messages WHERE " + BILLED)
 
 
 def rollup(conn, since=None) -> list[dict]:
@@ -62,9 +69,9 @@ def rollup(conn, since=None) -> list[dict]:
     sql = _GRAIN_SQL
     params: tuple = ()
     if since:
-        sql += " WHERE ts >= ?"
+        sql += " AND ts >= ?"
         params = (since,)
-    sql += " GROUP BY 1, 2, 3"
+    sql += " GROUP BY 1, 2, 3, 4, 5"
     # int() on every sum is load-bearing, not defensive: PostgreSQL's SUM over a
     # bigint column returns numeric, which psycopg hands back as `Decimal`, and
     # `Decimal * float` raises TypeError inside pricing. The old code never hit it
@@ -72,6 +79,7 @@ def rollup(conn, since=None) -> list[dict]:
     # test suite cannot catch this — it surfaced only against the real ledger.
     return [{
         "day": r["day"], "model": r["model"], "session_id": r["session_id"],
+        "speed": r["speed"] or None, "geo": r["geo"] or None,
         "turns": int(r["turns"] or 0),
         "input_tokens": int(r["input_tokens"] or 0),
         "cache_read": int(r["cache_read"] or 0),
@@ -115,9 +123,13 @@ def slice_grain(grain: list[dict], since=None) -> list[dict]:
 
 def _cell_cost(c: dict) -> float | None:
     """Cost of one grain cell, exact because the cell shares one rate."""
-    return pricing.message_cost(
-        c["model"], c["input_tokens"], c["cache_read"], c["cache_create_5m"],
-        c["cache_create_1h"], c["output_tokens"], c["first_ts"])
+    return pricing.message_cost(*_cell_args(c))
+
+
+def _cell_args(c: dict) -> tuple:
+    return (c["model"], c["input_tokens"], c["cache_read"], c["cache_create_5m"],
+            c["cache_create_1h"], c["output_tokens"], c["first_ts"],
+            c.get("speed"), c.get("geo"))
 
 
 def _cell_context(c: dict) -> int:
@@ -162,8 +174,7 @@ def summary(conn, subscription_monthly_usd: float, rtk_savings_usd: float = 0.0,
             unknown_tokens += _cell_context(c_) + c_["output_tokens"]
         else:
             total_cost += cost
-            cache_sav += pricing.cache_savings(
-                c_["model"], c_["cache_read"], c_["first_ts"])
+            cache_sav += pricing.cache_savings(*_cell_args(c_))
     denom = tot_read + tot_create + tot_input
 
     subscription_cost = 0.0
@@ -200,18 +211,59 @@ def summary(conn, subscription_monthly_usd: float, rtk_savings_usd: float = 0.0,
     }
 
 
-def daily(conn, since=None, grain: list[dict] | None = None) -> list[dict]:
+def activity_rollup(conn, since=None) -> list[dict]:
+    """Agent busy seconds per UTC day, split into main agents, subagents, and the
+    estimate kept for sessions whose transcript is gone."""
+    sql = ("SELECT day, "
+           "SUM(CASE WHEN method='transcript' AND agent_id='' THEN busy_seconds ELSE 0 END) AS main_s, "
+           "SUM(CASE WHEN method='transcript' AND agent_id<>'' THEN busy_seconds ELSE 0 END) AS sub_s, "
+           "SUM(CASE WHEN method='ledger' THEN busy_seconds ELSE 0 END) AS est_s "
+           "FROM agent_activity")
+    params: tuple = ()
+    if since:
+        sql += " WHERE day >= ?"
+        params = (since[:10],)
+    sql += " GROUP BY day"
+    return [{"day": r["day"], "main_s": float(r["main_s"] or 0),
+             "sub_s": float(r["sub_s"] or 0), "est_s": float(r["est_s"] or 0)}
+            for r in conn.execute(sql, params).fetchall()]
+
+
+def _empty_day(day: str) -> dict:
+    return {"date": day, "cost": 0.0, "input": 0, "output": 0, "cache_read": 0,
+            "cache_write": 0, "tokens": 0, "agent_hours": 0.0,
+            "agent_hours_sub": 0.0, "agent_hours_est": 0.0}
+
+
+def daily(conn, since=None, grain: list[dict] | None = None,
+          activity: list[dict] | None = None) -> list[dict]:
+    """One point per UTC day: cost, tokens, and agent work-hours.
+
+    Cost falls as prices fall, so it cannot show how much work was done; the
+    token and work-hour series are there to carry that. `tokens` counts every
+    token processed (uncached input, cache reads and writes, output).
+    """
     out = {}
     for c_ in _grain_for(conn, since, grain):
         day = c_["day"]
-        d = out.setdefault(day, {"date": day, "cost": 0.0, "input": 0,
-                                 "output": 0, "cache_read": 0})
+        d = out.setdefault(day, _empty_day(day))
         d["input"] += c_["input_tokens"]
         d["output"] += c_["output_tokens"]
         d["cache_read"] += c_["cache_read"]
+        d["cache_write"] += c_["cache_create_5m"] + c_["cache_create_1h"]
+        d["tokens"] += _cell_context(c_) + c_["output_tokens"]
         # Unlike by_model, `<synthetic>` is NOT excluded here: it is a real turn
         # on the day's chart, just not a billable model.
         d["cost"] += _cell_cost(c_) or 0.0
+    if activity is None:
+        activity = activity_rollup(conn, since)
+    for a in activity:
+        if since and a["day"] < since[:10]:
+            continue
+        d = out.setdefault(a["day"], _empty_day(a["day"]))
+        d["agent_hours"] = (a["main_s"] + a["sub_s"] + a["est_s"]) / 3600
+        d["agent_hours_sub"] = a["sub_s"] / 3600
+        d["agent_hours_est"] = a["est_s"] / 3600
     return [out[k] for k in sorted(out)]
 
 
@@ -241,7 +293,7 @@ def sessions(conn, limit: int = 100, offset: int = 0, since=None,
     # project per session: fetch one representative cwd
     for row in conn.execute(
             "SELECT session_id, MAX(project) AS project FROM messages "
-            "GROUP BY session_id"):
+            "WHERE " + BILLED + " GROUP BY session_id"):
         if row["session_id"] in agg:
             agg[row["session_id"]]["project"] = row["project"]
     # session title from the ai-title records captured during ingest

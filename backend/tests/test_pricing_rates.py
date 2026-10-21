@@ -1,7 +1,8 @@
 """Pricing table correctness.
 
 Every rate here is checked against the published table
-(https://platform.claude.com/docs/en/docs/about-claude/pricing, read 2026-07-31),
+(https://platform.claude.com/docs/en/about-claude/pricing, read 2026-07-31 and
+2026-09-23),
 because the failure mode is silent: a wrong rate produces a plausible dollar figure
 and nothing on the dashboard looks broken. An UNPRICED model at least declares
 itself — which is why the last group asserts that a model we have no rate for stays
@@ -11,8 +12,8 @@ import pytest
 
 from flightdeck import pricing
 
-JULY = "2026-07-31T10:00:00Z"      # inside Sonnet 5's introductory window
-SEPT = "2026-09-01T00:00:00Z"      # the first day it ends
+JULY = "2026-07-31T10:00:00Z"
+SEPT = "2026-09-01T00:00:00Z"      # the day Sonnet 5 was to rise to $3/$15, and did not
 
 
 class TestOpusFamilies:
@@ -41,32 +42,44 @@ class TestOpusFamilies:
         assert pricing.rate_for("claude-opus-4-8") != pricing.rate_for("claude-opus-4")
 
 
-class TestDatedRates:
-    def test_sonnet_5_uses_introductory_pricing_before_september(self):
+class TestSeptemberRates:
+    """Rates re-read on 2026-09-23 after the Opus 5.5 launch."""
+
+    def test_sonnet_5_stays_at_two_and_ten_after_september_first(self):
+        # The introductory price became the standard one; the $3/$15 rise never came.
         assert pricing.rate_for("claude-sonnet-5", JULY) == (2.0, 10.0)
+        assert pricing.rate_for("claude-sonnet-5", SEPT) == (2.0, 10.0)
+        assert pricing.rate_for("claude-sonnet-5") == (2.0, 10.0)
 
-    def test_sonnet_5_reverts_to_standard_on_the_first_of_september(self):
-        assert pricing.rate_for("claude-sonnet-5", SEPT) == (3.0, 15.0)
+    def test_no_promotion_is_active(self):
+        assert pricing.PROMOTIONS == ()
 
-    def test_an_undated_call_gets_the_standard_rate_not_the_discount(self):
-        # A caller that cannot say WHEN must not have a discount applied for it.
-        assert pricing.rate_for("claude-sonnet-5") == (3.0, 15.0)
+    def test_opus_5_5_is_not_priced_as_opus_5(self):
+        # `claude-opus-5` is a prefix of `claude-opus-5-5`; without its own key the
+        # newer, cheaper model inherited the older rate and its 0.1x cache read.
+        assert pricing.rate_for("claude-opus-5-5") == (4.0, 20.0)
+        one_m = 1_000_000
+        assert pricing.message_cost("claude-opus-5-5", 0, one_m, 0, 0, 0) == pytest.approx(0.20)
+        assert pricing.message_cost("claude-opus-5-5", 0, 0, one_m, 0, 0) == pytest.approx(5.0)
+        assert pricing.message_cost("claude-opus-5-5", 0, 0, 0, one_m, 0) == pytest.approx(8.0)
 
-    def test_the_promotion_does_not_leak_onto_another_model(self):
-        # Prefix equality, not startswith: sonnet-4-6 must not pick up sonnet-5's
-        # promotion, and neither must a model whose ID merely contains the string.
-        assert pricing.rate_for("claude-sonnet-4-6", JULY) == (3.0, 15.0)
-        assert pricing.rate_for("claude-haiku-4-5", JULY) == (1.0, 5.0)
+    def test_fable_5_1_reads_cache_at_a_fortieth_of_input(self):
+        assert pricing.message_cost("claude-fable-5-1", 0, 1_000_000, 0, 0, 0) == pytest.approx(0.25)
+        # Fable 5 (no .1) keeps the standard 0.1x.
+        assert pricing.message_cost("claude-fable-5", 0, 1_000_000, 0, 0, 0) == pytest.approx(1.0)
 
-    def test_message_cost_follows_the_date(self):
-        args = ("claude-sonnet-5", 1_000_000, 0, 0, 0, 0)
-        assert pricing.message_cost(*args, JULY) == pytest.approx(2.0)
-        assert pricing.message_cost(*args, SEPT) == pytest.approx(3.0)
+    def test_fast_mode_uses_its_own_rate_and_keeps_cache_multipliers(self):
+        one_m = 1_000_000
+        assert pricing.message_cost("claude-opus-5-5", one_m, 0, 0, 0, one_m, speed="fast") == pytest.approx(48.0)
+        assert pricing.message_cost("claude-opus-5", 0, one_m, 0, 0, 0, speed="fast") == pytest.approx(1.0)
+        # A model without a fast rate is billed at its standard rate.
+        assert pricing.message_cost("claude-sonnet-5", one_m, 0, 0, 0, 0, speed="fast") == pytest.approx(2.0)
 
-    def test_cache_savings_follows_the_date(self):
-        # 1M cache reads saved at 0.9 x input price: $1.80 vs $2.70.
-        assert pricing.cache_savings("claude-sonnet-5", 1_000_000, JULY) == pytest.approx(1.8)
-        assert pricing.cache_savings("claude-sonnet-5", 1_000_000, SEPT) == pytest.approx(2.7)
+    def test_us_inference_costs_a_tenth_more_on_every_class(self):
+        one_m = 1_000_000
+        assert pricing.message_cost("claude-opus-5", one_m, one_m, 0, 0, one_m, geo="us") == pytest.approx(
+            (5 + 0.5 + 25) * 1.1)
+        assert pricing.message_cost("claude-opus-5", one_m, 0, 0, 0, 0, geo="global") == pytest.approx(5.0)
 
 
 class TestUnpricedStaysUnpriced:
@@ -76,7 +89,7 @@ class TestUnpricedStaysUnpriced:
         assert pricing.message_cost(model, 1000, 1000, 0, 0, 1000) is None
 
     def test_an_unpriced_model_saves_nothing_rather_than_guessing(self):
-        assert pricing.cache_savings("claude-opus-9", 1_000_000) == 0.0
+        assert pricing.cache_savings("claude-opus-9", 0, 1_000_000, 0, 0, 0) == 0.0
 
 
 class TestCacheMultipliers:
