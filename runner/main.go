@@ -24,8 +24,8 @@ func main() {
 	claude := flag.String("claude", "claude", "path to the claude binary")
 	idle := flag.Duration("idle", 15*time.Minute, "stop a session after this long without a turn")
 	poll := flag.Duration("poll", 200*time.Millisecond, "how often cmd/ is scanned")
-	mode := flag.Uint("transcript-mode", 0, "chmod each session's transcript to this octal mode after a turn, e.g. 0640; 0 leaves it")
 	permTimeout := flag.Duration("permission-timeout", 10*time.Minute, "deny a permission request nobody answered after this long")
+	usageEvery := flag.Duration("usage-every", 0, "report the subscription quota (claude -p /usage) this often; 0 reports only when Odoo asks")
 	flag.Parse()
 	if *spool == "" {
 		log.Fatal("-spool is required")
@@ -36,8 +36,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("spool: %v", err)
 	}
-	mgr := NewManager(*claude, sp, *idle, os.FileMode(*mode), *permTimeout)
+	mgr := NewManager(*claude, sp, *idle, *permTimeout)
 	go mgr.Reap()
+	if *usageEvery > 0 {
+		go mgr.UsageLoop(*usageEvery)
+	}
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

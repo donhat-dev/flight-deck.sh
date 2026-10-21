@@ -10,7 +10,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,17 +30,15 @@ type session struct {
 	last  time.Time
 	done  chan struct{}
 	mu    sync.Mutex
+	// Which turns written to stdin still await their result frame, oldest
+	// first: true for a turn the runner sent itself (/effort).
+	turns turnQueue
 }
 
 type Manager struct {
 	claude string
 	sp     *Spool
 	idle   time.Duration
-	// File mode applied to a session's transcript after each turn, so a
-	// reader with an ACL entry on the tree can open it; 0 leaves it alone.
-	// claude creates the file 0600, and an ACL entry is masked by the group
-	// bits, so the default ACL alone never reaches a new file.
-	transcriptMode os.FileMode
 	// How long a permission request may wait for an answer from Odoo before
 	// it is denied. The CLI's turn is parked for the whole wait.
 	permTimeout time.Duration
@@ -49,30 +46,16 @@ type Manager struct {
 	sessions    map[string]*session
 	pmu         sync.Mutex
 	pending     map[string]*permRequest
+	deltas      *DeltaWriter
 }
 
-func NewManager(claude string, sp *Spool, idle time.Duration, transcriptMode os.FileMode,
+func NewManager(claude string, sp *Spool, idle time.Duration,
 	permTimeout time.Duration) *Manager {
-	return &Manager{claude: claude, sp: sp, idle: idle, transcriptMode: transcriptMode,
+	return &Manager{claude: claude, sp: sp, idle: idle,
 		permTimeout: permTimeout,
 		sessions:    map[string]*session{},
-		pending:     map[string]*permRequest{}}
-}
-
-// transcriptPath is where claude writes this session. A resumed session keeps
-// its original file whatever the new cwd, so an existing file wins; a new one
-// lands under <config>/projects/<cwd with "/" and "." turned into "-">/.
-func transcriptPath(cwd, id string) string {
-	root := os.Getenv("CLAUDE_CONFIG_DIR")
-	if root == "" {
-		home, _ := os.UserHomeDir()
-		root = filepath.Join(home, ".claude")
-	}
-	if found, _ := filepath.Glob(filepath.Join(root, "projects", "*", id+".jsonl")); len(found) > 0 {
-		return found[0]
-	}
-	slug := strings.NewReplacer("/", "-", ".", "-").Replace(cwd)
-	return filepath.Join(root, "projects", slug, id+".jsonl")
+		pending:     map[string]*permRequest{},
+		deltas:      NewDeltaWriter(sp)}
 }
 
 // livePID asks claude which sessions are open interactively and returns the
@@ -110,16 +93,6 @@ func (m *Manager) livePID(id string) (int, error) {
 	return 0, nil
 }
 
-func (m *Manager) shareTranscript(s *session) {
-	if m.transcriptMode == 0 {
-		return
-	}
-	path := transcriptPath(s.cwd, s.id)
-	if err := os.Chmod(path, m.transcriptMode); err != nil && !os.IsNotExist(err) {
-		log.Printf("%s chmod: %v", s.id[:8], err)
-	}
-}
-
 // Handle runs one command and always acknowledges it, error or not, so Odoo
 // can close the command row either way.
 func (m *Manager) Handle(c Command) {
@@ -145,6 +118,10 @@ func (m *Manager) Handle(c Command) {
 		err = m.SetModel(c)
 	case "set_effort":
 		err = m.SetEffort(c)
+	case "usage":
+		// Seconds of CLI time; the command loop must not wait on it. The
+		// report arrives as its own `usage` event after this ack.
+		go m.reportUsage(c.ID)
 	default:
 		err = fmt.Errorf("unknown op %q", c.Op)
 	}
@@ -195,6 +172,9 @@ func (m *Manager) start(c Command) error {
 		// Whatever the mode does not settle is asked of this runner over the
 		// control channel, and from there of a person in Odoo.
 		"--permission-prompt-tool", "stdio",
+		// Without this, the CLI only ever emits a full "assistant" frame per
+		// completed block; delta.go has nothing to coalesce.
+		"--include-partial-messages",
 	}
 	if c.Args.Resume {
 		args = append(args, "--resume", c.SessionID)
@@ -218,6 +198,7 @@ func (m *Manager) start(c Command) error {
 	if c.Args.AppendSystemPrompt != "" {
 		args = append(args, "--append-system-prompt", c.Args.AppendSystemPrompt)
 	}
+	args = append(args, optionArgs(c.Args)...)
 
 	cmd := exec.Command(m.claude, args...)
 	cmd.Dir = cwd
@@ -247,14 +228,24 @@ func (m *Manager) start(c Command) error {
 	return nil
 }
 
-// frame is the part of a stream-json line the runner acts on.
+// frame is the part of a stream-json line the runner acts on. session_id and
+// parent_tool_use_id ride on "assistant" and "stream_event" frames (never on
+// "result", which carries its own session_id but this runner already knows
+// the session from s.id); event is only present on "stream_event".
 type frame struct {
-	Type       string  `json:"type"`
-	Subtype    string  `json:"subtype"`
-	TotalCost  float64 `json:"total_cost_usd"`
-	IsError    bool    `json:"is_error"`
-	NumTurns   int     `json:"num_turns"`
-	DurationMS int     `json:"duration_ms"`
+	Type                string           `json:"type"`
+	Subtype             string           `json:"subtype"`
+	SessionID           string           `json:"session_id"`
+	ParentToolUseID     string           `json:"parent_tool_use_id"`
+	TotalCost           float64          `json:"total_cost_usd"`
+	IsError             bool             `json:"is_error"`
+	NumTurns            int              `json:"num_turns"`
+	DurationMS          int              `json:"duration_ms"`
+	FirstContentFrameMS int              `json:"first_content_frame_ms"`
+	Event               *streamEventBody `json:"event"`
+	Result              string           `json:"result"`
+	StructuredOutput    json.RawMessage  `json:"structured_output"`
+	Usage               *resultUsage     `json:"usage"`
 }
 
 func (m *Manager) read(s *session, r io.Reader) {
@@ -270,25 +261,33 @@ func (m *Manager) read(s *session, r io.Reader) {
 			continue
 		}
 		switch f.Type {
-		case "system":
-			// The file is created as the turn starts, mode 0600. Nothing can
-			// read it until it is shared, and this is the first frame after
-			// it appears.
-			m.shareTranscript(s)
 		case "assistant":
 			if s.state != "busy" {
 				m.setState(s, "busy")
 			}
+			// The authoritative close of whatever block was streaming: see
+			// delta.go's doc comment for why this, not content_block_stop.
+			m.deltas.OnAssistant(s.id, f.SessionID, f.ParentToolUseID)
+		case "stream_event":
+			m.deltas.OnStreamEvent(s.id, f.SessionID, f.ParentToolUseID, f.Event)
 		case "result":
 			s.last = time.Now()
-			m.sp.Emit(Event{Kind: "result", SessionID: s.id, Payload: map[string]any{
-				"total_cost_usd": f.TotalCost,
-				"is_error":       f.IsError,
-				"num_turns":      f.NumTurns,
-				"duration_ms":    f.DurationMS,
-				"subtype":        f.Subtype,
-			}})
-			m.shareTranscript(s)
+			// Flush before the event that tells Odoo the turn is done, so a
+			// reader never sees "idle" ahead of the text that led to it.
+			m.deltas.FlushSession(s.id)
+			payload := answerPayload(f)
+			payload["total_cost_usd"] = f.TotalCost
+			payload["is_error"] = f.IsError
+			payload["num_turns"] = f.NumTurns
+			payload["duration_ms"] = f.DurationMS
+			payload["subtype"] = f.Subtype
+			payload["first_content_frame_ms"] = f.FirstContentFrameMS
+			if s.turns.pop() {
+				payload["command"] = true
+			}
+			m.sp.Emit(Event{Kind: "result", SessionID: s.id, Payload: payload})
+			// The turn is over: nothing left streaming belongs to it.
+			m.deltas.DropSession(s.id)
 			m.setState(s, "idle")
 		}
 	}
@@ -305,6 +304,7 @@ func (m *Manager) wait(s *session) {
 	}
 	s.state = "stopped"
 	m.dropPermissions(s)
+	m.deltas.DropSession(s.id)
 	m.sp.ClearState(s.id)
 	m.sp.Emit(ev)
 	close(s.done)
@@ -333,7 +333,10 @@ func (m *Manager) send(c Command) error {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	// Queued before the write: the result frame may come back at once.
+	s.turns.push(false)
 	if _, err := s.stdin.Write(append(line, '\n')); err != nil {
+		s.turns.dropLast()
 		return fmt.Errorf("stdin: %w", err)
 	}
 	s.last = time.Now()
@@ -407,9 +410,6 @@ func (m *Manager) Reap() {
 
 func (m *Manager) setState(s *session, state string) {
 	s.state = state
-	// The file appears with the first turn and claude creates it 0600, so the
-	// share is retried on every state change until it exists.
-	m.shareTranscript(s)
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	pid := 0
 	if s.cmd.Process != nil {
@@ -417,6 +417,9 @@ func (m *Manager) setState(s *session, state string) {
 	}
 	m.sp.SetState(SessionState{SessionID: s.id, PID: pid, State: state, Cwd: s.cwd,
 		Since: s.since.UTC().Format(time.RFC3339Nano), Last: now})
+	// Flush before the event that tells Odoo the state changed, so a reader
+	// never sees e.g. "busy" ahead of the text a stream had already snapshot.
+	m.deltas.FlushSession(s.id)
 	m.sp.Emit(Event{Kind: "state", SessionID: s.id, State: state, Payload: map[string]any{"pid": pid}})
 }
 

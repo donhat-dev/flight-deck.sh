@@ -45,6 +45,20 @@ type CommandArgs struct {
 	Mode string `json:"mode,omitempty"`
 	// How hard the model works on a turn: low, medium, high, xhigh, max.
 	Effort string `json:"effort,omitempty"`
+	// start: the session's display name, given again on each start because
+	// the CLI does not keep it.
+	Name string `json:"name,omitempty"`
+	// start: a JSON Schema every answer of this process must follow; the
+	// result event then carries structured_output.
+	JSONSchema string `json:"json_schema,omitempty"`
+	// start: stop a turn once it has cost this many dollars.
+	MaxBudgetUSD float64 `json:"max_budget_usd,omitempty"`
+	// start: end a turn after this many agent turns (the result frame then
+	// says error_max_turns).
+	MaxTurns int `json:"max_turns,omitempty"`
+	// start: the built-in tools the process may use. Absent keeps them all;
+	// an empty list allows none.
+	Tools *[]string `json:"tools,omitempty"`
 }
 
 // Event is one line of events.jsonl. Kinds: ack, state, result, permission,

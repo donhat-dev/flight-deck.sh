@@ -90,7 +90,9 @@ func (m *Manager) ask(s *session, req controlRequest) {
 	m.pmu.Lock()
 	m.pending[p.ID] = p
 	m.pmu.Unlock()
-	m.shareTranscript(s)
+	// Flush before the event that parks the turn on a person's answer, so a
+	// reader never sees the permission prompt ahead of the text that led to it.
+	m.deltas.FlushSession(s.id)
 	m.sp.Emit(Event{Kind: "permission", SessionID: s.id, Payload: map[string]any{
 		"request_id":   p.ID,
 		"tool_name":    p.ToolName,
@@ -275,7 +277,11 @@ func (m *Manager) SetEffort(c Command) error {
 			"content": []map[string]string{{"type": "text", "text": "/effort " + c.Args.Effort}},
 		},
 	}
+	// Queued before the write: the turn's result frame may come back at once,
+	// and it must be marked as this command's, not a prompt's answer.
+	s.turns.push(true)
 	if err := m.writeLine(s, line); err != nil {
+		s.turns.dropLast()
 		return err
 	}
 	m.sp.Emit(Event{Kind: "effort", SessionID: s.id, Payload: map[string]any{"effort": c.Args.Effort}})
