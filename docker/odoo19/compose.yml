@@ -11,15 +11,27 @@ services:
     image: flightdeck-odoo19:local
     container_name: flightdeck-odoo19
     restart: unless-stopped
+    # Read as the person whose sessions this reads, write as odoo.
+    #
+    # claude creates every transcript 0600, and a default ACL never reaches a
+    # file created that way: the mask follows the group bits. Granting a second
+    # uid read access therefore has to be redone for every file the CLI writes
+    # and every directory it adds. The uid below already owns those files, so
+    # nothing on the host is modified and no permission has to be maintained.
+    # The transcript mount is read-only, so this identity cannot write there.
+    #
+    # The group stays 101 (odoo in the image) because /var/lib/odoo does.
+    user: "${FD_UID:?set FD_UID=$(id -u) in docker/odoo19/.env}:101"
     # fd-runner is the second process in this container: it keeps the claude
-    # sessions Odoo starts here. Odoo and the runner share the spool under
+    # sessions Odoo starts here, and reports the subscription quota every ten
+    # minutes (`-usage-every`); the host runner does not, one report is enough. Odoo and the runner share the spool under
     # /var/lib/odoo, so no network is involved. The re-exec through the
     # entrypoint keeps its database-argument handling.
     command:
       - sh
       - -c
       - >-
-        fd-runner -spool /var/lib/odoo/spool/container -claude /usr/local/bin/claude &
+        fd-runner -spool /var/lib/odoo/spool/container -claude /usr/local/bin/claude -usage-every 10m &
         exec /entrypoint.sh odoo -c /etc/odoo/odoo.conf
     environment:
       # The image entrypoint waits on Postgres using these, not the conf file.
@@ -30,23 +42,54 @@ services:
       # Read by the import script when it runs in this container.
       FD_LEDGER_USER: ${FD_LEDGER_USER:?set it in docker/odoo19/.env}
       FD_LEDGER_PASSWORD: ${FD_LEDGER_PASSWORD:?set it in docker/odoo19/.env}
+      # Set here because `user:` overrides it: an arbitrary uid has no entry in
+      # the image's passwd file and would otherwise land on / or another user's
+      # home.
+      HOME: /var/lib/odoo
+      # The TypeSafe key the task labeller calls Jev with, read from the file
+      # jev-browser already keeps it in, so it exists in one place only.
+      TYPESAFE_ENV_FILE: /run/fd/jev.env
+      WORKFLOW_STUDIO_SECRET_KEYS: ${WORKFLOW_STUDIO_SECRET_KEYS:?set it in docker/odoo19/.env}
+      # Fernet keys for the AI harness provider keys at rest.
+      HARNESS_SECRET_KEYS: ${HARNESS_SECRET_KEYS:?set it in docker/odoo19/.env}
     volumes:
       - ./odoo.conf:/etc/odoo/odoo.conf:ro
       - ../../odoo:/mnt/flightdeck-addons:ro
+      # Third-party addons, kept apart from ours: they are somebody
+      # else's code at a pinned commit, not part of this repository.
+      - ./addons:/mnt/vendor-addons:ro
+      # Workflow Studio, from its own repository (workspace
+      # repos/open-workflow-studio, branch 19.0), so changes made while using
+      # it here can go back to that repository. Module by module: the
+      # repository also vendors an Odoo 18 queue_job that must not sit on
+      # addons_path beside the one above.
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_zalo_bot:/mnt/wfs-addons/workflow_connector_zalo_bot:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_github:/mnt/wfs-addons/workflow_connector_github:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_llm:/mnt/wfs-addons/workflow_connector_llm:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/flight_ai_chat:/mnt/wfs-addons/flight_ai_chat:ro
+      # AI harness modules: OpenCode over ACP inside this container, under
+      # Landlock. harness_base is also in odoo.conf's server_wide_modules.
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_base:/mnt/wfs-addons/harness_base:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_core:/mnt/wfs-addons/harness_core:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_opencode:/mnt/wfs-addons/harness_opencode:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_workflow:/mnt/wfs-addons/harness_workflow:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/harness_muk_ai:/mnt/wfs-addons/harness_muk_ai:ro
       # Treasures keeps content on disk; the database is only an index.
       - ${HOME}/.flightdeck/treasures:/mnt/treasures:ro
-      # Session transcripts, read directly. The files are mode 600, so the host
-      # grants this container's uid read access through an ACL:
-      #   setfacl -R    -m u:100:rX ~/.claude/projects
-      #   setfacl -R -d -m u:100:rX ~/.claude/projects
-      # The second line is what keeps new session files readable.
+      # Session transcripts, including every agent's own file. Readable
+      # because `user:` above is the uid that owns them; read-only because
+      # nothing here may write to another program's data.
       - ${HOME}/.claude/projects:/mnt/claude-projects:ro
-      # Commands for the runner on the host, and its events back. Written by
-      # this container's uid 100, moved and answered by the host runner, so
-      # the host grants it read-write with an ACL:
-      #   setfacl -R    -m u:100:rwX ~/.flightdeck/spool
-      #   setfacl -R -d -m u:100:rwX ~/.flightdeck/spool
+      # Which sessions have a live process behind them. One small JSON file per
+      # running session, written by the CLI and removed when it exits.
+      - ${HOME}/.claude/sessions:/mnt/claude-sessions:ro
+      # Commands for the runner on the host, and its events back. Both sides
+      # run as the same uid, so the files need no shared group or ACL.
       - ${HOME}/.flightdeck/spool:/mnt/spool
+      - ${HOME}/.config/jev-browser/env:/run/fd/jev.env:ro
       - odoo-data:/var/lib/odoo
     ports:
       - "8029:8069"
@@ -58,8 +101,42 @@ services:
     networks:
       - pgnet
 
+  # The Workflow Studio port (wfs_port) and its probe database, on their own
+  # server, crons and job runner. They ran inside the service above until
+  # 2026-09-29, where a probe job left `started` held the one queue slot and
+  # stopped every Flightdoo job. Started only on request:
+  #   docker compose --profile wfs up -d odoo-wfs
+  odoo-wfs:
+    profiles: ["wfs"]
+    image: flightdeck-odoo19:local
+    container_name: flightdeck-wfs-odoo19
+    restart: unless-stopped
+    user: "${FD_UID:?set FD_UID=$(id -u) in docker/odoo19/.env}:101"
+    command: ["odoo", "-c", "/etc/odoo/odoo.conf"]
+    environment:
+      HOST: pgcore-17
+      PORT: 5432
+      USER: ${FD_ODOO_USER:?set it in docker/odoo19/.env}
+      HOME: /var/lib/odoo
+    volumes:
+      - ./odoo-wfs.conf:/etc/odoo/odoo.conf:ro
+      - ./addons:/mnt/vendor-addons:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio:/mnt/wfs-addons/workflow_studio:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_queue_job:/mnt/wfs-addons/workflow_studio_queue_job:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_studio_flow_code:/mnt/wfs-addons/workflow_studio_flow_code:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_zalo_bot:/mnt/wfs-addons/workflow_connector_zalo_bot:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_github:/mnt/wfs-addons/workflow_connector_github:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/workflow_connector_llm:/mnt/wfs-addons/workflow_connector_llm:ro
+      - ${WFS_SRC:-../../../repos/open-workflow-studio}/flight_ai_chat:/mnt/wfs-addons/flight_ai_chat:ro
+      - wfs-data:/var/lib/odoo
+    ports:
+      - "8039:8069"
+    networks:
+      - pgnet
+
 volumes:
   odoo-data:
+  wfs-data:
 
 networks:
   pgnet:
