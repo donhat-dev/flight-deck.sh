@@ -1,0 +1,8 @@
+== since 2000-01-01
+as stored (uuid rows)              rows=133,775  FlightDeck=   43,105 (cache_savings   223,557)  corrected-prices=   41,609  raw-no-cache=  258,937  net-savings=  217,328
+deduped (input-side key)           rows= 46,261  FlightDeck=   12,169 (cache_savings    68,721)  corrected-prices=   11,568  raw-no-cache=   78,874  net-savings=   67,306
+   per model, deduped + corrected: {'claude-opus-5': 7579, 'claude-opus-4-8': 1829, 'claude-fable-5': 1013, 'claude-fable-5-1': 671, 'claude-sonnet-5': 451, 'claude-opus-5-5': 24, 'claude-haiku-4-5-20251001': 2}
+== since 2026-08-24
+as stored (uuid rows)              rows= 44,411  FlightDeck=   11,210 (cache_savings    61,468)  corrected-prices=    9,714  raw-no-cache=   70,393  net-savings=   60,679
+deduped (input-side key)           rows= 21,516  FlightDeck=    5,108 (cache_savings    29,252)  corrected-prices=    4,507  raw-no-cache=   33,323  net-savings=   28,815
+   per model, deduped + corrected: {'claude-opus-5': 2925, 'claude-fable-5-1': 671, 'claude-opus-4-8': 399, 'claude-fable-5': 313, 'claude-sonnet-5': 173, 'claude-opus-5-5': 24, 'claude-haiku-4-5-20251001': 2}

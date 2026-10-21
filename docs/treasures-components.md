@@ -64,7 +64,7 @@ pandoc rewrites a div whose first child is a heading into
 ## 2. Component inventory
 
 Five components, exactly the ones with a markdown-expressible shape. The rest of
-`ARTIFACT_STYLE.md` §5 (rating matrix, profile cards, role boxes, the estimate
+`nakivo-artifact:report` → `references/structure.md`, Components (formerly `ARTIFACT_STYLE.md` §5: rating matrix, profile cards, role boxes, the estimate
 grid) stays **out of scope**: they are bespoke per report, not house furniture,
 and shipping their CSS would be dead weight in every artifact.
 
@@ -117,7 +117,7 @@ label style and `strong` overrides its own size.
 ### Epistemic card tones
 
 `data-tone="assume"` (amber, left accent bar) and `data-tone="deferred"` (dashed,
-pale blue) exist because `ARTIFACT_DESIGN.md` §3a requires an artifact to mark
+pale blue) exist because `ARTIFACT_DESIGN.md` §3a (retired 2026-08-06; file retired 2026-09-28, `orphans/ARTIFACT_DESIGN.md`) required an artifact to mark
 what is assumed and what is out of scope. Lifted from the canonical `.assume` /
 `.deferred` boxes so the same kind of claim looks the same everywhere.
 
