@@ -1,0 +1,8 @@
+# ML-5 ratchet, state of 2026-10-21: router modules that live outside
+# flightdeck/routers today. One "module -> import" per line; the list may
+# only shrink. flightdeck.runtime is a named entry point in the test, not a
+# violation (it builds the FastAPI app).
+flightdeck.agui.routes -> fastapi
+flightdeck.systems.containers -> fastapi
+flightdeck.systems.mcp -> fastapi
+flightdeck.systems.skills -> fastapi

@@ -1,0 +1,4 @@
+# Web-client /api paths with no matching route in api/openapi/python.json or
+# api/openapi/spend.yaml. Format: path<TAB>file:line (the call site). The
+# list may only shrink: an entry that stops occurring fails the check.
+# State of 2026-10-21: empty — every extracted path matched a server route.
