@@ -171,7 +171,13 @@ Home-layout explorations ship as separate Vite entries: `/home-concept.html`
 ## 🗂️ Repository layout
 
 ```
+go/             the Go core: one module (flightdeck)
+  core/         ledger, ingest, pricing, metrics, import (SQLite; no Postgres)
+  server/       HTTP API for `fd serve`
+  runner/       the spool runner (library)
+  cmd/fd, cmd/fd-runner   the two binaries (built into go/bin/)
 python/         FastAPI app (flightdeck package), config.toml, requirements
+api/            contracts between servers and clients: spend HTTP, CLI JSON, runner spool
 clients/web/    React + Vite app and the standalone concept/lab entries
 clients/odoo/   Flightdoo Odoo modules (mounted into docker/odoo19)
 warp-fleet/     experimental: drive Warp terminal panes from an orchestrator

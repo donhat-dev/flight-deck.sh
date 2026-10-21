@@ -28,3 +28,8 @@ Refs: `docs/2026-10-01-go-core-binary.md` (Go core decisions), evidence `devtool
 ## Decisions
 
 - Chose to merge every branch into `main` before moving folders, because a move on four diverging branches would multiply the conflicts; `odoo-19-experiment` and `go` were merged with `-s ours` (their files were older or identical), the uncommitted resource-manager work went to `wip/resource-manager`, not `main`, because it is untested and `main` runs live.
+- Chose `go/` as one Go module (`flightdeck`) with `core/`, `server/`, `runner/` and `cmd/` over separate modules, because the runner shares no code with the core today and one module keeps one go.mod, one test run and one build target; the runner became a library (`runner.Main`) so the binary is only a thin `cmd/`.
+- Chose to keep `python/flightdeck` as one package (routers already separate the server part) and to split by runtime at the top level, because splitting the 196-file package into core/server layers is a rewrite, not a move; the Go side is where the core grows.
+- Chose to keep `fd serve` API-only by default (`--ui` from `FLIGHTDECK_WEB_DIST`, served only when the folder exists), because a path relative to the working directory broke when started elsewhere (plan review).
+- Chose to verify the Flightdoo image only up to its runner stage, not rebuild the tagged image, because the build reinstalls the latest `claude` and other sessions start probe containers from that image.
+- Chose to write `api/` from the code as it is, marking where the Go and Python servers differ, because the contract has to describe both while the Python stack still serves most routes.
