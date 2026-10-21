@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -508,4 +509,42 @@ func TestAFullRescanDoesNotDoubleTheBusyTime(t *testing.T) {
 	}
 	mustSweep(t, in, root)
 	nearSecs(t, "busy", busy(t, s, ""), 90)
+}
+
+// Two ledgers opened on one file (fd serve and fd ingest) read the same
+// appended lines at once; the busy time of each interval is counted once.
+func TestTwoReadersAtOnceCountBusyTimeOnce(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "projects", "-p", "s1.jsonl")
+	stores := make([]*ledger.Store, 2)
+	for i := range stores {
+		st, err := ledger.Open(filepath.Join(dir, "ledger.db"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer st.Close()
+		stores[i] = st
+	}
+	write(t, path, pLine("h1", 0, "go", "s1", "p1"))
+	secs := 0.0
+	for i := range 30 {
+		secs += 10
+		write(t, path, aLine(fmt.Sprintf("a%d", i), secs, fmt.Sprintf("msg_%d", i), 5, aOpt{prompt: "p1"}))
+		var wg sync.WaitGroup
+		errs := make([]error, 2)
+		for j := range stores {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				_, errs[j] = (&Ingester{Store: stores[j]}).File(path)
+			}()
+		}
+		wg.Wait()
+		for _, err := range errs {
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	nearSecs(t, "busy", busy(t, stores[0], ""), secs)
 }

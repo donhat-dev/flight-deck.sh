@@ -73,7 +73,12 @@ func SavingsUSD() float64 {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), Timeout)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, path, "gain").Output()
+	cmd := exec.CommandContext(ctx, path, "gain")
+	// A wrapper's child can inherit stdout and keep it open past the timeout;
+	// kill the whole group and stop waiting on the pipe shortly after.
+	ownGroup(cmd)
+	cmd.WaitDelay = time.Second
+	out, err := cmd.Output()
 	if err != nil {
 		return 0
 	}

@@ -21,12 +21,30 @@ func (in *Ingester) File(path string) (int, error) {
 	if err != nil {
 		return 0, nil // removed between listing and reading; its rows stay
 	}
-	cur, seen, err := ledger.GetCursor(in.Store.DB, path)
+	mtime := st.ModTime().UnixNano()
+	unchanged := func(cur ledger.Cursor, seen bool) bool {
+		return seen && cur.MtimeNS == mtime && cur.Size == st.Size()
+	}
+	// Cheap check without the write lock, so a sweep over unchanged files does
+	// not queue behind another writer.
+	if cur, seen, err := ledger.GetCursor(in.Store.DB, path); err != nil {
+		return 0, err
+	} else if unchanged(cur, seen) {
+		return 0, nil
+	}
+	// The store begins IMMEDIATE, so this holds the write lock. The cursor is
+	// read again under it: another process (fd serve beside fd ingest) may have
+	// read the same lines meanwhile, and its busy time must not be added twice.
+	tx, err := in.Store.DB.Begin()
 	if err != nil {
 		return 0, err
 	}
-	mtime := st.ModTime().UnixNano()
-	if seen && cur.MtimeNS == mtime && cur.Size == st.Size() {
+	defer tx.Rollback()
+	cur, seen, err := ledger.GetCursor(tx, path)
+	if err != nil {
+		return 0, err
+	}
+	if unchanged(cur, seen) {
 		return 0, nil
 	}
 	var start, lines int64
@@ -41,11 +59,6 @@ func (in *Ingester) File(path string) (int, error) {
 	if _, err := f.Seek(start, io.SeekStart); err != nil {
 		return 0, err
 	}
-	tx, err := in.Store.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
 	// The turn and busy-time tracker reads the same lines, resumes mid-file
 	// from the cursor's act_* state, and writes in this transaction.
 	tracker := activity.NewTracker(tx, path, activity.State{

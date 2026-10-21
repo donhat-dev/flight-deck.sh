@@ -3,6 +3,7 @@ package rtk
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -87,5 +88,39 @@ func TestSavingsUSDOnTimeoutIsZero(t *testing.T) {
 	t.Cleanup(func() { Timeout = old })
 	if got := SavingsUSD(); got != 0 {
 		t.Fatalf("%v", got)
+	}
+}
+
+// A wrapper that leaves a child holding stdout open must not outlive the
+// timeout, and the child is killed with it.
+func TestSavingsUSDTimeoutKillsDescendants(t *testing.T) {
+	pidFile := filepath.Join(t.TempDir(), "child.pid")
+	fakeRTK(t, "sleep 30 & echo $! > "+pidFile+"\nwait")
+	old := Timeout
+	Timeout = 200 * time.Millisecond
+	t.Cleanup(func() { Timeout = old })
+	began := time.Now()
+	if got := SavingsUSD(); got != 0 {
+		t.Fatalf("%v", got)
+	}
+	if d := time.Since(began); d > 3*time.Second {
+		t.Fatalf("returned after %v", d)
+	}
+	raw, err := os.ReadFile(pidFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pid := strings.TrimSpace(string(raw))
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		// Gone, or a zombie nobody reaps (PID 1 in a container is go test).
+		stat, err := os.ReadFile("/proc/" + pid + "/stat")
+		if err != nil || strings.Contains(string(stat), ") Z ") {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("child %s still running: %s", pid, stat)
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

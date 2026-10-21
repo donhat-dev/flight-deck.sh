@@ -19,3 +19,12 @@ Refs: `api/openapi/spend.yaml`, `docs/briefs/2026-10-21-monorepo-l3.md`, map `de
 - SP-6 A conformance test ingests one transcript fixture (main agent with idle gaps across midnight UTC, one subagent, one resumed copy) into both servers and requires equal `agent_hours`, `agent_hours_sub` and `subagents` (costs within 1e-6 USD); `spend.yaml` marks these keys shared; `make check` is green.
 
 ## Decisions
+
+- rtk lives in `go/core/rtk`, not a new module: it is a CLI wrapper with no HTTP, and archtest's module rules already allow core packages in the server.
+- The rtk run gets its own process group, killed on timeout, with a one-second `WaitDelay`: a wrapper's child holding stdout would otherwise keep the refresh busy forever.
+- The Python routers are `routers/agui.py` and `routers/systems_{containers,mcp,skills}.py`; `systems/*` keeps FastAPI-free helpers that take explicit arguments.
+- Ledger schema v3 resets every file cursor on upgrade, so an existing ledger reads all transcripts again and backfills busy time; response keys dedupe the billed rows.
+- `File` reads the cursor again after taking the IMMEDIATE write lock (a lock-free pre-check still skips unchanged files): `fd serve` and `fd ingest` on one ledger counted an interval twice before.
+- `agent_hours_est` stays 0 on both servers; no estimate is ported.
+- The HTTP and CLI session rows are separate schemas composed with `unevaluatedProperties: false`, so `subagents` is required on HTTP and forbidden on the CLI.
+- The idle cap stays env-only (`TOKEN_AUDIT_AGENT_IDLE_CAP_MIN`, default 15 min), as in Python.
