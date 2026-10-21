@@ -108,7 +108,7 @@ func TestSinceDropsEarlierDays(t *testing.T) {
 
 func TestDailyCountsSyntheticAndEveryToken(t *testing.T) {
 	s := fixture(t)
-	d := Daily(table(t, s), grain(t, s, ""))
+	d := Daily(table(t, s), grain(t, s, ""), nil)
 	if len(d) != 2 || d[0].Date != "2026-09-24" || d[1].Date != "2026-09-25" {
 		t.Fatalf("%+v", d)
 	}
@@ -116,6 +116,45 @@ func TestDailyCountsSyntheticAndEveryToken(t *testing.T) {
 	near(t, "day 2 cost", d[1].Cost, 0.935)
 	if d[0].Tokens != 1_002_000 || d[1].Tokens != 502_665 || d[1].CacheWrite != 100_000 {
 		t.Errorf("%+v", d)
+	}
+}
+
+// test_metrics_rollup.py:289-303 — the three-way split from agent_activity.
+func TestDailyCarriesAgentHoursSplitBySource(t *testing.T) {
+	s := fixture(t)
+	if _, err := s.DB.Exec(`INSERT INTO agent_activity
+		(session_id, agent_id, prompt_id, day, method, busy_seconds) VALUES
+		('s1', '', 'p1', '2026-09-01', 'transcript', 3600),
+		('s1', 'sub1', 'p1', '2026-09-01', 'transcript', 1800),
+		('old', '', '', '2026-09-01', 'ledger', 900),
+		-- a day with work but no billed row still gets a point
+		('s9', '', 'p9', '2026-09-03', 'transcript', 7200)`); err != nil {
+		t.Fatal(err)
+	}
+	act, err := ActivityRollup(s.DB, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	byDay := map[string]Day{}
+	for _, d := range Daily(table(t, s), grain(t, s, ""), act) {
+		byDay[d.Date] = d
+	}
+	d := byDay["2026-09-01"]
+	near(t, "agent_hours", d.AgentHours, 1.75)
+	near(t, "agent_hours_sub", d.AgentHoursSub, 0.5)
+	near(t, "agent_hours_est", d.AgentHoursEst, 0.25)
+	near(t, "activity-only day hours", byDay["2026-09-03"].AgentHours, 2.0)
+	if byDay["2026-09-03"].Cost != 0 {
+		t.Errorf("activity-only day cost %v", byDay["2026-09-03"].Cost)
+	}
+	act, err = ActivityRollup(s.DB, "2026-09-04")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range Daily(table(t, s), grain(t, s, "2026-09-04"), act) {
+		if d.Date == "2026-09-03" {
+			t.Errorf("the activity-only day was not filtered by since: %+v", d)
+		}
 	}
 }
 
@@ -190,7 +229,7 @@ func TestAPriceEditRestatesHistory(t *testing.T) {
 
 func TestAnEmptyLedgerGivesEmptyArrays(t *testing.T) {
 	tbl := table(t, fixture(t))
-	for name, v := range map[string]any{"daily": Daily(tbl, nil), "by_model": ByModel(tbl, nil)} {
+	for name, v := range map[string]any{"daily": Daily(tbl, nil, nil), "by_model": ByModel(tbl, nil)} {
 		b, _ := json.Marshal(v)
 		if string(b) != "[]" {
 			t.Errorf("%s marshals as %s", name, b)

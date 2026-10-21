@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"flightdeck/core/activity"
 	"flightdeck/core/ledger"
 )
 
@@ -28,6 +29,12 @@ type record struct {
 	Effort             string `json:"effort"`
 	PerTurnEffort      string `json:"perTurnEffort"`
 	IsSidechain        bool   `json:"isSidechain"`
+	// What the activity tracker reads. promptId and turnOrigin stay raw: their
+	// truthiness, not just their string form, drives the prompt rules.
+	PromptID   json.RawMessage `json:"promptId"`
+	TurnOrigin json.RawMessage `json:"turnOrigin"`
+	IsMeta     bool            `json:"isMeta"`
+	GitBranch  string          `json:"gitBranch"`
 }
 
 type assistantMessage struct {
@@ -151,6 +158,25 @@ func billedLine(r record) (ledger.Response, bool, bool) {
 		ThinkingTokens: u.OutputTokensDetails.ThinkingTokens, ThinkingMS: r.ThinkingDurationMs,
 		Effort: firstOf(r.PerTurnEffort, r.Effort), Sidechain: r.IsSidechain,
 	}, thinks(m.Content), true
+}
+
+// lineOf is the tracker's view of the record.
+func lineOf(r record) activity.Line {
+	return activity.Line{
+		Type: r.Type, SessionID: r.SessionID, Timestamp: r.Timestamp,
+		PromptID: jstr(r.PromptID), UUID: r.UUID, TurnOrigin: r.TurnOrigin,
+		CWD: r.CWD, GitBranch: r.GitBranch, IsMeta: r.IsMeta,
+		IsSidechain: r.IsSidechain, Message: r.Message,
+	}
+}
+
+// jstr is the string form of a JSON field, "" when it is not a string.
+func jstr(raw json.RawMessage) string {
+	var s string
+	if json.Unmarshal(raw, &s) != nil {
+		return ""
+	}
+	return s
 }
 
 func firstOf(a, b string) string {

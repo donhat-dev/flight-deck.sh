@@ -87,8 +87,12 @@ func cmdSpend(args []string) (output, error) {
 	defer s.Close()
 	sum := metrics.Summarize(prices, cells, *sub)
 	models := metrics.ByModel(prices, cells)
+	act, err := metrics.ActivityRollup(s.DB, metrics.Since(*rng, time.Now()))
+	if err != nil {
+		return output{}, err
+	}
 	data := map[string]any{"range": *rng, "summary": sum, "by_model": models,
-		"daily": metrics.Daily(prices, cells)}
+		"daily": metrics.Daily(prices, cells, act)}
 	return output{Data: data, Text: func(w io.Writer) {
 		fmt.Fprintf(w, "%s: $%.2f over %d responses in %d sessions, cache hit %.1f%%\n",
 			*rng, sum.TotalCost, sum.MessageCount, sum.SessionCount, 100*sum.CacheHitRate)

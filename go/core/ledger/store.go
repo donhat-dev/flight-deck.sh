@@ -19,7 +19,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const schemaVersion = 2
+const schemaVersion = 3
 
 const schema = `
 CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
@@ -46,22 +46,56 @@ CREATE TABLE IF NOT EXISTS responses (
   think_wait_ms   INTEGER,
   effort          TEXT,
   sidechain       INTEGER,
+  prompt_id       TEXT,
+  agent_id        TEXT,
   PRIMARY KEY (message_id, request_id)
 ) WITHOUT ROWID;
 CREATE INDEX IF NOT EXISTS responses_ts ON responses(ts);
 CREATE INDEX IF NOT EXISTS responses_session ON responses(session_id);
 CREATE TABLE IF NOT EXISTS files (
-  path       TEXT PRIMARY KEY,
-  mtime_ns   INTEGER NOT NULL,
-  size       INTEGER NOT NULL,
-  bytes_read INTEGER NOT NULL,
-  lines      INTEGER NOT NULL
+  path           TEXT PRIMARY KEY,
+  mtime_ns       INTEGER NOT NULL,
+  size           INTEGER NOT NULL,
+  bytes_read     INTEGER NOT NULL,
+  lines          INTEGER NOT NULL,
+  act_last_ts    TEXT,
+  act_in_turn    INTEGER,
+  act_wait_human INTEGER,
+  act_prompt_id  TEXT,
+  act_answered   INTEGER
 ) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS session_meta (
   session_id   TEXT PRIMARY KEY,
   title        TEXT,
   title_source TEXT
 ) WITHOUT ROWID;
+` + activitySchema
+
+// Seconds an agent was busy, per (session, agent, prompt, UTC day); agent_id ''
+// is the main agent. turns is the prompt-owner table: which session a prompt id
+// belongs to, so a resumed or forked file's copied history is not counted again.
+const activitySchema = `
+CREATE TABLE IF NOT EXISTS agent_activity (
+  session_id   TEXT NOT NULL,
+  agent_id     TEXT NOT NULL DEFAULT '',
+  prompt_id    TEXT NOT NULL DEFAULT '',
+  day          TEXT NOT NULL,
+  method       TEXT NOT NULL DEFAULT 'transcript',
+  busy_seconds REAL NOT NULL DEFAULT 0,
+  PRIMARY KEY (session_id, agent_id, prompt_id, day, method)
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS agent_activity_day ON agent_activity(day);
+CREATE TABLE IF NOT EXISTS turns (
+  turn_id     TEXT PRIMARY KEY,
+  session_id  TEXT,
+  started_at  TEXT,
+  ended_at    TEXT,
+  prompt_head TEXT,
+  final_head  TEXT,
+  cwd         TEXT,
+  git_branch  TEXT
+) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS turns_session ON turns(session_id, started_at);
 `
 
 type Store struct{ DB *sql.DB }
@@ -100,7 +134,12 @@ func prepare(db *sql.DB) error {
 				v, schemaVersion)
 		}
 		if n < 2 {
-			return upgradeTo2(db)
+			if err := upgradeTo2(db); err != nil {
+				return err
+			}
+		}
+		if n < 3 {
+			return upgradeTo3(db)
 		}
 		return nil
 	}
@@ -154,6 +193,50 @@ func upgradeTo2(db *sql.DB) error {
 	return tx.Commit()
 }
 
+// actColumns and stampColumns arrived in schema version 3.
+var actColumns = []string{"act_last_ts TEXT", "act_in_turn INTEGER",
+	"act_wait_human INTEGER", "act_prompt_id TEXT", "act_answered INTEGER"}
+var stampColumns = []string{"prompt_id TEXT", "agent_id TEXT"}
+
+// upgradeTo3 adds the activity tables, the tracker state columns on files and
+// the turn stamp columns on responses, then sets every read cursor back to the
+// start so the next ingest fills agent_activity from the transcripts still on
+// disk (the same re-read upgradeTo2 does for the thinking columns).
+func upgradeTo3(db *sql.DB) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var v string
+	if err := tx.QueryRow(`SELECT value FROM meta WHERE key='schema_version'`).Scan(&v); err != nil {
+		return err
+	}
+	if v != "2" {
+		return nil // another process upgraded it while this one waited for the lock
+	}
+	for _, col := range actColumns {
+		if _, err := tx.Exec(`ALTER TABLE files ADD COLUMN ` + col); err != nil {
+			return fmt.Errorf("ledger upgrade: %w", err)
+		}
+	}
+	for _, col := range stampColumns {
+		if _, err := tx.Exec(`ALTER TABLE responses ADD COLUMN ` + col); err != nil {
+			return fmt.Errorf("ledger upgrade: %w", err)
+		}
+	}
+	if _, err := tx.Exec(activitySchema); err != nil {
+		return fmt.Errorf("ledger upgrade: %w", err)
+	}
+	if _, err := tx.Exec(`UPDATE files SET mtime_ns=0, size=0, bytes_read=0, lines=0`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`UPDATE meta SET value='3' WHERE key='schema_version'`); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) Close() error { return s.DB.Close() }
 
 // Response is one billed API response. MessageID is message.id, or
@@ -172,6 +255,10 @@ type Response struct {
 	Effort                                  string
 	// Sidechain marks a subagent's response (the line's isSidechain).
 	Sidechain bool
+	// PromptID and AgentID are the turn stamp the transcript tracker gave the
+	// line: the open turn's prompt id, and the subagent id for a file under
+	// subagents/. "" stores NULL.
+	PromptID, AgentID string
 }
 
 type Outcome int
@@ -193,11 +280,12 @@ func Upsert(tx *sql.Tx, r Response) (Outcome, error) {
 		_, err = tx.Exec(`INSERT INTO responses (message_id, request_id, uuid, session_id, project,
 			model, ts, input_tokens, cache_read, cache_create_5m, cache_create_1h, output_tokens,
 			service_tier, speed, inference_geo, thinking_tokens, thinking_ms, think_wait_ms, effort,
-			sidechain) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			sidechain, prompt_id, agent_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			r.MessageID, r.RequestID, r.UUID, null(r.SessionID), null(r.Project), null(r.Model),
 			null(r.TS), r.Input, r.CacheRead, r.Create5m, r.Create1h, r.Output,
 			null(r.ServiceTier), null(r.Speed), null(r.Geo),
-			r.ThinkingTokens, r.ThinkingMS, r.ThinkWaitMS, null(r.Effort), r.Sidechain)
+			r.ThinkingTokens, r.ThinkingMS, r.ThinkWaitMS, null(r.Effort), r.Sidechain,
+			null(r.PromptID), null(r.AgentID))
 		return New, err
 	}
 	if err != nil {
@@ -212,6 +300,13 @@ func Upsert(tx *sql.Tx, r Response) (Outcome, error) {
 	}
 	if session.String != r.SessionID {
 		return Copy, nil
+	}
+	// The turn stamp comes from the transcript, so a re-read replaces it; a
+	// replayed line carries no stamp and keeps what the first read stored.
+	if _, err := tx.Exec(`UPDATE responses SET prompt_id=COALESCE(?, prompt_id),
+		agent_id=COALESCE(?, agent_id) WHERE message_id=? AND request_id=?`,
+		null(r.PromptID), null(r.AgentID), r.MessageID, r.RequestID); err != nil {
+		return 0, err
 	}
 	return Repeat, nil
 }
@@ -261,10 +356,15 @@ func SetTitle(tx *sql.Tx, sessionID, title, source string) error {
 	return err
 }
 
-// Cursor is how far one transcript has been read.
+// Cursor is how far one transcript has been read. Act* is the activity
+// tracker's saved state, so an incremental read continues an open turn.
 type Cursor struct {
 	Path                            string
 	MtimeNS, Size, BytesRead, Lines int64
+	ActLastTS                       string // "" when the column is NULL
+	ActInTurn, ActWaitHuman         bool
+	ActPromptID                     string
+	ActAnswered                     bool
 }
 
 // Querier is satisfied by *sql.DB and *sql.Tx.
@@ -275,18 +375,33 @@ type Querier interface {
 
 func GetCursor(q Querier, path string) (Cursor, bool, error) {
 	c := Cursor{Path: path}
-	err := q.QueryRow(`SELECT mtime_ns, size, bytes_read, lines FROM files WHERE path=?`, path).
-		Scan(&c.MtimeNS, &c.Size, &c.BytesRead, &c.Lines)
+	var lastTS, promptID string
+	var inTurn, waitHuman, answered int
+	err := q.QueryRow(`SELECT mtime_ns, size, bytes_read, lines,
+		COALESCE(act_last_ts, ''), COALESCE(act_in_turn, 0), COALESCE(act_wait_human, 0),
+		COALESCE(act_prompt_id, ''), COALESCE(act_answered, 1) FROM files WHERE path=?`, path).
+		Scan(&c.MtimeNS, &c.Size, &c.BytesRead, &c.Lines, &lastTS, &inTurn, &waitHuman,
+			&promptID, &answered)
 	if errors.Is(err, sql.ErrNoRows) {
 		return c, false, nil
 	}
+	c.ActLastTS, c.ActPromptID = lastTS, promptID
+	c.ActInTurn, c.ActWaitHuman = inTurn != 0, waitHuman != 0
+	// NULL reads as answered, as the Python tracker does (act_answered != 0).
+	c.ActAnswered = answered != 0
 	return c, err == nil, err
 }
 
 func PutCursor(tx *sql.Tx, c Cursor) error {
-	_, err := tx.Exec(`INSERT INTO files (path, mtime_ns, size, bytes_read, lines) VALUES (?,?,?,?,?)
+	_, err := tx.Exec(`INSERT INTO files (path, mtime_ns, size, bytes_read, lines,
+		act_last_ts, act_in_turn, act_wait_human, act_prompt_id, act_answered)
+		VALUES (?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(path) DO UPDATE SET mtime_ns=excluded.mtime_ns, size=excluded.size,
-		bytes_read=excluded.bytes_read, lines=excluded.lines`,
-		c.Path, c.MtimeNS, c.Size, c.BytesRead, c.Lines)
+		bytes_read=excluded.bytes_read, lines=excluded.lines,
+		act_last_ts=excluded.act_last_ts, act_in_turn=excluded.act_in_turn,
+		act_wait_human=excluded.act_wait_human, act_prompt_id=excluded.act_prompt_id,
+		act_answered=excluded.act_answered`,
+		c.Path, c.MtimeNS, c.Size, c.BytesRead, c.Lines,
+		null(c.ActLastTS), c.ActInTurn, c.ActWaitHuman, null(c.ActPromptID), c.ActAnswered)
 	return err
 }

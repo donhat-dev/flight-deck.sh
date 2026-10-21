@@ -44,8 +44,13 @@ func (s *Server) Handler() http.Handler {
 		sum.RTKSavings = math.Float64frombits(s.rtkUSD.Load())
 		writeJSON(w, 200, sum)
 	}))
-	mux.HandleFunc("GET /api/daily", s.cells(func(w http.ResponseWriter, _ *http.Request, p *pricing.Table, c []metrics.Cell) {
-		writeJSON(w, 200, metrics.Daily(p, c))
+	mux.HandleFunc("GET /api/daily", s.cells(func(w http.ResponseWriter, r *http.Request, p *pricing.Table, c []metrics.Cell) {
+		act, err := metrics.ActivityRollup(s.Store.DB, metrics.Since(r.URL.Query().Get("range"), s.Now()))
+		if err != nil {
+			writeJSON(w, 500, map[string]string{"detail": err.Error()})
+			return
+		}
+		writeJSON(w, 200, metrics.Daily(p, c, act))
 	}))
 	mux.HandleFunc("GET /api/by-model", s.cells(func(w http.ResponseWriter, _ *http.Request, p *pricing.Table, c []metrics.Cell) {
 		writeJSON(w, 200, metrics.ByModel(p, c))

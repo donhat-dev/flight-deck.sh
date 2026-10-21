@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 
+	"flightdeck/core/activity"
 	"flightdeck/core/ledger"
 )
 
@@ -45,6 +46,12 @@ func (in *Ingester) File(path string) (int, error) {
 		return 0, err
 	}
 	defer tx.Rollback()
+	// The turn and busy-time tracker reads the same lines, resumes mid-file
+	// from the cursor's act_* state, and writes in this transaction.
+	tracker := activity.NewTracker(tx, path, activity.State{
+		LastTS: cur.ActLastTS, InTurn: cur.ActInTurn, WaitHuman: cur.ActWaitHuman,
+		PromptID: cur.ActPromptID, Answered: cur.ActAnswered},
+		seen && start > 0, activity.IdleCapSeconds())
 	rd := bufio.NewReaderSize(f, 1<<20)
 	added, consumed := 0, int64(0)
 	var s stream
@@ -62,22 +69,37 @@ func (in *Ingester) File(path string) (int, error) {
 		if !parsed {
 			continue
 		}
+		copied := false
 		if ok {
+			// A replayed line keeps the turn it was stamped with when first read.
+			if !tracker.IsReplay(r.Timestamp) {
+				resp.PromptID, resp.AgentID = tracker.Stamp()
+			}
 			o, err := ledger.Upsert(tx, resp)
 			if err != nil {
 				return 0, err
 			}
+			copied = o == ledger.Copy
 			if o == ledger.New {
 				added++
+			} else if err := title(tx, r); err != nil {
+				return 0, err
 			}
-			continue
+		} else if err := title(tx, r); err != nil {
+			return 0, err
 		}
-		if err := title(tx, r); err != nil {
+		if err := tracker.Feed(lineOf(r), copied); err != nil {
 			return 0, err
 		}
 	}
+	if err := tracker.Flush(); err != nil {
+		return 0, err
+	}
+	act := tracker.State()
 	if err := ledger.PutCursor(tx, ledger.Cursor{Path: path, MtimeNS: mtime, Size: st.Size(),
-		BytesRead: start + consumed, Lines: lines}); err != nil {
+		BytesRead: start + consumed, Lines: lines,
+		ActLastTS: act.LastTS, ActInTurn: act.InTurn, ActWaitHuman: act.WaitHuman,
+		ActPromptID: act.PromptID, ActAnswered: act.Answered}); err != nil {
 		return 0, err
 	}
 	return added, tx.Commit()
