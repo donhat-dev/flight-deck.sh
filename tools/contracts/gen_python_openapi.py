@@ -18,20 +18,24 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "python"))
+sys.path.insert(0, str(ROOT / "api" / "conformance"))
 
 
 def build_app():
     tmp = Path(tempfile.mkdtemp(prefix="fd-openapi-"))
     projects = tmp / "projects"
     projects.mkdir()
+    # Pin every path override under tmp (config.load() gives them precedence
+    # over the TOML) and clear the non-path ones — shared with the
+    # conformance fixture so the two stay in sync.
+    from envpins import apply_env
+    apply_env(tmp)
     cfg = tmp / "config.toml"
     cfg.write_text(
         "subscription_monthly_usd = 0.0\n"
         f'projects_dir = "{projects.as_posix()}"\n'
         f'db_path = "{(tmp / "audit.db").as_posix()}"\n')
     os.environ["TOKEN_AUDIT_CONFIG"] = str(cfg)
-    # Never let a sourced .env point this at the real PostgreSQL.
-    os.environ.pop("TOKEN_AUDIT_DATABASE_URL", None)
     from flightdeck import db
     db._URL = None
     db._POOL = None

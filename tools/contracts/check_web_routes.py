@@ -220,11 +220,10 @@ def enclosing_param(text, pos, name):
     return best[1], best[2]
 
 
-def literal_values(text, fname, idx):
-    """Literal first-arg-style values passed to fname(...) at call sites."""
-    vals = []
+def _call_args(text, fname):
+    """Yield (line, args) for every `fname(...)` call site in the file."""
     for m in re.finditer(rf"(?<![\w$.]){re.escape(fname)}\s*\(", text):
-        # read the balanced argument list
+        line = text.count("\n", 0, m.start()) + 1
         j = m.end()
         depth = 1
         buf = []
@@ -253,40 +252,79 @@ def literal_values(text, fname, idx):
                     break
             buf.append(c)
             j += 1
-        args = split_args("".join(buf))
-        if idx < len(args):
-            a = args[idx]
-            if a and a[0] in "'\"" and a[-1] == a[0]:
-                vals.append(a[1:-1])
-            elif a and a[0] == "`" and "${" not in a:
-                vals.append(a[1:-1])
-    return [v for v in dict.fromkeys(vals)]
+        yield line, split_args("".join(buf))
+
+
+def bound_literal(text, name):
+    """The literal `const|let|var name = "..."` binds; only when unambiguous."""
+    vals = {m.group(2) for m in re.finditer(
+        rf"(?:const|let|var)\s+{re.escape(name)}\s*=\s*(['\"`])(.*?)\1", text)}
+    return sorted(vals) if len(vals) == 1 else None
+
+
+def arg_values(a, text):
+    """Literal strings a call argument stands for; None when unresolvable."""
+    a = a.strip()
+    if len(a) >= 2 and a[0] in "'\"" and a[-1] == a[0]:
+        return [a[1:-1]]
+    if a and a[0] == "`" and "${" not in a:
+        return [a[1:-1]]
+    if SIMPLE_EXPR.match(a):
+        return bound_literal(text, a.split(".")[0].split("[")[0])
+    return None
+
+
+def call_values(text, fname, idx):
+    """(values, unresolved) for arg `idx` of every fname(...) call site.
+
+    Every call site yields a path — none is silently dropped because another
+    call happened to pass a literal. A literal or const-bound literal
+    argument produces a concrete value; an unresolvable one contributes the
+    \x00P\x00 param marker, which only survives the check where the server
+    declares a `{param}` route (a helper arg that could be anything fails
+    loudly as an unmatched path). A call missing the argument is reported
+    unresolved outright: `undefined` is not a route parameter.
+    """
+    vals, unresolved = [], []
+    for line, args in _call_args(text, fname):
+        if idx >= len(args):
+            unresolved.append((line, f"{fname}(...) is missing argument {idx}"))
+            continue
+        v = arg_values(args[idx], text)
+        if v is None:
+            vals.append("\x00P\x00")
+        else:
+            vals.extend(v)
+    return [v for v in dict.fromkeys(vals)], unresolved
 
 
 def eval_expr(expr, text, pos, depth=0):
     """Resolve a ${...} source snippet.
 
-    Returns (values, kind): kind is "lit" (concrete strings), "param"
-    (path parameter) or None when unresolvable.
+    Returns (values, kind, unresolved): kind is "lit" (concrete strings),
+    "param" (path parameter) or None when unresolvable. `unresolved` lists
+    (line, arg) call-site arguments no rule could resolve — the check fails
+    on them rather than dropping the call.
     """
     if depth > 6:
-        return None, None
+        return None, None, []
     e = expr.strip()
     if not e:
-        return [""], "lit"
+        return [""], "lit", []
     # conditional -> union of both branches (handles `cond ? "?x" : ""`)
     branches = split_ternary(e)
     if branches:
-        vals = []
+        vals, unres = [], []
         for branch in branches:
-            bv, bk = eval_expr(branch, text, pos, depth + 1)
+            bv, bk, bu = eval_expr(branch, text, pos, depth + 1)
             if bk == "lit":
                 vals.extend(bv)
+                unres.extend(bu)
             elif bk == "param":
                 vals.append("\x00P\x00")  # param marker inside a literal
             else:
-                return None, None
-        return [v for v in dict.fromkeys(vals)], "lit"
+                return None, None, unres + bu
+        return [v for v in dict.fromkeys(vals)], "lit", unres
     m = PARAM_WRAP.match(e)
     if m:
         return eval_expr(m.group(1), text, pos, depth + 1)
@@ -294,16 +332,16 @@ def eval_expr(expr, text, pos, depth=0):
         inner = e[1:-1]
         if "${" in inner:
             return expand_inline_template(inner, text, pos, depth + 1)
-        return [inner], "lit"
+        return [inner], "lit", []
     if SIMPLE_EXPR.match(e):
         name = e.split(".")[0].split("[")[0]
         ep = enclosing_param(text, pos, name)
         if ep:
-            vals = literal_values(text, ep[0], ep[1])
-            if vals:
-                return vals, "lit"
-        return None, "param"
-    return None, None
+            vals, unres = call_values(text, ep[0], ep[1])
+            if vals or unres:
+                return vals, "lit", unres
+        return None, "param", []
+    return None, None, []
 
 
 def _top_level_ops(s):
@@ -346,23 +384,24 @@ def split_ternary(e):
 def expand_inline_template(inner, text, pos, depth):
     """Evaluate a nested `a${x}b` template to literal strings ('\\x00P\\x00'
     marks a param position)."""
-    out = [""]
+    out, unres = [""], []
     i = 0
     while i < len(inner):
         if inner.startswith("${", i):
             j = inner.find("}", i)
-            vals, kind = eval_expr(inner[i + 2:j], text, pos, depth + 1)
+            vals, kind, bu = eval_expr(inner[i + 2:j], text, pos, depth + 1)
             if kind == "lit":
                 out = [o + v for o in out for v in vals]
+                unres.extend(bu)
             elif kind == "param":
                 out = [o + "\x00P\x00" for o in out]
             else:
-                return None, None
+                return None, None, unres + bu
             i = j + 1
         else:
             out = [o + inner[i] for o in out]
             i += 1
-    return out, "lit"
+    return out, "lit", unres
 
 
 # ------------------------------------------------------------- path build
@@ -384,7 +423,8 @@ def build_paths(parts, text):
             candidates = [c + s for c in candidates]
             continue
         expr, pos = rest
-        vals, ek = eval_expr(expr, text, pos)
+        vals, ek, unres = eval_expr(expr, text, pos)
+        unresolved.extend((ln, arg) for ln, arg in unres)
         if ek == "lit":
             new = []
             for c in candidates:
@@ -396,7 +436,8 @@ def build_paths(parts, text):
         elif ek == "param":
             candidates = [c + "\x00P\x00" for c in candidates]
         else:
-            unresolved.append(expr.strip()[:60])
+            unresolved.append((text.count("\n", 0, pos) + 1,
+                               f"${{{expr.strip()[:60]}}}"))
     out = []
     for c in candidates:
         path = c.split("?", 1)[0]
@@ -459,7 +500,7 @@ def main():
                 allowed[allow_file_path.strip()] = site.strip()
 
     seen = {}          # normalized path -> first call site
-    unresolved = []    # (file, line, expr)
+    unresolved = []    # "file:line: what"
     for f in sorted(src.rglob("*")):
         if f.suffix not in (".js", ".jsx"):
             continue
@@ -470,8 +511,8 @@ def main():
                 p = normalize(raw)
                 if p.startswith("/api"):
                     seen.setdefault(p, f"{f.relative_to(src)}:{line}")
-            for e in unres:
-                unresolved.append(f"{f.relative_to(src)}:{line}: ${{{e}}}")
+            for ln, what in unres:
+                unresolved.append(f"{f.relative_to(src)}:{ln}: {what}")
 
     if dump:
         for p, site in sorted(seen.items()):

@@ -2,24 +2,226 @@
   "$id": "https://contracts.flightdeck/schemas/spool/event.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "one line of spool events.jsonl (runner -> Odoo)",
-  "description": "api/runner-spool.md; Event (go/runner/spool.go:64-74). Payload shape varies by kind.",
-  "type": "object",
-  "additionalProperties": false,
-  "required": ["ts", "kind"],
-  "properties": {
-    "ts": {
-      "type": "string",
-      "description": "RFC3339Nano, filled if empty."
+  "description": "api/runner-spool.md; Event (go/runner/spool.go:64-74). Required fields and payload types are per kind, as go/runner emits them.",
+  "oneOf": [
+    {"$ref": "#/$defs/ack"},
+    {"$ref": "#/$defs/state"},
+    {"$ref": "#/$defs/result"},
+    {"$ref": "#/$defs/permission"},
+    {"$ref": "#/$defs/decision"},
+    {"$ref": "#/$defs/mode"},
+    {"$ref": "#/$defs/model"},
+    {"$ref": "#/$defs/effort"},
+    {"$ref": "#/$defs/usage"}
+  ],
+  "$defs": {
+    "ack": {
+      "description": "Every handled command; also an unreadable command file (then only error is set).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "ack"},
+        "session_id": {"type": "string"},
+        "cmd_id": {"type": "string"},
+        "error": {"type": "string"}
+      }
     },
-    "kind": {
-      "type": "string",
-      "enum": ["ack", "state", "result", "permission", "decision", "mode",
-               "model", "effort", "usage"]
+    "state": {
+      "description": "setState and process exit (process.go:296-310,411-424).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "state", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "state"},
+        "session_id": {"type": "string"},
+        "state": {"type": "string", "enum": ["idle", "busy", "stopped"]},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pid"],
+          "properties": {"pid": {"type": "integer"}}
+        }
+      }
     },
-    "session_id": {"type": "string"},
-    "cmd_id": {"type": "string"},
-    "state": {"type": "string", "enum": ["idle", "busy", "stopped"]},
-    "error": {"type": "string"},
-    "payload": {"type": "object"}
+    "result": {
+      "description": "End of one turn (process.go:273-291, start_options.go:73-91).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "result"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["result", "total_cost_usd", "is_error", "num_turns",
+                       "duration_ms", "subtype", "first_content_frame_ms"],
+          "properties": {
+            "result": {"type": "string"},
+            "structured_output": {
+              "description": "Arbitrary JSON when the turn's json_schema produced one."
+            },
+            "usage": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["input_tokens", "output_tokens",
+                           "cache_creation_input_tokens",
+                           "cache_read_input_tokens"],
+              "properties": {
+                "input_tokens": {"type": "integer"},
+                "output_tokens": {"type": "integer"},
+                "cache_creation_input_tokens": {"type": "integer"},
+                "cache_read_input_tokens": {"type": "integer"}
+              }
+            },
+            "total_cost_usd": {"type": "number"},
+            "is_error": {"type": "boolean"},
+            "num_turns": {"type": "integer"},
+            "duration_ms": {"type": "integer"},
+            "subtype": {"type": "string"},
+            "first_content_frame_ms": {"type": "integer"},
+            "command": {"type": "boolean"}
+          }
+        }
+      }
+    },
+    "permission": {
+      "description": "A can_use_tool control_request parks a turn (control.go:81-107).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "permission"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["request_id", "tool_name", "tool_use_id", "input",
+                       "title", "description", "can_remember", "blocked_path"],
+          "properties": {
+            "request_id": {"type": "string"},
+            "tool_name": {"type": "string"},
+            "tool_use_id": {"type": "string"},
+            "input": {"type": ["object", "null"]},
+            "title": {"type": "string"},
+            "description": {"type": "string"},
+            "can_remember": {"type": "boolean"},
+            "blocked_path": {"type": "string"}
+          }
+        }
+      }
+    },
+    "decision": {
+      "description": "An answered permission (control.go:207-213) or a dead process's pending requests denied (control.go:311-323).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "decision"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["request_id", "behavior", "scope", "remembered",
+                           "waited_ms"],
+              "properties": {
+                "request_id": {"type": "string"},
+                "behavior": {"type": "string", "enum": ["allow", "deny"]},
+                "scope": {"type": "string", "enum": ["once", "session", "always"]},
+                "remembered": {"type": "boolean"},
+                "waited_ms": {"type": "integer"}
+              }
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["request_id", "behavior", "reason"],
+              "properties": {
+                "request_id": {"type": "string"},
+                "behavior": {"const": "deny"},
+                "reason": {"type": "string"}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "mode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "mode"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["mode"],
+          "properties": {"mode": {"type": "string"}}
+        }
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "model"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["model"],
+          "properties": {"model": {"type": "string"}}
+        }
+      }
+    },
+    "effort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "session_id", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "effort"},
+        "session_id": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["effort"],
+          "properties": {"effort": {"type": "string"}}
+        }
+      }
+    },
+    "usage": {
+      "description": "Raw `claude -p /usage` text (usage.go:24-46); no session_id.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ts", "kind", "payload"],
+      "properties": {
+        "ts": {"type": "string"},
+        "kind": {"const": "usage"},
+        "cmd_id": {"type": "string"},
+        "error": {"type": "string"},
+        "payload": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["text", "captured_at"],
+          "properties": {
+            "text": {"type": "string"},
+            "captured_at": {"type": "string"}
+          }
+        }
+      }
+    }
   }
 }

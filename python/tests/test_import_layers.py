@@ -32,7 +32,8 @@ SERVER_MODULE = "flightdeck.server"
 SERVER_PKG = "flightdeck.routers"
 ENTRY_POINTS = {"flightdeck.runtime"}  # app factory + lifespan, see docstring
 
-BANNED_ROOTS = ("fastapi", "starlette", "flightdeck.routers", "flightdeck.server")
+BANNED_ROOTS = ("fastapi", "starlette", "flightdeck.routers", "flightdeck.server",
+                "flightdeck.runtime")
 
 
 def module_name(path):
@@ -75,9 +76,14 @@ def imports_of(path, mod):
                 pkg = mod.split(".") if path.name == "__init__.py" else mod.split(".")[:-1]
                 base = ".".join(pkg[: len(pkg) - node.level + 1])
                 name = f"{base}.{name}" if name else base
-            r = banned_root(name)
-            if r:
-                out.add(r)
+            # `from x import y` may name the submodule x.y: resolve the
+            # aliases too, so `from flightdeck import server`,
+            # `from . import server` and `from .routers import x` cannot
+            # slip the server layer past the module check.
+            for c in [name] + [f"{name}.{a.name}" for a in node.names]:
+                r = banned_root(c)
+                if r:
+                    out.add(r)
     return out
 
 
@@ -112,3 +118,29 @@ def test_import_layers():
         msg.append(f"allowlist entry no longer occurs: {mod} -> {root} "
                    f"(remove the line; the list only shrinks)")
     assert not msg, "\n".join(msg)
+
+
+def test_evasive_import_syntaxes_resolve(tmp_path):
+    """The ratchet must see `from x import y` naming a submodule, in both
+    absolute and relative spellings — each of these used to pass silently."""
+    cases = {
+        "import flightdeck.server": {"flightdeck.server"},
+        "import flightdeck.runtime": {"flightdeck.runtime"},
+        "from flightdeck import server": {"flightdeck.server"},
+        "from flightdeck.runtime import lifespan": {"flightdeck.runtime"},
+        "from flightdeck.routers import core": {"flightdeck.routers"},
+        "from . import server": {"flightdeck.server"},
+        "from .routers import core": {"flightdeck.routers"},
+        "from .runtime import lifespan": {"flightdeck.runtime"},
+    }
+    for src, want in cases.items():
+        f = tmp_path / "somecore.py"
+        f.write_text(src + "\n")
+        got = imports_of(f, "flightdeck.somecore")
+        assert want <= got, f"{src!r}: got {got}, expected {want} in it"
+
+
+def test_init_relative_import_resolves(tmp_path):
+    f = tmp_path / "__init__.py"
+    f.write_text("from . import server\n")
+    assert imports_of(f, "flightdeck") == {"flightdeck.server"}
