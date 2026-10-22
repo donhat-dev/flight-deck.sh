@@ -58,6 +58,10 @@ _guard = threading.Lock()
 
 def ensure_started(dbname):
     """Start the watcher for a database, once per process."""
+    # An upgrade or test run (--stop-after-init) ends right after loading; a
+    # watcher started there only queries a registry that is shutting down.
+    if config.get("stop_after_init"):
+        return None
     with _guard:
         watcher = _watchers.get(dbname)
         if watcher and watcher.is_alive():
