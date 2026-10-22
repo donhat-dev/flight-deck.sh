@@ -15,4 +15,4 @@ MuK AI chat on Flightdoo (`flight_ai_chat`). Extends `muk_ai` + `muk_mcp` (vendo
 
 ## Retired
 
-- FC-4, the provider "Workflow Studio LLM connector" (2026-10-22): it read an `api_key` secret the LLM connector no longer has since the AI harness answers it (OWS `1273d2a`). `harness_muk_ai`'s provider "AI Harness" serves the chat instead; the old provider record is archived by `migrations/19.0.1.2.0`.
+- FC-4, the provider "Workflow Studio LLM connector" (2026-10-22): it read an `api_key` secret the LLM connector no longer has since the AI harness answers it (OWS `1273d2a`). `harness_muk_ai`'s provider "AI Harness" serves the chat instead; the old provider and model rows are removed by `migrations/19.0.1.2.0` (nothing referenced them).
