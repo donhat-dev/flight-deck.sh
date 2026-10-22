@@ -23,7 +23,7 @@ from odoo.addons.workflow_engine.engine.registry import register_runner
 from odoo.addons.workflow_engine.engine.runners.base import BaseNodeRunner
 from odoo.addons.workflow_engine.engine.runners.errors import PermanentNodeError
 from odoo.addons.workflow_engine.engine.runners.waiting import WAIT_RESUME, duration
-from odoo.addons.workflow_studio.models.runners.wait_runners import WaitingStepMixin
+from odoo.addons.workflow_studio.runners.wait_runners import WaitingStepMixin
 
 MANAGER_GROUP = "flight_deck.group_manager"
 DEFAULT_TIMEOUT = (10, "minutes")

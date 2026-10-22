@@ -8,7 +8,7 @@ from odoo.tests import common, new_test_user, tagged
 
 from odoo.addons.flight_deck.models.runner import CURRENT_MODELS, EFFORTS, MODELS
 from odoo.addons.queue_job.tests.common import trap_jobs
-from odoo.addons.workflow_studio.models.ir_workflow_orchestration import waiting_types
+from odoo.addons.workflow_studio.models.orchestration.ir_workflow_orchestration import waiting_types
 from odoo.addons.workflow_engine.engine.runners.errors import PermanentNodeError
 from odoo.addons.workflow_engine.engine.runners.safety import atomic_violations
 
