@@ -109,6 +109,7 @@ services:
       HOME: /var/lib/odoo
     volumes:
       - ./odoo-wfs.conf:/etc/odoo/odoo.conf:ro
+      - ../../clients/odoo:/mnt/flightdeck-addons:ro
       - ./addons:/mnt/vendor-addons:ro
       - ${WFS_SRC:-../../../repos/open-workflow-studio}:/mnt/wfs-addons:ro
       - wfs-data:/var/lib/odoo
